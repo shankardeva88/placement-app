@@ -121,7 +121,7 @@ function OfferCard({ drive, offer, studentUid }: { drive: Drive; offer: Offer; s
     setError(null);
     setResponding(true);
     try {
-      await respondToOffer(offer.offerId, status);
+      await respondToOffer(offer.offerId, offer.studentId, status);
       showToast(status === "accepted" ? "Offer accepted" : "Offer declined");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update offer");
