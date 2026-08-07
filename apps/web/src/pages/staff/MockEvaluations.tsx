@@ -418,7 +418,7 @@ function StudentProgressPanel({
 }
 
 function ConsolidationSection({ moduleId, moduleName }: { moduleId: string; moduleName: string }) {
-  const { appUser } = useAuth();
+  const { appUser, firebaseUser } = useAuth();
   const students = useStudentsDirectory(appUser);
   const evaluations = useMockEvaluations(appUser);
   const mentors = useMentorDirectory(appUser);
@@ -426,10 +426,22 @@ function ConsolidationSection({ moduleId, moduleName }: { moduleId: string; modu
   const [dayFilter, setDayFilter] = useState<number | "">("");
   const [mentorFilter, setMentorFilter] = useState("");
 
+  // This section doubles as a coordinator/hod compliance tool (mentor
+  // filter, "hasn't logged" callout across the whole department) — a
+  // faculty_mentor viewing the same page must never see that: it would leak
+  // every other mentor's mentees and logging status to a peer. So for
+  // faculty_mentor, evaluations are hard-filtered to their own mentorId
+  // before anything else runs, and the cross-mentor UI is hidden below.
+  const isMentorScoped = appUser?.role === "faculty_mentor";
+  const myUid = firebaseUser?.uid;
+
   const studentsByUid = useMemo(() => Object.fromEntries((students ?? []).map((s) => [s.uid, s])), [students]);
   const mentorsByUid = useMemo(() => Object.fromEntries((mentors ?? []).map((m) => [m.uid, m])), [mentors]);
 
-  const moduleEvals = useMemo(() => (evaluations ?? []).filter((e) => e.moduleId === moduleId), [evaluations, moduleId]);
+  const moduleEvals = useMemo(() => {
+    const all = (evaluations ?? []).filter((e) => e.moduleId === moduleId);
+    return isMentorScoped ? all.filter((e) => e.mentorId === myUid) : all;
+  }, [evaluations, moduleId, isMentorScoped, myUid]);
 
   // Who's actually logged something for this module vs. every faculty
   // mentor in the department — the gap between the two is "who hasn't
@@ -443,8 +455,8 @@ function ConsolidationSection({ moduleId, moduleName }: { moduleId: string; modu
   );
 
   const filteredEvals = useMemo(
-    () => (mentorFilter ? moduleEvals.filter((e) => e.mentorId === mentorFilter) : moduleEvals),
-    [moduleEvals, mentorFilter]
+    () => (!isMentorScoped && mentorFilter ? moduleEvals.filter((e) => e.mentorId === mentorFilter) : moduleEvals),
+    [moduleEvals, mentorFilter, isMentorScoped]
   );
 
   const evalsByStudent = useMemo(() => {
@@ -507,22 +519,24 @@ function ConsolidationSection({ moduleId, moduleName }: { moduleId: string; modu
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={mentorFilter}
-            onChange={(e) => setMentorFilter(e.target.value)}
-            className={`${inputClass} sm:w-48`}
-          >
-            <option value="">All mentors</option>
-            {deptMentors
-              .slice()
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((m) => (
-                <option key={m.uid} value={m.uid}>
-                  {m.name}
-                  {mentorsWithEvals.has(m.uid) ? "" : " (no evaluations yet)"}
-                </option>
-              ))}
-          </select>
+          {!isMentorScoped && (
+            <select
+              value={mentorFilter}
+              onChange={(e) => setMentorFilter(e.target.value)}
+              className={`${inputClass} sm:w-48`}
+            >
+              <option value="">All mentors</option>
+              {deptMentors
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((m) => (
+                  <option key={m.uid} value={m.uid}>
+                    {m.name}
+                    {mentorsWithEvals.has(m.uid) ? "" : " (no evaluations yet)"}
+                  </option>
+                ))}
+            </select>
+          )}
           <select
             value={dayFilter}
             onChange={(e) => setDayFilter(e.target.value ? Number(e.target.value) : "")}
@@ -544,7 +558,7 @@ function ConsolidationSection({ moduleId, moduleName }: { moduleId: string; modu
         </div>
       </div>
 
-      {mentorsWithoutEvals.length > 0 && (
+      {!isMentorScoped && mentorsWithoutEvals.length > 0 && (
         <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
           Haven't logged any evaluations for this module yet: {mentorsWithoutEvals.map((m) => m.name).join(", ")}
         </p>
