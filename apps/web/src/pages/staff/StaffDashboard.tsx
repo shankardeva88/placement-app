@@ -14,6 +14,7 @@ import {
   ArrowRight,
   CalendarClock,
   ClipboardCheck,
+  Award,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ref, onValue } from "firebase/database";
@@ -23,6 +24,7 @@ import type { Department, Drive, DriveStatus, DriveType, PlacementStatus, Studen
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useAllApplications } from "../../lib/applicantsLib";
+import { useAllOffers } from "../../lib/offersManagementLib";
 import { useAllAlumni } from "../../lib/alumniLib";
 import { useAllTrainingBatches, useAllTrainingSessions } from "../../lib/trainingManagementLib";
 import { useMyMentees } from "../../lib/menteeFollowUpLib";
@@ -113,12 +115,42 @@ function CoordinatorDashboard() {
   const isInstitution = !!appUser && INSTITUTION_ROLES.has(appUser.role);
   const myDept = appUser && "department" in appUser ? appUser.department : undefined;
 
-  const students = useStudentsDirectory(appUser);
+  const allStudents = useStudentsDirectory(appUser);
   const allAlumni = useAllAlumni();
   const [drives, setDrives] = useState<Drive[] | null>(null);
-  const applications = useAllApplications(appUser);
+  const allApplications = useAllApplications(appUser);
+  const allOffers = useAllOffers(appUser);
   const allBatches = useAllTrainingBatches();
   const sessions = useAllTrainingSessions();
+
+  const [batchFilter, setBatchFilter] = useState<number | "">("");
+
+  // Alumni never belong on a "current students" dashboard — see the
+  // Graduate a Batch feature. Batch years offered here come from the
+  // remaining active roster only, same reasoning as Students.tsx.
+  const activeStudents = useMemo(() => (allStudents ?? []).filter((s) => !s.isAlumni), [allStudents]);
+  const batchYears = useMemo(
+    () => Array.from(new Set(activeStudents.map((s) => s.batchYear))).sort((a, b) => a - b),
+    [activeStudents]
+  );
+
+  const students = useMemo(
+    () => (allStudents === null ? null : activeStudents.filter((s) => !batchFilter || s.batchYear === batchFilter)),
+    [allStudents, activeStudents, batchFilter]
+  );
+
+  // Applications/offers don't carry batchYear directly — cross-reference via
+  // the (already batch-filtered) students list so "Applicants"/"Offers"
+  // stay in sync with whichever batch the Students/Placed tiles reflect.
+  const scopedStudentUids = useMemo(() => (students ? new Set(students.map((s) => s.uid)) : null), [students]);
+  const applications = useMemo(
+    () => (allApplications === null || scopedStudentUids === null ? allApplications : allApplications.filter((a) => scopedStudentUids.has(a.studentId))),
+    [allApplications, scopedStudentUids]
+  );
+  const offers = useMemo(
+    () => (allOffers === null || scopedStudentUids === null ? allOffers : allOffers.filter((o) => scopedStudentUids.has(o.studentId))),
+    [allOffers, scopedStudentUids]
+  );
 
   useEffect(() => {
     return onValue(ref(db, DB_NODES.drives), (snap) => {
@@ -249,10 +281,31 @@ function CoordinatorDashboard() {
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          {batchFilter ? `Batch ${batchFilter}` : "All batches"}
+        </h2>
+        {batchYears.length > 0 && (
+          <select
+            value={batchFilter}
+            onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
+            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          >
+            <option value="">All batches</option>
+            {batchYears.map((y) => (
+              <option key={y} value={y}>
+                Batch {y}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <StatTile label="Students" value={students != null ? String(students.length) : "…"} icon={Users} gradient="from-emerald-500 to-teal-600" />
         <StatTile label="Active drives" value={activeDrives != null ? String(activeDrives) : "…"} icon={Briefcase} gradient="from-blue-500 to-indigo-600" />
-        <StatTile label="Applications" value={applications != null ? String(applications.length) : "…"} icon={FileText} gradient="from-sky-500 to-cyan-600" />
+        <StatTile label="Applicants" value={applications != null ? String(applications.length) : "…"} icon={FileText} gradient="from-sky-500 to-cyan-600" />
+        <StatTile label="Offers" value={offers != null ? String(offers.length) : "…"} icon={Award} gradient="from-pink-500 to-rose-600" />
         <StatTile label="Placement rate" value={placementRate != null ? `${placementRate}%` : "…"} icon={TrendingUp} gradient="from-amber-500 to-orange-600" />
       </div>
 
