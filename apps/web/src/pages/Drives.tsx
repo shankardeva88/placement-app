@@ -9,6 +9,7 @@ import { useToast } from "../components/ui/Toast";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import type { BadgeVariant } from "../components/ui/Badge";
+import { RoundProgress } from "../components/RoundProgress";
 import { Button } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
@@ -104,7 +105,10 @@ function DriveCard({ drive, application }: { drive: Drive; application: Applicat
 
       <div className="mt-4 border-t border-slate-100 pt-4">
         {application ? (
-          <Badge variant={APPLICATION_BADGE[application.status]}>{STATUS_LABEL[application.status]}</Badge>
+          <div className="space-y-2">
+            <Badge variant={APPLICATION_BADGE[application.status]}>{STATUS_LABEL[application.status]}</Badge>
+            <RoundProgress rounds={drive.rounds} application={application} />
+          </div>
         ) : !eligible ? (
           <div>
             <Badge variant="warning">Not eligible</Badge>

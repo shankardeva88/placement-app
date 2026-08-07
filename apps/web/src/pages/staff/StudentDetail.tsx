@@ -5,7 +5,7 @@ import { ArrowLeft, BadgeCheck, ExternalLink, Pencil, Power, Trash2, User } from
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { Department, Drive, Gender, Student } from "@placement-app/types";
+import type { ApplicationStatus, Department, Drive, Gender, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { setStudentVerified, updateStudentProfile, setStudentActive, removeStudent } from "../../lib/studentsDirectoryLib";
 import type { StudentProfileUpdate } from "../../lib/studentsDirectoryLib";
@@ -14,6 +14,8 @@ import { useAllOffers } from "../../lib/offersManagementLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
+import type { BadgeVariant } from "../../components/ui/Badge";
+import { RoundProgress } from "../../components/RoundProgress";
 import { Button } from "../../components/ui/Button";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { PageHeader } from "../../components/ui/PageHeader";
@@ -21,6 +23,15 @@ import { PageHeader } from "../../components/ui/PageHeader";
 const CAN_MANAGE_ROLES = ["coordinator", "hod", "dean", "principal", "cpo", "admin"];
 const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
 const GENDERS: Gender[] = ["male", "female", "other", "prefer_not_to_say"];
+
+const APPLICATION_STATUS_BADGE: Record<ApplicationStatus, BadgeVariant> = {
+  applied: "brand",
+  shortlisted: "brand",
+  in_round: "warning",
+  selected: "success",
+  rejected: "danger",
+  withdrawn: "neutral",
+};
 
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
@@ -497,9 +508,12 @@ export default function StudentDetail() {
             ) : (
               <ul className="divide-y divide-slate-100">
                 {applications.map((a) => (
-                  <li key={a.applicationId} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                    <span className="font-medium text-slate-800">{drives[a.driveId]?.companyName ?? a.driveId}</span>
-                    <Badge variant="brand">{a.status.replace("_", " ")}</Badge>
+                  <li key={a.applicationId} className="space-y-2 py-2.5 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-medium text-slate-800">{drives[a.driveId]?.companyName ?? a.driveId}</span>
+                      <Badge variant={APPLICATION_STATUS_BADGE[a.status]}>{a.status.replace("_", " ")}</Badge>
+                    </div>
+                    {drives[a.driveId] && <RoundProgress rounds={drives[a.driveId].rounds} application={a} />}
                   </li>
                 ))}
               </ul>

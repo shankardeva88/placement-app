@@ -11,6 +11,7 @@ import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import type { BadgeVariant } from "../../components/ui/Badge";
+import { RoundProgress } from "../../components/RoundProgress";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { PageHeader } from "../../components/ui/PageHeader";
@@ -48,10 +49,10 @@ export default function DriveApplicants() {
     });
   }, [driveId]);
 
-  async function handleStatusChange(applicationId: string, status: ApplicationStatus) {
+  async function handleUpdate(applicationId: string, status: ApplicationStatus, currentRoundId: string) {
     setUpdatingId(applicationId);
     try {
-      await updateApplicationStatus(applicationId, status);
+      await updateApplicationStatus(applicationId, status, currentRoundId || undefined);
       showToast("Status updated");
     } finally {
       setUpdatingId(null);
@@ -85,7 +86,7 @@ export default function DriveApplicants() {
 
       <div className="space-y-3">
         {rows?.map(({ application, student }) => (
-          <Card key={application.applicationId} className="flex items-center justify-between gap-4">
+          <Card key={application.applicationId} className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0">
               {student ? (
                 <>
@@ -99,13 +100,20 @@ export default function DriveApplicants() {
               ) : (
                 <p className="text-sm text-slate-400">Details restricted (different department)</p>
               )}
+              {drive && drive.rounds.length > 0 && (
+                <div className="mt-2">
+                  <RoundProgress rounds={drive.rounds} application={application} />
+                </div>
+              )}
             </div>
-            <div className="flex shrink-0 items-center gap-3">
+            <div className="flex shrink-0 flex-wrap items-center gap-3">
               <Badge variant={STATUS_BADGE[application.status]}>{application.status.replace("_", " ")}</Badge>
               <select
                 value={application.status}
                 disabled={updatingId === application.applicationId}
-                onChange={(e) => handleStatusChange(application.applicationId, e.target.value as ApplicationStatus)}
+                onChange={(e) =>
+                  handleUpdate(application.applicationId, e.target.value as ApplicationStatus, application.currentRoundId ?? "")
+                }
                 className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
               >
                 {STATUS_OPTIONS.map((s) => (
@@ -114,6 +122,21 @@ export default function DriveApplicants() {
                   </option>
                 ))}
               </select>
+              {drive && drive.rounds.length > 0 && (
+                <select
+                  value={application.currentRoundId ?? ""}
+                  disabled={updatingId === application.applicationId}
+                  onChange={(e) => handleUpdate(application.applicationId, application.status, e.target.value)}
+                  className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                >
+                  <option value="">No round yet</option>
+                  {drive.rounds.map((r) => (
+                    <option key={r.roundId} value={r.roundId}>
+                      {application.status === "rejected" ? "Rejected at" : "At"} {r.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </Card>
         ))}

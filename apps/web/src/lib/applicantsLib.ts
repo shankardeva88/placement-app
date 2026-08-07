@@ -49,9 +49,10 @@ export function useAllApplications(appUser: AppUser | null): Application[] | nul
   return useDeptScopedCollection<Application>(appUser, DB_NODES.applications, DB_NODES.applicationsDeptIndex);
 }
 
-export async function updateApplicationStatus(applicationId: string, status: ApplicationStatus) {
+export async function updateApplicationStatus(applicationId: string, status: ApplicationStatus, currentRoundId?: string) {
   await update(ref(db, `${DB_NODES.applications}/${applicationId}`), {
     status,
+    currentRoundId: currentRoundId ?? null,
     updatedAt: Date.now(),
   });
 }
