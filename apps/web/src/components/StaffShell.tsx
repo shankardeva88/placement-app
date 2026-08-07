@@ -145,7 +145,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-white to-brand-50 lg:flex">
+    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-white to-brand-50">
       <aside className="hidden w-64 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-white lg:flex">
         <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-indigo-600 text-sm font-semibold text-white shadow-sm shadow-brand-200">
