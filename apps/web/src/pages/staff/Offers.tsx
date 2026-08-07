@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { FileText, Plus } from "lucide-react";
 import { ref, onValue, get } from "firebase/database";
@@ -24,6 +24,12 @@ function RecordOfferForm({ onDone }: { onDone: () => void }) {
   const { appUser } = useAuth();
   const { showToast } = useToast();
   const students = useStudentsDirectory(appUser);
+  // Plain string compare, not numeric — roll numbers are fixed-width per
+  // segment, same reasoning as the Students list sort (see Students.tsx).
+  const sortedStudents = useMemo(
+    () => (students ?? []).slice().sort((a, b) => a.rollNo.localeCompare(b.rollNo)),
+    [students]
+  );
   const [drives, setDrives] = useState<Drive[]>([]);
   const [studentUid, setStudentUid] = useState("");
   const [driveId, setDriveId] = useState("");
@@ -71,7 +77,7 @@ function RecordOfferForm({ onDone }: { onDone: () => void }) {
           <label className={labelClass}>Student</label>
           <select required value={studentUid} onChange={(e) => setStudentUid(e.target.value)} className={inputClass}>
             <option value="">{students === null ? "Loading…" : "Select a student"}</option>
-            {students?.map((s) => (
+            {sortedStudents.map((s) => (
               <option key={s.studentId} value={s.uid}>
                 {s.rollNo} — {s.name}
               </option>
