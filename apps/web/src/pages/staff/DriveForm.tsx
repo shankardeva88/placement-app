@@ -333,22 +333,26 @@ export function DriveForm({
         <div className="space-y-2">
           {extraRoles.map((r) => (
             <div key={r.roleId} className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="Role name"
-                value={r.jobRole}
-                onChange={(e) => updateExtraRole(r.roleId, { jobRole: e.target.value })}
-                className={inputClass}
-              />
-              <input
-                type="number"
-                step="0.1"
-                min={0}
-                placeholder="CTC (LPA)"
-                value={r.ctc}
-                onChange={(e) => updateExtraRole(r.roleId, { ctc: Number(e.target.value) })}
-                className={`${inputClass} w-32 shrink-0`}
-              />
+              <div className="flex-1">
+                <input
+                  type="text"
+                  placeholder="Role name"
+                  value={r.jobRole}
+                  onChange={(e) => updateExtraRole(r.roleId, { jobRole: e.target.value })}
+                  className={inputClass}
+                />
+              </div>
+              <div className="w-32 shrink-0">
+                <input
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  placeholder="CTC (LPA)"
+                  value={r.ctc}
+                  onChange={(e) => updateExtraRole(r.roleId, { ctc: Number(e.target.value) })}
+                  className={inputClass}
+                />
+              </div>
               <button type="button" onClick={() => removeExtraRole(r.roleId)} className="shrink-0 text-slate-400 hover:text-red-600" aria-label="Remove role">
                 <X className="h-4 w-4" />
               </button>
