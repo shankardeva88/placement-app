@@ -25,6 +25,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useAllApplications } from "../../lib/applicantsLib";
 import { useAllOffers } from "../../lib/offersManagementLib";
+import { driveRoleSummary } from "../../lib/driveRolesLib";
 import { useAllAlumni } from "../../lib/alumniLib";
 import { useAllTrainingBatches, useAllTrainingSessions } from "../../lib/trainingManagementLib";
 import { useMyMentees } from "../../lib/menteeFollowUpLib";
@@ -365,7 +366,7 @@ function CoordinatorDashboard() {
                   <div className="min-w-0">
                     <p className="truncate font-medium text-slate-800">{d.companyName}</p>
                     <p className="truncate text-xs text-slate-500">
-                      {d.jobRole} · {DRIVE_TYPE_LABEL[d.type]} · {new Date(d.driveDate).toLocaleDateString()}
+                      {driveRoleSummary(d)} · {DRIVE_TYPE_LABEL[d.type]} · {new Date(d.driveDate).toLocaleDateString()}
                     </p>
                   </div>
                   <Badge variant={DRIVE_STATUS_BADGE[d.status]}>{d.status}</Badge>

@@ -74,19 +74,25 @@ export function applicationIdFor(studentUid: string, driveId: string) {
   return `${studentUid}_${driveId}`;
 }
 
-export async function applyToDrive(student: Student, drive: Drive) {
+/** roleId is omitted (not just left undefined) when it's the drive's
+ * primary role — set() rejects `undefined` outright, and "primary" is only
+ * ever a local sentinel in driveRolesLib.ts, never meant to be persisted. */
+export async function applyToDrive(student: Student, drive: Drive, roleId?: string) {
   const applicationId = applicationIdFor(student.uid, drive.driveId);
+  const application: Record<string, unknown> = {
+    applicationId,
+    studentId: student.uid,
+    department: student.department,
+    driveId: drive.driveId,
+    status: "applied",
+    resumeUrlSnapshot: student.resumeUrl ?? "",
+    appliedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  if (roleId && roleId !== "primary") application.roleId = roleId;
+
   await update(ref(db), {
-    [`${DB_NODES.applications}/${applicationId}`]: {
-      applicationId,
-      studentId: student.uid,
-      department: student.department,
-      driveId: drive.driveId,
-      status: "applied",
-      resumeUrlSnapshot: student.resumeUrl ?? "",
-      appliedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    },
+    [`${DB_NODES.applications}/${applicationId}`]: application,
     [`${DB_NODES.applicationsDeptIndex}/${student.department}/${applicationId}`]: true,
   });
 }

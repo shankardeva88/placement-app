@@ -7,6 +7,7 @@ import { DB_NODES } from "@placement-app/types";
 import type { ApplicationStatus, Drive } from "@placement-app/types";
 import { useAuth } from "../../../auth/AuthContext";
 import { useAllApplications } from "../../../lib/applicantsLib";
+import { driveRoleSummary } from "../../../lib/driveRolesLib";
 import { downloadCsv } from "../../../lib/csv";
 import { Card } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
@@ -58,7 +59,7 @@ export default function DriveSummaryReport() {
       ["Company", "Role", "Status", "Total Applied", "Shortlisted", "In Round", "Selected", "Rejected", "Withdrawn"],
       rows.map((r) => [
         r.drive.companyName,
-        r.drive.jobRole,
+        driveRoleSummary(r.drive),
         r.drive.status,
         r.total,
         r.counts.shortlisted,
@@ -115,7 +116,7 @@ export default function DriveSummaryReport() {
                 {rows.map((r) => (
                   <tr key={r.drive.driveId}>
                     <td className="py-2 pr-4 font-medium text-slate-800">{r.drive.companyName}</td>
-                    <td className="py-2 pr-4 text-slate-600">{r.drive.jobRole}</td>
+                    <td className="py-2 pr-4 text-slate-600">{driveRoleSummary(r.drive)}</td>
                     <td className="py-2 pr-4">
                       <Badge variant={DRIVE_BADGE[r.drive.status]}>{r.drive.status}</Badge>
                     </td>

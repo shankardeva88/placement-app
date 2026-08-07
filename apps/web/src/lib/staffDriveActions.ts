@@ -1,7 +1,7 @@
 import { ref, push, set, update } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { Drive, DriveRound, DriveStatus, DriveType, EligibilityCriteria } from "@placement-app/types";
+import type { Drive, DriveRole, DriveRound, DriveStatus, DriveType, EligibilityCriteria } from "@placement-app/types";
 
 export interface DriveFormInput {
   companyName: string;
@@ -12,6 +12,7 @@ export interface DriveFormInput {
   driveDate: number;
   eligibility: EligibilityCriteria;
   selectedStudentIds: string[];
+  roles: DriveRole[];
   rounds: DriveRound[];
 }
 
@@ -35,6 +36,7 @@ export async function createDrive(input: DriveFormInput, createdByUid: string) {
   // set() rejects `undefined` values outright — omit the key instead when empty.
   if (input.jdUrl) drive.jdUrl = input.jdUrl;
   if (input.selectedStudentIds.length > 0) drive.selectedStudentIds = input.selectedStudentIds;
+  if (input.roles.length > 0) drive.roles = input.roles;
   await set(newRef, drive);
   return driveId;
 }
@@ -48,6 +50,7 @@ export async function updateDrive(driveId: string, input: DriveFormInput) {
     jdUrl: input.jdUrl || null,
     eligibility: input.eligibility,
     selectedStudentIds: input.selectedStudentIds.length > 0 ? input.selectedStudentIds : null,
+    roles: input.roles.length > 0 ? input.roles : null,
     rounds: input.rounds,
   });
 }

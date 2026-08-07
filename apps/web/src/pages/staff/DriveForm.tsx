@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Plus, X } from "lucide-react";
-import type { Department, Drive, DriveRound, DriveType, Gender, Student } from "@placement-app/types";
+import type { Department, Drive, DriveRole, DriveRound, DriveType, Gender, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { Button } from "../../components/ui/Button";
@@ -28,6 +28,12 @@ let roundCounter = 0;
 function newRoundId() {
   roundCounter += 1;
   return `round-${Date.now()}-${roundCounter}`;
+}
+
+let roleCounter = 0;
+function newRoleId() {
+  roleCounter += 1;
+  return `role-${Date.now()}-${roleCounter}`;
 }
 
 /** Filters here are just to help narrow a large roster down to a
@@ -162,6 +168,7 @@ export interface DriveFormValues {
   requiredTrainings: string[];
   gender: Gender | "any";
   selectedStudentIds: string[];
+  roles: DriveRole[];
   rounds: DriveRound[];
 }
 
@@ -202,6 +209,7 @@ export function DriveForm({
   const [rounds, setRounds] = useState<DriveRound[]>(
     initial?.rounds ?? [{ roundId: newRoundId(), name: "Aptitude", status: "pending" }]
   );
+  const [extraRoles, setExtraRoles] = useState<DriveRole[]>(initial?.roles ?? []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -216,6 +224,15 @@ export function DriveForm({
   }
   function removeRound(roundId: string) {
     setRounds((prev) => prev.filter((r) => r.roundId !== roundId));
+  }
+  function addExtraRole() {
+    setExtraRoles((prev) => [...prev, { roleId: newRoleId(), jobRole: "", ctc: 0 }]);
+  }
+  function removeExtraRole(roleId: string) {
+    setExtraRoles((prev) => prev.filter((r) => r.roleId !== roleId));
+  }
+  function updateExtraRole(roleId: string, patch: Partial<Pick<DriveRole, "jobRole" | "ctc">>) {
+    setExtraRoles((prev) => prev.map((r) => (r.roleId === roleId ? { ...r, ...patch } : r)));
   }
   function updateRoundName(roundId: string, name: string) {
     setRounds((prev) => prev.map((r) => (r.roundId === roundId ? { ...r, name } : r)));
@@ -238,6 +255,10 @@ export function DriveForm({
         setError("Select at least one eligible batch year.");
         return;
       }
+    }
+    if (extraRoles.some((r) => !r.jobRole.trim())) {
+      setError("Give every additional role a name, or remove it.");
+      return;
     }
     setSubmitting(true);
     try {
@@ -262,6 +283,7 @@ export function DriveForm({
           .filter(Boolean),
         gender,
         selectedStudentIds: restrictToSelected ? selectedStudentIds : [],
+        roles: extraRoles,
         rounds,
       });
     } catch (err) {
@@ -279,7 +301,7 @@ export function DriveForm({
           <input type="text" required value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Job role</label>
+          <label className={labelClass}>{extraRoles.length > 0 ? "Job role (1st role)" : "Job role"}</label>
           <input type="text" required value={jobRole} onChange={(e) => setJobRole(e.target.value)} className={inputClass} />
         </div>
       </div>
@@ -293,13 +315,50 @@ export function DriveForm({
           </select>
         </div>
         <div>
-          <label className={labelClass}>CTC (LPA)</label>
+          <label className={labelClass}>{extraRoles.length > 0 ? "CTC (1st role, LPA)" : "CTC (LPA)"}</label>
           <input type="number" step="0.1" min={0} required value={ctc} onChange={(e) => setCtc(Number(e.target.value))} className={inputClass} />
         </div>
         <div>
           <label className={labelClass}>Drive date</label>
           <input type="date" required value={driveDate} onChange={(e) => setDriveDate(e.target.value)} className={inputClass} />
         </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>Additional roles (optional)</label>
+        <p className="mb-2 text-xs text-slate-400">
+          For a company hiring for more than one role/package in this drive — students pick which role they're
+          applying for.
+        </p>
+        <div className="space-y-2">
+          {extraRoles.map((r) => (
+            <div key={r.roleId} className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Role name"
+                value={r.jobRole}
+                onChange={(e) => updateExtraRole(r.roleId, { jobRole: e.target.value })}
+                className={inputClass}
+              />
+              <input
+                type="number"
+                step="0.1"
+                min={0}
+                placeholder="CTC (LPA)"
+                value={r.ctc}
+                onChange={(e) => updateExtraRole(r.roleId, { ctc: Number(e.target.value) })}
+                className={`${inputClass} w-32 shrink-0`}
+              />
+              <button type="button" onClick={() => removeExtraRole(r.roleId)} className="shrink-0 text-slate-400 hover:text-red-600" aria-label="Remove role">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+        <button type="button" onClick={addExtraRole} className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-800">
+          <Plus className="h-4 w-4" />
+          Add another role
+        </button>
       </div>
 
       <div>

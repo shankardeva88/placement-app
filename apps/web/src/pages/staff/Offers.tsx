@@ -8,6 +8,7 @@ import type { Drive, OfferStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useAllOffers, useAllJoiningReports, recordOffer, setJoiningReportStatus } from "../../lib/offersManagementLib";
+import { driveRoleSummary } from "../../lib/driveRolesLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -147,7 +148,7 @@ function RecordOfferForm({ onDone }: { onDone: () => void }) {
             <option value="">Select a drive</option>
             {drives.map((d) => (
               <option key={d.driveId} value={d.driveId}>
-                {d.companyName} — {d.jobRole}
+                {d.companyName} — {driveRoleSummary(d)}
               </option>
             ))}
           </select>

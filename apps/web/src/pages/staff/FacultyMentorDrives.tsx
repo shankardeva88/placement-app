@@ -4,6 +4,7 @@ import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
 import type { Drive, DriveStatus } from "@placement-app/types";
+import { driveCtcSummary, driveRoleSummary } from "../../lib/driveRolesLib";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import type { BadgeVariant } from "../../components/ui/Badge";
@@ -43,7 +44,7 @@ function DriveDetailCard({ drive }: { drive: Drive }) {
         <div>
           <h3 className="text-base font-semibold text-slate-900">{drive.companyName}</h3>
           <p className="text-sm text-slate-500">
-            {drive.jobRole} · {DRIVE_TYPE_LABEL[drive.type]}
+            {driveRoleSummary(drive)} · {DRIVE_TYPE_LABEL[drive.type]}
           </p>
         </div>
         <Badge variant={DRIVE_BADGE[drive.status]}>{drive.status}</Badge>
@@ -52,7 +53,7 @@ function DriveDetailCard({ drive }: { drive: Drive }) {
       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
         <div>
           <dt className="text-slate-500">CTC</dt>
-          <dd className="font-medium text-slate-900">{drive.ctc} LPA</dd>
+          <dd className="font-medium text-slate-900">{driveCtcSummary(drive)}</dd>
         </div>
         <div>
           <dt className="text-slate-500">Drive date</dt>

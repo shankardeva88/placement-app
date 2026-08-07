@@ -7,6 +7,7 @@ import { DB_NODES } from "@placement-app/types";
 import type { ApplicationStatus, Drive } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useDriveApplicants, updateApplicationStatus } from "../../lib/applicantsLib";
+import { applicationRoleLabel, driveRoleSummary, isMultiRole } from "../../lib/driveRolesLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -68,7 +69,7 @@ export default function DriveApplicants() {
 
       <PageHeader
         title={drive ? `${drive.companyName} — Applicants` : "Applicants"}
-        subtitle={drive ? `${drive.jobRole} · ${rows?.length ?? 0} applicant(s)` : undefined}
+        subtitle={drive ? `${driveRoleSummary(drive)} · ${rows?.length ?? 0} applicant(s)` : undefined}
         icon={Users}
         gradient="from-blue-500 to-indigo-600"
       />
@@ -95,6 +96,7 @@ export default function DriveApplicants() {
                   </p>
                   <p className="text-sm text-slate-500">
                     {student.department} · CGPA {student.cgpa}
+                    {drive && isMultiRole(drive) && ` · Applied for ${applicationRoleLabel(drive, application)}`}
                   </p>
                 </>
               ) : (

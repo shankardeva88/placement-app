@@ -216,6 +216,17 @@ export interface DriveRound {
   status: "pending" | "in_progress" | "completed";
 }
 
+// A named role a company is hiring for within one drive — jobRole/ctc on
+// Drive itself stay as the primary/first role (so every existing single-role
+// drive and every display site that just reads drive.jobRole/drive.ctc
+// keeps working unchanged); `roles` holds ADDITIONAL roles beyond that one.
+// See driveRolesLib.ts for the helpers that present both uniformly.
+export interface DriveRole {
+  roleId: string;
+  jobRole: string;
+  ctc: number; // LPA
+}
+
 export interface Drive {
   driveId: string;
   campusId: CampusId;
@@ -224,6 +235,10 @@ export interface Drive {
   type: DriveType;
   ctc: number; // LPA
   jdUrl?: string; // Google Drive share link
+  // Additional roles beyond the primary jobRole/ctc above — set when a
+  // company is hiring for more than one role/package in the same drive
+  // visit. Empty/absent means single-role, the common case.
+  roles?: DriveRole[];
   eligibility: EligibilityCriteria;
   // When set (non-empty), overrides eligibility entirely for this drive —
   // only these exact students can see/apply, regardless of CGPA/department/
@@ -255,6 +270,11 @@ export interface Application {
   studentId: string;
   department: Department; // denormalized from the applicant, for department-scoped rules — see DB_NODES doc comment
   driveId: string;
+  // Which of the drive's roles this application is for — absent/undefined
+  // means the drive's primary jobRole/ctc; a value here matches a
+  // DriveRole.roleId in Drive.roles. Only meaningful when the drive has
+  // more than one role (see Drive.roles).
+  roleId?: string;
   status: ApplicationStatus;
   currentRoundId?: string;
   resumeUrlSnapshot: string; // resume as it was at time of applying

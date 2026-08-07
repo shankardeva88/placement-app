@@ -7,6 +7,7 @@ import { DB_NODES } from "@placement-app/types";
 import type { Drive, DriveStatus } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { createDrive, updateDrive, updateDriveStatus } from "../../lib/staffDriveActions";
+import { driveRoleSummary, driveCtcSummary } from "../../lib/driveRolesLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -54,6 +55,7 @@ function DriveCard({ drive }: { drive: Drive }) {
       driveDate: values.driveDate,
       eligibility: toEligibility(values),
       selectedStudentIds: values.selectedStudentIds,
+      roles: values.roles,
       rounds: values.rounds,
     });
     showToast("Drive updated");
@@ -89,7 +91,7 @@ function DriveCard({ drive }: { drive: Drive }) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-base font-semibold text-slate-900">{drive.companyName}</h3>
-          <p className="text-sm text-slate-500">{drive.jobRole}</p>
+          <p className="text-sm text-slate-500">{driveRoleSummary(drive)}</p>
         </div>
         <Badge variant={DRIVE_BADGE[drive.status]}>{drive.status}</Badge>
       </div>
@@ -97,7 +99,7 @@ function DriveCard({ drive }: { drive: Drive }) {
       <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
         <div>
           <dt className="text-slate-500">CTC</dt>
-          <dd className="font-medium text-slate-900">{drive.ctc} LPA</dd>
+          <dd className="font-medium text-slate-900">{driveCtcSummary(drive)}</dd>
         </div>
         <div>
           <dt className="text-slate-500">Eligible depts</dt>
@@ -169,6 +171,7 @@ export default function StaffDrives() {
         driveDate: values.driveDate,
         eligibility: toEligibility(values),
         selectedStudentIds: values.selectedStudentIds,
+        roles: values.roles,
         rounds: values.rounds,
       },
       firebaseUser.uid

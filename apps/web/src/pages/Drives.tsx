@@ -4,6 +4,7 @@ import { Briefcase, ExternalLink } from "lucide-react";
 import type { Application, Drive } from "@placement-app/types";
 import { useAuth } from "../auth/AuthContext";
 import { applyToDrive, checkEligibility } from "../lib/driveActions";
+import { allDriveRoles, applicationRoleLabel, driveCtcSummary, driveRoleSummary, isMultiRole } from "../lib/driveRolesLib";
 import { useMyApplications } from "../lib/useMyApplications";
 import { useToast } from "../components/ui/Toast";
 import { Card } from "../components/ui/Card";
@@ -45,6 +46,8 @@ function DriveCard({ drive, application }: { drive: Drive; application: Applicat
   const { showToast } = useToast();
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const roles = allDriveRoles(drive);
+  const [selectedRoleId, setSelectedRoleId] = useState(roles[0]?.roleId ?? "primary");
 
   if (!student) return null;
 
@@ -57,7 +60,7 @@ function DriveCard({ drive, application }: { drive: Drive; application: Applicat
     setError(null);
     setApplying(true);
     try {
-      await applyToDrive(student, drive);
+      await applyToDrive(student, drive, selectedRoleId);
       showToast(`Applied to ${drive.companyName}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not apply");
@@ -71,7 +74,7 @@ function DriveCard({ drive, application }: { drive: Drive; application: Applicat
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-base font-semibold text-slate-900">{drive.companyName}</h3>
-          <p className="text-sm text-slate-500">{drive.jobRole}</p>
+          <p className="text-sm text-slate-500">{driveRoleSummary(drive)}</p>
         </div>
         <Badge variant={DRIVE_BADGE[drive.status]}>{drive.status}</Badge>
       </div>
@@ -79,7 +82,7 @@ function DriveCard({ drive, application }: { drive: Drive; application: Applicat
       <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
         <div>
           <dt className="text-slate-500">CTC</dt>
-          <dd className="font-medium text-slate-900">{drive.ctc} LPA</dd>
+          <dd className="font-medium text-slate-900">{driveCtcSummary(drive)}</dd>
         </div>
         <div>
           <dt className="text-slate-500">Type</dt>
@@ -106,7 +109,10 @@ function DriveCard({ drive, application }: { drive: Drive; application: Applicat
       <div className="mt-4 border-t border-slate-100 pt-4">
         {application ? (
           <div className="space-y-2">
-            <Badge variant={APPLICATION_BADGE[application.status]}>{STATUS_LABEL[application.status]}</Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={APPLICATION_BADGE[application.status]}>{STATUS_LABEL[application.status]}</Badge>
+              {isMultiRole(drive) && <span className="text-xs text-slate-500">{applicationRoleLabel(drive, application)}</span>}
+            </div>
             <RoundProgress rounds={drive.rounds} application={application} />
           </div>
         ) : !eligible ? (
@@ -129,9 +135,24 @@ function DriveCard({ drive, application }: { drive: Drive; application: Applicat
             before applying.
           </p>
         ) : (
-          <Button onClick={handleApply} loading={applying}>
-            {applying ? "Applying…" : "Apply"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {isMultiRole(drive) && (
+              <select
+                value={selectedRoleId}
+                onChange={(e) => setSelectedRoleId(e.target.value)}
+                className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              >
+                {roles.map((r) => (
+                  <option key={r.roleId} value={r.roleId}>
+                    {r.jobRole} — {r.ctc} LPA
+                  </option>
+                ))}
+              </select>
+            )}
+            <Button onClick={handleApply} loading={applying}>
+              {applying ? "Applying…" : "Apply"}
+            </Button>
+          </div>
         )}
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       </div>
