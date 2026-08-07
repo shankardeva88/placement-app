@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { FileText, Plus } from "lucide-react";
+import { Check, FileText, Plus } from "lucide-react";
 import { ref, onValue, get } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -19,6 +19,57 @@ import { PageHeader } from "../../components/ui/PageHeader";
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
 const labelClass = "mb-1 block text-sm font-medium text-slate-700";
+
+function StudentSearchPicker({
+  students,
+  value,
+  onChange,
+}: {
+  students: Student[];
+  value: string;
+  onChange: (uid: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return students;
+    return students.filter((s) => s.rollNo.toLowerCase().includes(q) || s.name.toLowerCase().includes(q));
+  }, [students, query]);
+
+  const selected = students.find((s) => s.uid === value);
+
+  return (
+    <div>
+      <input
+        type="text"
+        placeholder="Search by roll no or name"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        className={inputClass}
+      />
+      <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200">
+        {filtered.length === 0 && <p className="p-2 text-sm text-slate-400">No students match.</p>}
+        {filtered.map((s) => (
+          <button
+            type="button"
+            key={s.studentId}
+            onClick={() => onChange(s.uid)}
+            className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-slate-50 ${
+              value === s.uid ? "bg-brand-50 font-medium text-brand-700" : "text-slate-700"
+            }`}
+          >
+            <span>
+              <span className="font-medium">{s.rollNo}</span> — {s.name}
+            </span>
+            {value === s.uid && <Check className="h-3.5 w-3.5 text-brand-600" />}
+          </button>
+        ))}
+      </div>
+      {selected && <p className="mt-1 text-xs text-slate-500">Selected: {selected.rollNo} — {selected.name}</p>}
+    </div>
+  );
+}
 
 function RecordOfferForm({ onDone }: { onDone: () => void }) {
   const { appUser } = useAuth();
@@ -75,14 +126,11 @@ function RecordOfferForm({ onDone }: { onDone: () => void }) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className={labelClass}>Student</label>
-          <select required value={studentUid} onChange={(e) => setStudentUid(e.target.value)} className={inputClass}>
-            <option value="">{students === null ? "Loading…" : "Select a student"}</option>
-            {sortedStudents.map((s) => (
-              <option key={s.studentId} value={s.uid}>
-                {s.rollNo} — {s.name}
-              </option>
-            ))}
-          </select>
+          {students === null ? (
+            <p className="text-sm text-slate-400">Loading…</p>
+          ) : (
+            <StudentSearchPicker students={sortedStudents} value={studentUid} onChange={setStudentUid} />
+          )}
         </div>
         <div>
           <label className={labelClass}>Drive</label>
