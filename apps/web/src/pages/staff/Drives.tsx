@@ -53,6 +53,7 @@ function DriveCard({ drive }: { drive: Drive }) {
       jdUrl: values.jdUrl,
       driveDate: values.driveDate,
       eligibility: toEligibility(values),
+      selectedStudentIds: values.selectedStudentIds,
       rounds: values.rounds,
     });
     showToast("Drive updated");
@@ -167,6 +168,7 @@ export default function StaffDrives() {
         jdUrl: values.jdUrl,
         driveDate: values.driveDate,
         eligibility: toEligibility(values),
+        selectedStudentIds: values.selectedStudentIds,
         rounds: values.rounds,
       },
       firebaseUser.uid

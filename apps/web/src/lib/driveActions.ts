@@ -1,7 +1,7 @@
 import { ref, update, serverTimestamp } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { Drive, EligibilityCriteria, Student } from "@placement-app/types";
+import type { Drive, Student } from "@placement-app/types";
 
 export interface EligibilityResult {
   eligible: boolean;
@@ -9,8 +9,18 @@ export interface EligibilityResult {
 }
 
 /** minPri isn't checked yet — Placement Readiness Index isn't computed
- * anywhere in the app yet (see ReadinessScore comment in the types package). */
-export function checkEligibility(student: Student, criteria: EligibilityCriteria): EligibilityResult {
+ * anywhere in the app yet (see ReadinessScore comment in the types package).
+ * When a drive has selectedStudentIds set, that list is the sole gate —
+ * criteria don't apply at all (see the Drive.selectedStudentIds doc
+ * comment in packages/types). */
+export function checkEligibility(student: Student, drive: Drive): EligibilityResult {
+  if (drive.selectedStudentIds && drive.selectedStudentIds.length > 0) {
+    return drive.selectedStudentIds.includes(student.uid)
+      ? { eligible: true, reasons: [] }
+      : { eligible: false, reasons: ["Not on the selected list for this drive"] };
+  }
+
+  const criteria = drive.eligibility;
   const reasons: string[] = [];
 
   if (student.cgpa < criteria.minCgpa) {

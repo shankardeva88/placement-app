@@ -70,7 +70,7 @@ export default function DriveEligibility() {
   const eligible = useMemo(() => {
     if (!drive || !students) return null;
     return students
-      .filter((s) => checkEligibility(s, drive.eligibility).eligible)
+      .filter((s) => checkEligibility(s, drive).eligible)
       .sort((a, b) => b.cgpa - a.cgpa);
   }, [drive, students]);
 
@@ -180,19 +180,27 @@ export default function DriveEligibility() {
 
       {drive && (
         <Card className="mb-4">
-          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Criteria</h3>
-          <div className="flex flex-wrap gap-2 text-sm">
-            <Badge variant="neutral">CGPA ≥ {drive.eligibility.minCgpa}</Badge>
-            <Badge variant="neutral">Backlogs ≤ {drive.eligibility.maxBacklogsAllowed}</Badge>
-            <Badge variant="neutral">{drive.eligibility.departments.join(", ") || "Any department"}</Badge>
-            <Badge variant="neutral">Batch {drive.eligibility.batchYears.join(", ")}</Badge>
-            {drive.eligibility.requiredSkills && drive.eligibility.requiredSkills.length > 0 && (
-              <Badge variant="neutral">Skills: {drive.eligibility.requiredSkills.join(", ")}</Badge>
-            )}
-            {drive.eligibility.gender && drive.eligibility.gender !== "any" && (
-              <Badge variant="neutral">{drive.eligibility.gender} only</Badge>
-            )}
-          </div>
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            {drive.selectedStudentIds && drive.selectedStudentIds.length > 0 ? "Selected students" : "Criteria"}
+          </h3>
+          {drive.selectedStudentIds && drive.selectedStudentIds.length > 0 ? (
+            <p className="text-sm text-slate-600">
+              Restricted to {drive.selectedStudentIds.length} hand-picked student(s) — eligibility criteria below don't apply.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2 text-sm">
+              <Badge variant="neutral">CGPA ≥ {drive.eligibility.minCgpa}</Badge>
+              <Badge variant="neutral">Backlogs ≤ {drive.eligibility.maxBacklogsAllowed}</Badge>
+              <Badge variant="neutral">{drive.eligibility.departments.join(", ") || "Any department"}</Badge>
+              <Badge variant="neutral">Batch {drive.eligibility.batchYears.join(", ")}</Badge>
+              {drive.eligibility.requiredSkills && drive.eligibility.requiredSkills.length > 0 && (
+                <Badge variant="neutral">Skills: {drive.eligibility.requiredSkills.join(", ")}</Badge>
+              )}
+              {drive.eligibility.gender && drive.eligibility.gender !== "any" && (
+                <Badge variant="neutral">{drive.eligibility.gender} only</Badge>
+              )}
+            </div>
+          )}
         </Card>
       )}
 

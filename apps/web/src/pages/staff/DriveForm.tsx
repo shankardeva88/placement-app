@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Plus, X } from "lucide-react";
-import type { Department, Drive, DriveRound, DriveType, Gender } from "@placement-app/types";
+import type { Department, Drive, DriveRound, DriveType, Gender, Student } from "@placement-app/types";
+import { useAuth } from "../../auth/AuthContext";
+import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { Button } from "../../components/ui/Button";
 import { cgpaToPercent, percentToCgpa } from "../../lib/driveActions";
 
@@ -28,6 +30,123 @@ function newRoundId() {
   return `round-${Date.now()}-${roundCounter}`;
 }
 
+/** Filters here are just to help narrow a large roster down to a
+ * manageable shortlist — they don't get saved anywhere; only the checked
+ * students end up in selectedStudentIds. */
+function SelectedStudentsPicker({
+  students,
+  selectedIds,
+  onChange,
+}: {
+  students: Student[];
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [deptFilter, setDeptFilter] = useState<Department | "">("");
+  const [batchFilter, setBatchFilter] = useState<number | "">("");
+  const [minCgpaFilter, setMinCgpaFilter] = useState<number | "">("");
+  const [query, setQuery] = useState("");
+
+  const batchYears = useMemo(
+    () => Array.from(new Set(students.map((s) => s.batchYear))).sort((a, b) => a - b),
+    [students]
+  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return students
+      .filter((s) => !deptFilter || s.department === deptFilter)
+      .filter((s) => !batchFilter || s.batchYear === batchFilter)
+      .filter((s) => minCgpaFilter === "" || s.cgpa >= minCgpaFilter)
+      .filter((s) => !q || s.rollNo.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
+      .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
+  }, [students, deptFilter, batchFilter, minCgpaFilter, query]);
+
+  function toggle(uid: string) {
+    onChange(selectedIds.includes(uid) ? selectedIds.filter((x) => x !== uid) : [...selectedIds, uid]);
+  }
+  function selectAllFiltered() {
+    const ids = new Set(selectedIds);
+    filtered.forEach((s) => ids.add(s.uid));
+    onChange(Array.from(ids));
+  }
+  function clearAll() {
+    onChange([]);
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value as Department | "")} className={inputClass}>
+          <option value="">All departments</option>
+          {DEPARTMENTS.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </select>
+        <select
+          value={batchFilter}
+          onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
+          className={inputClass}
+        >
+          <option value="">All batches</option>
+          {batchYears.map((y) => (
+            <option key={y} value={y}>
+              Batch {y}
+            </option>
+          ))}
+        </select>
+        <input
+          type="number"
+          step="0.01"
+          min={0}
+          max={10}
+          placeholder="Min CGPA"
+          value={minCgpaFilter}
+          onChange={(e) => setMinCgpaFilter(e.target.value ? Number(e.target.value) : "")}
+          className={inputClass}
+        />
+        <input
+          type="text"
+          placeholder="Search roll no or name"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className={inputClass}
+        />
+      </div>
+
+      <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+        <span>{selectedIds.length} selected</span>
+        <div className="flex gap-3">
+          <button type="button" onClick={selectAllFiltered} className="font-medium text-brand-700 hover:underline">
+            Select all {filtered.length} filtered
+          </button>
+          {selectedIds.length > 0 && (
+            <button type="button" onClick={clearAll} className="font-medium text-slate-500 hover:underline">
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-1 max-h-56 overflow-y-auto rounded-lg border border-slate-200">
+        {filtered.length === 0 && <p className="p-2 text-sm text-slate-400">No students match these filters.</p>}
+        {filtered.map((s) => (
+          <label key={s.studentId} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-slate-50">
+            <input type="checkbox" checked={selectedIds.includes(s.uid)} onChange={() => toggle(s.uid)} />
+            <span className="font-medium text-slate-700">{s.rollNo}</span>
+            <span className="truncate">{s.name}</span>
+            <span className="ml-auto shrink-0 text-xs text-slate-400">
+              {s.department} · CGPA {s.cgpa}
+            </span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export interface DriveFormValues {
   companyName: string;
   jobRole: string;
@@ -42,6 +161,7 @@ export interface DriveFormValues {
   requiredSkills: string[];
   requiredTrainings: string[];
   gender: Gender | "any";
+  selectedStudentIds: string[];
   rounds: DriveRound[];
 }
 
@@ -56,8 +176,15 @@ export function DriveForm({
   onCancel: () => void;
   submitLabel: string;
 }) {
+  const { appUser } = useAuth();
+  const students = useStudentsDirectory(appUser);
+  const activeStudents = useMemo(() => (students ?? []).filter((s) => !s.isAlumni), [students]);
+
   const thisYear = new Date().getFullYear();
   const yearOptions = [thisYear, thisYear + 1, thisYear + 2, thisYear + 3];
+
+  const [restrictToSelected, setRestrictToSelected] = useState(!!initial?.selectedStudentIds?.length);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>(initial?.selectedStudentIds ?? []);
 
   const [companyName, setCompanyName] = useState(initial?.companyName ?? "");
   const [jobRole, setJobRole] = useState(initial?.jobRole ?? "");
@@ -97,13 +224,20 @@ export function DriveForm({
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (departments.length === 0) {
-      setError("Select at least one eligible department.");
-      return;
-    }
-    if (batchYears.length === 0) {
-      setError("Select at least one eligible batch year.");
-      return;
+    if (restrictToSelected) {
+      if (selectedStudentIds.length === 0) {
+        setError("Select at least one student.");
+        return;
+      }
+    } else {
+      if (departments.length === 0) {
+        setError("Select at least one eligible department.");
+        return;
+      }
+      if (batchYears.length === 0) {
+        setError("Select at least one eligible batch year.");
+        return;
+      }
     }
     setSubmitting(true);
     try {
@@ -127,6 +261,7 @@ export function DriveForm({
           .map((s) => s.trim())
           .filter(Boolean),
         gender,
+        selectedStudentIds: restrictToSelected ? selectedStudentIds : [],
         rounds,
       });
     } catch (err) {
@@ -173,7 +308,31 @@ export function DriveForm({
       </div>
 
       <div>
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Eligibility</h3>
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Eligibility</h3>
+          <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+            <input
+              type="checkbox"
+              checked={restrictToSelected}
+              onChange={(e) => setRestrictToSelected(e.target.checked)}
+            />
+            Restrict to hand-picked students
+          </label>
+        </div>
+
+        {restrictToSelected ? (
+          <div>
+            <p className="mb-2 text-xs text-slate-400">
+              Only the students checked below can see or apply to this drive — the criteria fields don't apply.
+            </p>
+            {students === null ? (
+              <p className="text-sm text-slate-400">Loading students…</p>
+            ) : (
+              <SelectedStudentsPicker students={activeStudents} selectedIds={selectedStudentIds} onChange={setSelectedStudentIds} />
+            )}
+          </div>
+        ) : (
+        <>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className={labelClass}>Minimum CGPA</label>
@@ -271,6 +430,8 @@ export function DriveForm({
             have that training recorded, regardless of which batch/group they were in.
           </p>
         </div>
+        </>
+        )}
       </div>
 
       <div>

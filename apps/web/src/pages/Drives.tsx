@@ -48,7 +48,7 @@ function DriveCard({ drive, application }: { drive: Drive; application: Applicat
 
   if (!student) return null;
 
-  const { eligible, reasons } = checkEligibility(student, drive.eligibility);
+  const { eligible, reasons } = checkEligibility(student, drive);
   const isOpen = drive.status === "upcoming" || drive.status === "ongoing";
   const hasResume = Boolean(student.resumeUrl);
 

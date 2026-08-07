@@ -11,6 +11,7 @@ export interface DriveFormInput {
   jdUrl: string;
   driveDate: number;
   eligibility: EligibilityCriteria;
+  selectedStudentIds: string[];
   rounds: DriveRound[];
 }
 
@@ -33,6 +34,7 @@ export async function createDrive(input: DriveFormInput, createdByUid: string) {
   };
   // set() rejects `undefined` values outright — omit the key instead when empty.
   if (input.jdUrl) drive.jdUrl = input.jdUrl;
+  if (input.selectedStudentIds.length > 0) drive.selectedStudentIds = input.selectedStudentIds;
   await set(newRef, drive);
   return driveId;
 }
@@ -45,8 +47,8 @@ export async function updateDrive(driveId: string, input: DriveFormInput) {
     ctc: input.ctc,
     jdUrl: input.jdUrl || null,
     eligibility: input.eligibility,
+    selectedStudentIds: input.selectedStudentIds.length > 0 ? input.selectedStudentIds : null,
     rounds: input.rounds,
-    driveDate: input.driveDate,
   });
 }
 

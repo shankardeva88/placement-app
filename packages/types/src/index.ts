@@ -225,6 +225,12 @@ export interface Drive {
   ctc: number; // LPA
   jdUrl?: string; // Google Drive share link
   eligibility: EligibilityCriteria;
+  // When set (non-empty), overrides eligibility entirely for this drive —
+  // only these exact students can see/apply, regardless of CGPA/department/
+  // batch criteria. For companies that hand-pick a small headcount rather
+  // than opening the drive to everyone who qualifies (see checkEligibility
+  // in driveActions.ts).
+  selectedStudentIds?: string[];
   rounds: DriveRound[];
   driveDate: Timestamp;
   status: DriveStatus;
