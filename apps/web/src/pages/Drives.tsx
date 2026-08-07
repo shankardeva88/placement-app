@@ -123,7 +123,7 @@ function DriveCard({ drive, application }: { drive: Drive; application: Applicat
         ) : !hasResume ? (
           <p className="text-sm text-slate-500">
             Add a resume link on your{" "}
-            <Link to="/profile-setup" className="font-medium text-brand-700 underline">
+            <Link to="/personal-details" className="font-medium text-brand-700 underline">
               profile
             </Link>{" "}
             before applying.
