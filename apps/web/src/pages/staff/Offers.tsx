@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { Check, FileText, Plus } from "lucide-react";
+import { Check, FileText, Plus, Search } from "lucide-react";
 import { ref, onValue, get } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { Drive, Student } from "@placement-app/types";
+import type { Drive, OfferStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useAllOffers, useAllJoiningReports, recordOffer, setJoiningReportStatus } from "../../lib/offersManagementLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
+import type { BadgeVariant } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
@@ -19,6 +20,14 @@ import { PageHeader } from "../../components/ui/PageHeader";
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
 const labelClass = "mb-1 block text-sm font-medium text-slate-700";
+
+const OFFER_STATUS_OPTIONS: OfferStatus[] = ["received", "verified", "accepted", "declined"];
+const OFFER_STATUS_BADGE: Record<OfferStatus, BadgeVariant> = {
+  received: "brand",
+  verified: "brand",
+  accepted: "success",
+  declined: "danger",
+};
 
 function StudentSearchPicker({
   students,
@@ -182,6 +191,10 @@ export default function StaffOffers() {
   const [drives, setDrives] = useState<Record<string, Drive>>({});
   const [students, setStudents] = useState<Record<string, Student | null>>({});
 
+  const [search, setSearch] = useState("");
+  const [driveFilter, setDriveFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<OfferStatus | "">("");
+
   useEffect(() => {
     return onValue(ref(db, DB_NODES.drives), (snap) => {
       setDrives((snap.val() as Record<string, Drive> | null) ?? {});
@@ -199,6 +212,30 @@ export default function StaffOffers() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offers]);
 
+  // Which drives actually have an offer recorded — narrower and more
+  // useful than every drive ever created.
+  const driveOptions = useMemo(() => {
+    if (!offers) return [];
+    const ids = Array.from(new Set(offers.map((o) => o.driveId)));
+    return ids
+      .map((id) => ({ id, name: drives[id]?.companyName ?? id }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [offers, drives]);
+
+  const filteredOffers = useMemo(() => {
+    if (!offers) return null;
+    const term = search.trim().toLowerCase();
+    return offers
+      .filter((o) => !driveFilter || o.driveId === driveFilter)
+      .filter((o) => !statusFilter || o.status === statusFilter)
+      .filter((o) => {
+        if (!term) return true;
+        const student = students[o.studentId];
+        return !!student && (student.rollNo.toLowerCase().includes(term) || student.name.toLowerCase().includes(term));
+      })
+      .sort((a, b) => (students[a.studentId]?.rollNo ?? "").localeCompare(students[b.studentId]?.rollNo ?? ""));
+  }, [offers, driveFilter, statusFilter, search, students]);
+
   async function handleVerifyJoining(offerId: string) {
     await setJoiningReportStatus(offerId, "verified");
     showToast("Joining report verified");
@@ -208,7 +245,7 @@ export default function StaffOffers() {
     <div>
       <PageHeader
         title="Offers"
-        subtitle="Record offers and verify joining reports."
+        subtitle={offers ? `${offers.length} offer(s) recorded — record offers and verify joining reports.` : "Record offers and verify joining reports."}
         icon={FileText}
         gradient="from-emerald-500 to-teal-600"
         action={
@@ -228,11 +265,45 @@ export default function StaffOffers() {
         </Card>
       )}
 
+      {offers !== null && offers.length > 0 && (
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by roll number or name"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={`${inputClass} pl-9`}
+            />
+          </div>
+          <select value={driveFilter} onChange={(e) => setDriveFilter(e.target.value)} className={`${inputClass} sm:w-56`}>
+            <option value="">All drives</option>
+            {driveOptions.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as OfferStatus | "")} className={`${inputClass} sm:w-40`}>
+            <option value="">All statuses</option>
+            {OFFER_STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {offers === null && <Skeleton className="h-24" />}
       {offers !== null && offers.length === 0 && <EmptyState icon={FileText} title="No offers recorded yet" />}
+      {filteredOffers !== null && offers !== null && offers.length > 0 && filteredOffers.length === 0 && (
+        <EmptyState icon={Search} title="No offers match your filters" />
+      )}
 
       <div className="space-y-3">
-        {offers?.map((o) => {
+        {filteredOffers?.map((o) => {
           const student = students[o.studentId];
           const report = joiningReports[o.offerId];
           return (
@@ -246,9 +317,7 @@ export default function StaffOffers() {
                     {drives[o.driveId]?.companyName ?? o.driveId} — {o.designation} · {o.ctc} LPA
                   </p>
                 </div>
-                <Badge variant={o.status === "accepted" ? "success" : o.status === "declined" ? "danger" : "brand"}>
-                  {o.status}
-                </Badge>
+                <Badge variant={OFFER_STATUS_BADGE[o.status]}>{o.status}</Badge>
               </div>
               {report && (
                 <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
