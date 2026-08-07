@@ -1,0 +1,713 @@
+import { Fragment, useMemo, useState } from "react";
+import type { FormEvent } from "react";
+import { ClipboardCheck, Download, ChevronDown, ChevronRight } from "lucide-react";
+import type { Department, MockEvalRating, Student } from "@placement-app/types";
+import { useAuth } from "../../auth/AuthContext";
+import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
+import { useMyMentees } from "../../lib/menteeFollowUpLib";
+import { useMentorDirectory } from "../../lib/drivePrepLib";
+import {
+  useMockModules,
+  useMockEvaluations,
+  createMockModule,
+  recordMockEvaluation,
+  startOfDay,
+  RATING_OPTIONS,
+  RATING_LABEL,
+  RATING_SCORE,
+  EVAL_CATEGORIES,
+} from "../../lib/mockEvaluationLib";
+import type { EvalRatingFields } from "../../lib/mockEvaluationLib";
+import { downloadCsv } from "../../lib/csv";
+import { useToast } from "../../components/ui/Toast";
+import { Card } from "../../components/ui/Card";
+import { Badge } from "../../components/ui/Badge";
+import type { BadgeVariant } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { Skeleton } from "../../components/ui/Skeleton";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { TrendLineChart } from "../../components/charts/TrendLineChart";
+
+const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
+const CAN_CREATE_MODULE_ROLES = ["coordinator", "hod", "dean", "cpo", "admin"];
+const CAN_LOG_EVAL_ROLES = ["faculty_mentor", "coordinator", "hod", "dean", "cpo", "admin"];
+
+const RATING_BADGE: Record<MockEvalRating, BadgeVariant> = {
+  excellent: "success",
+  very_good: "success",
+  good: "brand",
+  average: "warning",
+  need_to_improve: "warning",
+  poor: "danger",
+  absent: "neutral",
+};
+
+const inputClass =
+  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
+const labelClass = "mb-1 block text-sm font-medium text-slate-700";
+
+function toDateInputValue(ts: number): string {
+  return new Date(ts).toISOString().slice(0, 10);
+}
+
+function formatDay(ts: number): string {
+  return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+function CreateModuleSection({ onCreated }: { onCreated: () => void }) {
+  const { appUser } = useAuth();
+  const { showToast } = useToast();
+  const myDept = appUser && "department" in appUser ? appUser.department : undefined;
+
+  const [name, setName] = useState("");
+  const [department, setDepartment] = useState<Department>(myDept ?? "CSE");
+  const [startDate, setStartDate] = useState(toDateInputValue(Date.now()));
+  const [endDate, setEndDate] = useState(toDateInputValue(Date.now()));
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!appUser) return;
+    setError(null);
+    if (!name.trim()) {
+      setError("Give the module a name.");
+      return;
+    }
+    if (new Date(startDate).getTime() > new Date(endDate).getTime()) {
+      setError("Start date must be on or before the end date.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await createMockModule({
+        name: name.trim(),
+        department: myDept ?? department,
+        startDate: new Date(startDate).getTime(),
+        endDate: new Date(endDate).getTime(),
+        createdBy: appUser.uid,
+      });
+      showToast("Module created");
+      setName("");
+      onCreated();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Card className="mb-4">
+      <h3 className="mb-1 text-base font-semibold text-slate-900">Create mock interview module</h3>
+      <p className="mb-4 text-sm text-slate-500">
+        A dated drive (e.g. "Infosys Mock") mentors log daily per-mentee evaluations against.
+      </p>
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Module name</label>
+          <input type="text" placeholder="Infosys Mock" value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+        </div>
+        {!myDept && (
+          <div>
+            <label className={labelClass}>Department</label>
+            <select value={department} onChange={(e) => setDepartment(e.target.value as Department)} className={inputClass}>
+              {DEPARTMENTS.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div>
+          <label className={labelClass}>Start date</label>
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>End date</label>
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputClass} />
+        </div>
+        {error && <p className="text-sm text-red-600 sm:col-span-4">{error}</p>}
+        <div className="sm:col-span-4">
+          <Button type="submit" loading={submitting}>
+            Create module
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+function EvaluationForm({
+  studentId,
+  department,
+  moduleId,
+  moduleStart,
+  moduleEnd,
+  existing,
+  mentorId,
+  onSaved,
+}: {
+  studentId: string;
+  department: Department;
+  moduleId: string;
+  moduleStart: number;
+  moduleEnd: number;
+  existing: (EvalRatingFields & { date: number; notes?: string }) | undefined;
+  mentorId: string;
+  onSaved: () => void;
+}) {
+  const { showToast } = useToast();
+  const today = startOfDay(Date.now());
+  const maxDate = Math.min(today, moduleEnd);
+
+  const [date, setDate] = useState(toDateInputValue(existing?.date ?? today));
+  const [ratings, setRatings] = useState<EvalRatingFields>(
+    existing ?? {
+      selfIntroduction: "good",
+      projectExplanation: "good",
+      technicalOopJava: "good",
+      technicalCnOs: "good",
+      technicalDbmsSql: "good",
+      communication: "good",
+      hr: "good",
+      selfConfidence: "good",
+      overallPerformance: "good",
+    }
+  );
+  const [notes, setNotes] = useState(existing?.notes ?? "");
+  const [submitting, setSubmitting] = useState(false);
+
+  function setRating(key: keyof EvalRatingFields, value: MockEvalRating) {
+    setRatings((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await recordMockEvaluation({
+        moduleId,
+        studentId,
+        department,
+        mentorId,
+        date: new Date(date).getTime(),
+        notes: notes.trim() || undefined,
+        ...ratings,
+      });
+      showToast("Evaluation saved");
+      onSaved();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3 rounded-lg bg-slate-50 p-3">
+      <div>
+        <label className={labelClass}>Date</label>
+        <input
+          type="date"
+          value={date}
+          min={toDateInputValue(moduleStart)}
+          max={toDateInputValue(maxDate)}
+          onChange={(e) => setDate(e.target.value)}
+          className={`${inputClass} sm:w-48`}
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {EVAL_CATEGORIES.map(({ key, label }) => (
+          <div key={key}>
+            <label className={labelClass}>{label}</label>
+            <select value={ratings[key]} onChange={(e) => setRating(key, e.target.value as MockEvalRating)} className={inputClass}>
+              {RATING_OPTIONS.map((r) => (
+                <option key={r} value={r}>
+                  {RATING_LABEL[r]}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+      </div>
+      <div>
+        <label className={labelClass}>Notes (optional)</label>
+        <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} />
+      </div>
+      <Button type="submit" loading={submitting} className="!px-3 !py-1.5 text-xs">
+        {existing ? "Update evaluation" : "Save evaluation"}
+      </Button>
+    </form>
+  );
+}
+
+function MenteeEvalRow({
+  student,
+  moduleId,
+  moduleStart,
+  moduleEnd,
+  evaluations,
+  mentorId,
+}: {
+  student: Student;
+  moduleId: string;
+  moduleStart: number;
+  moduleEnd: number;
+  evaluations: (EvalRatingFields & { date: number; notes?: string })[];
+  mentorId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const today = startOfDay(Date.now());
+  const todayEntry = evaluations.find((e) => e.date === today);
+  const daysLogged = evaluations.length;
+
+  return (
+    <li className="py-2.5">
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full flex-wrap items-center justify-between gap-2 text-left text-sm">
+        <span className="flex items-center gap-2">
+          {open ? <ChevronDown className="h-3.5 w-3.5 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />}
+          <span className="font-medium text-slate-800">
+            {student.rollNo} — {student.name}
+          </span>
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="text-xs text-slate-400">{daysLogged} day(s) logged</span>
+          {todayEntry ? (
+            <Badge variant={RATING_BADGE[todayEntry.overallPerformance]}>Today: {RATING_LABEL[todayEntry.overallPerformance]}</Badge>
+          ) : (
+            <Badge variant="neutral">Not logged today</Badge>
+          )}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-2">
+          <EvaluationForm
+            studentId={student.uid}
+            department={student.department}
+            moduleId={moduleId}
+            moduleStart={moduleStart}
+            moduleEnd={moduleEnd}
+            existing={todayEntry}
+            mentorId={mentorId}
+            onSaved={() => setOpen(false)}
+          />
+        </div>
+      )}
+    </li>
+  );
+}
+
+function LogEvaluationsSection({
+  moduleId,
+  moduleStart,
+  moduleEnd,
+}: {
+  moduleId: string;
+  moduleStart: number;
+  moduleEnd: number;
+}) {
+  const { appUser, firebaseUser } = useAuth();
+  const mentees = useMyMentees(appUser, firebaseUser?.uid);
+  const students = useStudentsDirectory(appUser);
+  const evaluations = useMockEvaluations(appUser);
+
+  const studentsByUid = useMemo(() => Object.fromEntries((students ?? []).map((s) => [s.uid, s])), [students]);
+
+  const evalsByStudent = useMemo(() => {
+    const map: Record<string, (EvalRatingFields & { date: number; notes?: string })[]> = {};
+    for (const e of evaluations ?? []) {
+      if (e.moduleId !== moduleId) continue;
+      map[e.studentId] ??= [];
+      map[e.studentId].push(e);
+    }
+    return map;
+  }, [evaluations, moduleId]);
+
+  const menteeStudents = useMemo(() => {
+    if (!mentees) return [];
+    return mentees
+      .map((m) => studentsByUid[m.studentId])
+      .filter((s): s is Student => s !== undefined)
+      .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
+  }, [mentees, studentsByUid]);
+
+  if (!firebaseUser) return null;
+  // Coordinator/hod/dean/cpo/admin can technically log evaluations too (same
+  // tier as mockInterviews — small colleges often have the coordinator
+  // double as a trainer), but most of them have no mentees of their own and
+  // this section has nothing useful to say to them. Only faculty_mentor (or
+  // anyone who does happen to have mentees assigned) sees it; render
+  // nothing rather than an empty "no mentees" card for everyone else.
+  if (mentees !== null && students !== null && menteeStudents.length === 0) return null;
+
+  return (
+    <Card className="mb-4">
+      <h3 className="mb-1 text-base font-semibold text-slate-900">Log today's evaluations</h3>
+      <p className="mb-3 text-sm text-slate-500">Your mentees — click one to log or update an evaluation.</p>
+      {mentees === null || students === null ? (
+        <Skeleton className="h-24" />
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {menteeStudents.map((s) => (
+            <MenteeEvalRow
+              key={s.studentId}
+              student={s}
+              moduleId={moduleId}
+              moduleStart={moduleStart}
+              moduleEnd={moduleEnd}
+              evaluations={evalsByStudent[s.uid] ?? []}
+              mentorId={firebaseUser.uid}
+            />
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function StudentProgressPanel({
+  student,
+  evaluations,
+}: {
+  student: Student | undefined;
+  evaluations: (EvalRatingFields & { date: number })[];
+}) {
+  const sorted = useMemo(() => evaluations.slice().sort((a, b) => a.date - b.date), [evaluations]);
+
+  const trendData = useMemo(() => {
+    return sorted
+      .map((e) => ({ key: String(e.date), label: formatDay(e.date), value: RATING_SCORE[e.overallPerformance] }))
+      .filter((p): p is { key: string; label: string; value: number } => p.value !== null);
+  }, [sorted]);
+
+  return (
+    <div className="mt-2 space-y-3 rounded-lg bg-slate-50 p-3">
+      {trendData.length >= 2 && (
+        <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Overall performance trend</p>
+          <TrendLineChart data={trendData} height={140} />
+        </div>
+      )}
+      <div className="overflow-x-auto rounded-lg bg-white ring-1 ring-slate-200">
+        <table className="w-full min-w-[720px] text-left text-xs">
+          <thead>
+            <tr className="border-b border-slate-200 uppercase tracking-wide text-slate-500">
+              <th className="py-1.5 pl-3 pr-3">Date</th>
+              {EVAL_CATEGORIES.map((c) => (
+                <th key={c.key} className="py-1.5 pr-3">
+                  {c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {sorted.map((e) => (
+              <tr key={e.date}>
+                <td className="py-1.5 pl-3 pr-3 font-medium text-slate-700">{formatDay(e.date)}</td>
+                {EVAL_CATEGORIES.map((c) => (
+                  <td key={c.key} className="py-1.5 pr-3">
+                    <Badge variant={RATING_BADGE[e[c.key]]}>{RATING_LABEL[e[c.key]]}</Badge>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {student?.email && <p className="text-xs text-slate-400">{student.rollNo} · {student.email}</p>}
+    </div>
+  );
+}
+
+function ConsolidationSection({ moduleId, moduleName }: { moduleId: string; moduleName: string }) {
+  const { appUser } = useAuth();
+  const students = useStudentsDirectory(appUser);
+  const evaluations = useMockEvaluations(appUser);
+  const mentors = useMentorDirectory(appUser);
+  const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
+  const [dayFilter, setDayFilter] = useState<number | "">("");
+  const [mentorFilter, setMentorFilter] = useState("");
+
+  const studentsByUid = useMemo(() => Object.fromEntries((students ?? []).map((s) => [s.uid, s])), [students]);
+  const mentorsByUid = useMemo(() => Object.fromEntries((mentors ?? []).map((m) => [m.uid, m])), [mentors]);
+
+  const moduleEvals = useMemo(() => (evaluations ?? []).filter((e) => e.moduleId === moduleId), [evaluations, moduleId]);
+
+  // Who's actually logged something for this module vs. every faculty
+  // mentor in the department — the gap between the two is "who hasn't
+  // conducted a mock interview yet," which a coordinator can't see just by
+  // scrolling the evaluations themselves (no entry means no row).
+  const mentorsWithEvals = useMemo(() => new Set(moduleEvals.map((e) => e.mentorId)), [moduleEvals]);
+  const deptMentors = useMemo(() => (mentors ?? []).filter((m) => m.role === "faculty_mentor"), [mentors]);
+  const mentorsWithoutEvals = useMemo(
+    () => deptMentors.filter((m) => !mentorsWithEvals.has(m.uid)).sort((a, b) => a.name.localeCompare(b.name)),
+    [deptMentors, mentorsWithEvals]
+  );
+
+  const filteredEvals = useMemo(
+    () => (mentorFilter ? moduleEvals.filter((e) => e.mentorId === mentorFilter) : moduleEvals),
+    [moduleEvals, mentorFilter]
+  );
+
+  const evalsByStudent = useMemo(() => {
+    const map: Record<string, typeof filteredEvals> = {};
+    for (const e of filteredEvals) {
+      map[e.studentId] ??= [];
+      map[e.studentId].push(e);
+    }
+    return map;
+  }, [filteredEvals]);
+
+  const dates = useMemo(() => Array.from(new Set(filteredEvals.map((e) => e.date))).sort((a, b) => a - b), [filteredEvals]);
+
+  const studentIds = useMemo(
+    () => Object.keys(evalsByStudent).sort((a, b) => (studentsByUid[a]?.rollNo ?? "").localeCompare(studentsByUid[b]?.rollNo ?? "")),
+    [evalsByStudent, studentsByUid]
+  );
+
+  const dayEvals = useMemo(
+    () =>
+      dayFilter === ""
+        ? []
+        : filteredEvals
+            .filter((e) => e.date === dayFilter)
+            .sort((a, b) => (studentsByUid[a.studentId]?.rollNo ?? "").localeCompare(studentsByUid[b.studentId]?.rollNo ?? "")),
+    [filteredEvals, dayFilter, studentsByUid]
+  );
+
+  function handleDownload() {
+    const headers = ["Roll No", "Name", "Date", "Mentor", ...EVAL_CATEGORIES.map((c) => c.label), "Notes"];
+    const source = dayFilter === "" ? filteredEvals : filteredEvals.filter((e) => e.date === dayFilter);
+    const rows = source
+      .slice()
+      .sort((a, b) => (studentsByUid[a.studentId]?.rollNo ?? "").localeCompare(studentsByUid[b.studentId]?.rollNo ?? "") || a.date - b.date)
+      .map((e) => {
+        const s = studentsByUid[e.studentId];
+        return [
+          s?.rollNo ?? e.studentId,
+          s?.name ?? "",
+          formatDay(e.date),
+          mentorsByUid[e.mentorId]?.name ?? e.mentorId,
+          ...EVAL_CATEGORIES.map((c) => RATING_LABEL[e[c.key]]),
+          e.notes ?? "",
+        ];
+      });
+    downloadCsv(`${moduleName.replace(/\s+/g, "-").toLowerCase()}-evaluations.csv`, headers, rows);
+  }
+
+  if (evaluations === null || students === null) return <Skeleton className="h-40" />;
+
+  return (
+    <Card>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-base font-semibold text-slate-900">Consolidated report</h3>
+          <p className="text-sm text-slate-500">
+            {dayFilter === ""
+              ? "Overall performance by day — click a student for the full breakdown and trend."
+              : "Every question's value for the selected day, with the mentor who logged it."}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={mentorFilter}
+            onChange={(e) => setMentorFilter(e.target.value)}
+            className={`${inputClass} sm:w-48`}
+          >
+            <option value="">All mentors</option>
+            {deptMentors
+              .slice()
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((m) => (
+                <option key={m.uid} value={m.uid}>
+                  {m.name}
+                  {mentorsWithEvals.has(m.uid) ? "" : " (no evaluations yet)"}
+                </option>
+              ))}
+          </select>
+          <select
+            value={dayFilter}
+            onChange={(e) => setDayFilter(e.target.value ? Number(e.target.value) : "")}
+            className={`${inputClass} sm:w-48`}
+          >
+            <option value="">All days (summary)</option>
+            {dates.map((d) => (
+              <option key={d} value={d}>
+                {formatDay(d)}
+              </option>
+            ))}
+          </select>
+          {moduleEvals.length > 0 && (
+            <Button variant="secondary" onClick={handleDownload}>
+              <Download className="h-4 w-4" />
+              Download CSV
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {mentorsWithoutEvals.length > 0 && (
+        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Haven't logged any evaluations for this module yet: {mentorsWithoutEvals.map((m) => m.name).join(", ")}
+        </p>
+      )}
+
+      {studentIds.length === 0 ? (
+        <p className="text-sm text-slate-400">No evaluations logged for this module yet.</p>
+      ) : dayFilter !== "" ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                <th className="py-2 pr-4">Student</th>
+                <th className="py-2 pr-4">Mentor</th>
+                {EVAL_CATEGORIES.map((c) => (
+                  <th key={c.key} className="py-2 pr-4">
+                    {c.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {dayEvals.map((e) => {
+                const student = studentsByUid[e.studentId];
+                return (
+                  <tr key={e.evaluationId}>
+                    <td className="py-2 pr-4 font-medium text-slate-800">
+                      {student ? `${student.rollNo} — ${student.name}` : e.studentId}
+                    </td>
+                    <td className="py-2 pr-4 text-slate-600">{mentorsByUid[e.mentorId]?.name ?? e.mentorId}</td>
+                    {EVAL_CATEGORIES.map((c) => (
+                      <td key={c.key} className="py-2 pr-4">
+                        <Badge variant={RATING_BADGE[e[c.key]]}>{RATING_LABEL[e[c.key]]}</Badge>
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+              {dayEvals.length === 0 && (
+                <tr>
+                  <td colSpan={2 + EVAL_CATEGORIES.length} className="py-6 text-center text-sm text-slate-400">
+                    No evaluations logged for this day.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[600px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                <th className="py-2 pr-4">Student</th>
+                {dates.map((d) => (
+                  <th key={d} className="py-2 pr-4">
+                    {formatDay(d)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {studentIds.map((studentId) => {
+                const student = studentsByUid[studentId];
+                const byDate = Object.fromEntries(evalsByStudent[studentId].map((e) => [e.date, e]));
+                const isExpanded = expandedStudentId === studentId;
+                return (
+                  <Fragment key={studentId}>
+                    <tr
+                      className="cursor-pointer hover:bg-slate-50"
+                      onClick={() => setExpandedStudentId(isExpanded ? null : studentId)}
+                    >
+                      <td className="py-2 pr-4 font-medium text-slate-800">
+                        {student ? `${student.rollNo} — ${student.name}` : studentId}
+                      </td>
+                      {dates.map((d) => {
+                        const entry = byDate[d];
+                        return (
+                          <td key={d} className="py-2 pr-4">
+                            {entry ? (
+                              <Badge variant={RATING_BADGE[entry.overallPerformance]}>{RATING_LABEL[entry.overallPerformance]}</Badge>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={dates.length + 1} className="pb-3">
+                          <StudentProgressPanel student={student} evaluations={evalsByStudent[studentId]} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+export default function MockEvaluations() {
+  const { appUser } = useAuth();
+  const modules = useMockModules(appUser);
+  const [selectedModuleId, setSelectedModuleId] = useState<string>("");
+
+  const canCreateModule = !!appUser && CAN_CREATE_MODULE_ROLES.includes(appUser.role);
+  const canLogEval = !!appUser && CAN_LOG_EVAL_ROLES.includes(appUser.role);
+
+  const sortedModules = useMemo(() => (modules ?? []).slice().sort((a, b) => b.startDate - a.startDate), [modules]);
+  const selectedModule = sortedModules.find((m) => m.moduleId === selectedModuleId) ?? sortedModules[0];
+
+  return (
+    <div>
+      <PageHeader
+        title="Mock Interview Modules"
+        subtitle="Daily per-mentee mock interview evaluations for a company drive, consolidated across the module's run."
+        icon={ClipboardCheck}
+        gradient="from-indigo-500 to-purple-600"
+      />
+
+      {canCreateModule && <CreateModuleSection onCreated={() => {}} />}
+
+      {modules === null ? (
+        <Skeleton className="h-24" />
+      ) : sortedModules.length === 0 ? (
+        <Card className="text-sm text-slate-500">No modules yet.</Card>
+      ) : (
+        <>
+          <Card className="mb-4">
+            <label className={labelClass}>Module</label>
+            <select
+              value={selectedModule?.moduleId ?? ""}
+              onChange={(e) => setSelectedModuleId(e.target.value)}
+              className={`${inputClass} sm:w-96`}
+            >
+              {sortedModules.map((m) => (
+                <option key={m.moduleId} value={m.moduleId}>
+                  {m.name} ({formatDay(m.startDate)} – {formatDay(m.endDate)})
+                </option>
+              ))}
+            </select>
+          </Card>
+
+          {selectedModule && (
+            <>
+              {canLogEval && (
+                <LogEvaluationsSection
+                  moduleId={selectedModule.moduleId}
+                  moduleStart={selectedModule.startDate}
+                  moduleEnd={selectedModule.endDate}
+                />
+              )}
+              <ConsolidationSection moduleId={selectedModule.moduleId} moduleName={selectedModule.name} />
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,15 @@
+{
+  "name": "placement-app",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "functions"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:mobile": "npm run start --workspace=apps/mobile",
+    "deploy:rules": "firebase deploy --only database",
+    "deploy:functions": "firebase deploy --only functions"
+  }
+}

@@ -1,0 +1,572 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    // --------------------------------------------------------------------
+    // Reusable role checks (RTDB rules don't support functions, so these
+    // expressions are repeated inline below — that's normal for RTDB).
+    //   myRole      -> root.child('users').child(auth.uid).child('role').val()
+    //   myDept      -> root.child('users').child(auth.uid).child('department').val()
+    //   institution -> myRole is 'dean' | 'principal' | 'cpo' | 'admin'
+    //   deptStaff   -> myRole is 'hod' | 'coordinator' | 'faculty_mentor'
+    //
+    // Role hierarchy: admin > institution (dean/principal/cpo) > hod >
+    // coordinator > faculty_mentor, where each tier's rule conditions are a
+    // superset of the tier(s) below — a coordinator check always accompanies
+    // a hod check, an institution check always accompanies admin, etc. admin
+    // sits at the very top: everywhere an institution role can read/write,
+    // 'admin' is added to the same OR chain, on top of admin's exclusive
+    // /users (staff account/role management) access. This lets one person
+    // hold a single role that covers both account administration and full
+    // operational access, instead of needing two logins.
+    //
+    // Department scoping: every collection tied to a specific student
+    // (applications, offers, joiningReports, attendance, mentorMapping,
+    // mockInterviews, resumeReviews, skillAssessments, drivePrepAssignments)
+    // restricts deptStaff (hod/coordinator/faculty_mentor) to records for
+    // students in their own department — institution roles still see
+    // everything. Each such record carries a denormalized `department` field
+    // (copied from the student at write time) plus a matching
+    // {collection}DeptIndex/{department}/{recordId} = true node, same shape
+    // as departmentIndex/mentorIndex, so deptStaff can enumerate "which
+    // record ids are in my department" instead of only fetching one known id
+    // at a time. Whoever creates one of these records must write the
+    // matching DeptIndex entry in the same update() call — see the DB_NODES
+    // doc comment in packages/types for the full writeup, including the two
+    // deliberate simplifications (multi-department drives, readinessScores
+    // left unscoped since it's not wired up anywhere yet).
+    // --------------------------------------------------------------------
+
+    // Root .read lets dean/principal/cpo/admin list the whole staff+student
+    // user directory in one call (matches their existing per-record rights
+    // below — per-$uid-only rules never authorize a parent-level read, see
+    // the applications comment further down for why that matters).
+    //
+    // .write is intentionally admin-only for STAFF roles (plus the student
+    // self-signup escape hatch): staff account creation/role-editing used to
+    // be spread across dean/cpo/hod/coordinator/faculty_mentor, which meant a
+    // coordinator could create an HOD account despite HOD outranking them.
+    // Centralizing on one dedicated "admin" role is the single source of
+    // truth for who holds what role — see ManageStaff.tsx / updateStaffAccount
+    // in staffAuthActions.ts.
+    //
+    // The last clause is a narrower carve-out: any non-student staff can
+    // create a brand-new record with role 'student' (never edit an existing
+    // one, never any other role) — this is what lets a coordinator bulk-
+    // import a roster (see bulkImportLib.ts) without needing admin to do it.
+    // Creating a *student* isn't the privilege-escalation risk staff-role
+    // creation is, so it doesn't need the same admin-only gate.
+    "users": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$uid": {
+        // Coordinator/hod can also read another staff member's /users record
+        // when its department matches their own — unlike a student's
+        // /users record (no department field, see the comment below),
+        // hod/coordinator/faculty_mentor records DO carry department
+        // directly on /users (see createStaffAccount in staffAuthActions.ts),
+        // so this can't accidentally match a student. Needed for
+        // useMentorDirectory (drivePrepLib.ts) to work for dept-scoped roles
+        // — it was silently broken for coordinator/hod before this (each
+        // per-uid get() denied, Promise.all rejected, picker stuck loading).
+        //
+        // A student can likewise read any *staff* record (not another
+        // student's) in their own department — needed so MentorProgress.tsx
+        // can resolve their assigned mentor's name instead of showing the
+        // raw uid (mentorMapping only stores facultyId, a uid). Not scoped to
+        // "must be my specific mentor" — verifying that at the rules level
+        // would need a mentorMapping composite-key index that doesn't exist;
+        // "any staff in my own department" is the same tradeoff already made
+        // for mockInterviewModules/trainingBatches elsewhere in this file.
+        ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && data.child('department').val() === root.child('users').child(auth.uid).child('department').val() ) || ( root.child('users').child(auth.uid).child('role').val() === 'student' && data.child('role').val() !== 'student' && data.child('department').val() === root.child('students').child(auth.uid).child('department').val() ) )",
+        // Coordinator/hod can also create (not edit/delete/promote) a brand
+        // new faculty_mentor account — Mentor Tools' Add Mentor form. Scoped
+        // tightly: role must be exactly 'faculty_mentor' (can't be used to
+        // mint a coordinator/hod/admin account) and the new record's
+        // department must equal the creator's own — matches the same
+        // department-scoping tier as mentorMapping/drivePrepAssignments
+        // writes elsewhere in this file. Editing an existing mentor (or any
+        // other role change) still requires admin, same as before.
+        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'admin' || ( !data.exists() && auth.uid === $uid && newData.child('role').val() === 'student' ) || ( !data.exists() && newData.child('role').val() === 'student' && root.child('users').child(auth.uid).child('role').val() !== 'student' ) || ( !data.exists() && newData.child('role').val() === 'faculty_mentor' && ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && newData.child('department').val() === root.child('users').child(auth.uid).child('department').val() ) || ( !newData.exists() && data.child('role').val() === 'student' && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && root.child('students').child($uid).child('department').val() === root.child('users').child(auth.uid).child('department').val() ) ) ) )",
+
+        // Two coordinator-facing actions beyond create, both student-only,
+        // both scoped by cross-referencing root.child('students').child($uid)
+        // for department (a student's /users record has no department field
+        // of its own — that lives on /students):
+        //  - the last .write clause above: an actual delete (newData doesn't
+        //    exist) — see removeStudent() in studentsDirectoryLib.ts, deletes
+        //    /users first (while /students still has the department to check
+        //    against), then /students + departmentIndex in a second call.
+        //  - the isActive field below: deactivate/reactivate, reversible,
+        //    the default "delete" the app's UI leads with — see
+        //    setStudentActive() in the same file.
+        // Both are coordinator/hod-tier (bigger than editing an offer, not
+        // smaller), plus dean/cpo/admin unconditionally.
+        "isActive": {
+          ".read": "auth != null && ( auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( root.child('users').child($uid).child('role').val() === 'student' && root.child('students').child($uid).child('department').val() === root.child('users').child(auth.uid).child('department').val() ) )",
+          ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && root.child('users').child($uid).child('role').val() === 'student' && root.child('students').child($uid).child('department').val() === root.child('users').child(auth.uid).child('department').val() ) )"
+        }
+      }
+    },
+
+    // Root .read scoped to dean/principal/cpo only — matches their existing
+    // per-record rights exactly (see $studentId below), just fixes the same
+    // "can't list a collection that only has per-child rules" limitation.
+    // coordinator/hod stay dept-scoped and use departmentIndex instead (below).
+    "students": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$studentId": {
+        ".read": "auth != null && ( data.child('uid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === data.child('department').val() )",
+        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === (data.exists() ? data.child('department') : newData.child('department')).val() || ( data.child('uid').val() === auth.uid && data.child('verifiedByFaculty').val() === false ) || ( !data.exists() && newData.child('uid').val() === auth.uid ) )",
+
+        // Academic numbers stay student-editable every semester even after
+        // verifiedByFaculty locks the rest of the record (identity fields
+        // like name/rollNo/department are meant to freeze on verification;
+        // CGPA/backlogs are recurring self-reported facts, not identity) —
+        // EXCEPT at creation time, when staff bulk-importing an official
+        // roster (see bulkImportLib.ts) need to seed these from source data.
+        // The !data.exists() guard means this only ever applies to a brand
+        // new record; once it exists, only the student can change these.
+        "cgpa": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( !data.exists() && root.child('users').child(auth.uid).child('department').val() === newData.parent().child('department').val() ) )" },
+        "semesterWiseSgpa": { ".write": "auth != null && $studentId === auth.uid" },
+        "currentSemester": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( !data.exists() && root.child('users').child(auth.uid).child('department').val() === newData.parent().child('department').val() ) )" },
+        "activeBacklogs": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( !data.exists() && root.child('users').child(auth.uid).child('department').val() === newData.parent().child('department').val() ) )" },
+        "updatedAt": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( !data.exists() && root.child('users').child(auth.uid).child('department').val() === newData.parent().child('department').val() ) )" },
+
+        // Contact/address/education-history/links/skills stay student-editable
+        // even after verifiedByFaculty locks the rest of the record, same
+        // reasoning as the academic numbers above — and it matters more here:
+        // bulk-imported students (bulkImportLib.ts) are created with
+        // verifiedByFaculty already true, so without this bypass they'd never
+        // get a window to self-report this data via PersonalDetails.tsx and
+        // every save would hit PERMISSION_DENIED. Identity fields (name,
+        // rollNo, department, batchYear) are deliberately NOT in this list —
+        // those still freeze on verification.
+        "studentPhone": { ".write": "auth != null && $studentId === auth.uid" },
+        "personalEmail": { ".write": "auth != null && $studentId === auth.uid" },
+        "parentName": { ".write": "auth != null && $studentId === auth.uid" },
+        "parentPhone": { ".write": "auth != null && $studentId === auth.uid" },
+        "alternatePhone": { ".write": "auth != null && $studentId === auth.uid" },
+        "address": { ".write": "auth != null && $studentId === auth.uid" },
+        "city": { ".write": "auth != null && $studentId === auth.uid" },
+        "state": { ".write": "auth != null && $studentId === auth.uid" },
+        "pincode": { ".write": "auth != null && $studentId === auth.uid" },
+        "dateOfBirth": { ".write": "auth != null && $studentId === auth.uid" },
+        "gender": { ".write": "auth != null && $studentId === auth.uid" },
+        "bloodGroup": { ".write": "auth != null && $studentId === auth.uid" },
+        "tenthPercentage": { ".write": "auth != null && $studentId === auth.uid" },
+        "tenthSchool": { ".write": "auth != null && $studentId === auth.uid" },
+        "tenthBoard": { ".write": "auth != null && $studentId === auth.uid" },
+        "tenthYearOfPassing": { ".write": "auth != null && $studentId === auth.uid" },
+        "twelfthPercentage": { ".write": "auth != null && $studentId === auth.uid" },
+        "twelfthSchool": { ".write": "auth != null && $studentId === auth.uid" },
+        "twelfthBoard": { ".write": "auth != null && $studentId === auth.uid" },
+        "twelfthYearOfPassing": { ".write": "auth != null && $studentId === auth.uid" },
+        "diplomaPercentage": { ".write": "auth != null && $studentId === auth.uid" },
+        "diplomaSchool": { ".write": "auth != null && $studentId === auth.uid" },
+        "diplomaBoard": { ".write": "auth != null && $studentId === auth.uid" },
+        "diplomaYearOfPassing": { ".write": "auth != null && $studentId === auth.uid" },
+        "linkedinUrl": { ".write": "auth != null && $studentId === auth.uid" },
+        "githubUrl": { ".write": "auth != null && $studentId === auth.uid" },
+        "portfolioUrl": { ".write": "auth != null && $studentId === auth.uid" },
+        "resumeUrl": { ".write": "auth != null && $studentId === auth.uid" },
+        "skills": { ".write": "auth != null && $studentId === auth.uid" },
+        "certifications": { ".write": "auth != null && $studentId === auth.uid" },
+        "lastSignificantUpdateAt": { ".write": "auth != null && $studentId === auth.uid" }
+      }
+    },
+
+    // Any signed-in user can read drives — students need to browse them
+    // (eligibility filtering happens in the app). Only coordinator/HOD/
+    // institution roles can create or edit a drive.
+    "drives": {
+      ".read": "auth != null",
+      "$driveId": {
+        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' )"
+      }
+    },
+
+    // applicationId is always `${studentUid}_${driveId}` (see apps/web/src/lib/driveActions.ts),
+    // so ownership can be checked from the path itself. That matters because a plain
+    // `data.child('studentId').val() === auth.uid` check denies reads of an application
+    // that doesn't exist yet (there's no data to prove ownership of) — which broke
+    // "have I already applied to this drive?" lookups for drives a student hadn't
+    // applied to yet.
+    //
+    // Root .read/.write is institution-only now (was "any staff") — deptStaff go
+    // through applicationsDeptIndex instead, same department-scoping pattern
+    // described up top.
+    "applications": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$applicationId": {
+        ".read": "auth != null && ( $applicationId.beginsWith(auth.uid + '_') || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || data.child('department').val() === root.child('users').child(auth.uid).child('department').val() )",
+        ".write": "auth != null && ( ( $applicationId.beginsWith(auth.uid + '_') && !data.exists() && newData.child('studentId').val() === auth.uid ) || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && (data.exists() ? data.child('department') : newData.child('department')).val() === root.child('users').child(auth.uid).child('department').val() ) )"
+      }
+    },
+    "applicationsDeptIndex": {
+      "$department": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )",
+        "$applicationId": {
+          ".write": "auth != null && ( $applicationId.beginsWith(auth.uid + '_') || root.child('users').child(auth.uid).child('role').val() !== 'student' )"
+        }
+      }
+    },
+
+    // offerId is `${studentUid}_${driveId}` (same reasoning as applications above —
+    // lets a student check "do I have an offer for this drive?" via a direct read
+    // instead of a denied collection scan). Creation stays staff-only (a student
+    // can't invent their own offer); once it exists the owning student can update
+    // it (accept/decline, joining date). Root .read/.write institution-only, same
+    // department-scoping pattern as applications, via offersDeptIndex.
+    "offers": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$offerId": {
+        ".read": "auth != null && ( $offerId.beginsWith(auth.uid + '_') || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || data.child('department').val() === root.child('users').child(auth.uid).child('department').val() )",
+        ".write": "auth != null && ( data.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && (data.exists() ? data.child('department') : newData.child('department')).val() === root.child('users').child(auth.uid).child('department').val() ) )"
+      }
+    },
+    "offersDeptIndex": {
+      "$department": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )",
+        "$offerId": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
+        }
+      }
+    },
+
+    // reportId is the offerId it belongs to (1:1). Unlike offers, a joining report
+    // is student-submitted, so creation is allowed for the owning student, plus
+    // updates (resubmitting proof is fine). Root .read/.write institution-only,
+    // same department-scoping pattern via joiningReportsDeptIndex.
+    "joiningReports": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$reportId": {
+        ".read": "auth != null && ( $reportId.beginsWith(auth.uid + '_') || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || data.child('department').val() === root.child('users').child(auth.uid).child('department').val() )",
+        ".write": "auth != null && ( ( $reportId.beginsWith(auth.uid + '_') && newData.child('studentId').val() === auth.uid ) || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && (data.exists() ? data.child('department') : newData.child('department')).val() === root.child('users').child(auth.uid).child('department').val() ) )"
+      }
+    },
+    "joiningReportsDeptIndex": {
+      "$department": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )",
+        "$reportId": {
+          ".write": "auth != null && ( $reportId.beginsWith(auth.uid + '_') || root.child('users').child(auth.uid).child('role').val() !== 'student' )"
+        }
+      }
+    },
+
+    // Notification "read" filtering (which ones apply to me) happens in the
+    // app. Anyone signed in can read the list; only staff can create one.
+    // Deliberately not department-scoped — a notification can target "all"
+    // audiences by design, and its own audience.filterValue already carries
+    // whatever targeting it needs.
+    "notifications": {
+      ".read": "auth != null",
+      "$notificationId": {
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
+      }
+    },
+
+    // Scheduling (which batch exists, who's in it, when sessions run) is a
+    // coordinator/hod decision, not faculty_mentor's — see the Training.tsx
+    // conversation. faculty_mentor still runs the sessions they're handed:
+    // marking attendance (separate "attendance" collection, unaffected) and
+    // opening/closing self-check-in, which only touches the qrToken/
+    // checkInOpenUntil fields — carved out below with their own .write so a
+    // whole-record create/replace still requires coordinator/hod.
+    "trainingBatches": {
+      ".read": "auth != null",
+      "$batchId": {
+        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' )"
+      }
+    },
+
+    "trainingSessions": {
+      ".read": "auth != null",
+      "$sessionId": {
+        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' )",
+        "qrToken": {
+          ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' || root.child('users').child(auth.uid).child('role').val() === 'faculty_mentor' )"
+        },
+        "checkInOpenUntil": {
+          ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' || root.child('users').child(auth.uid).child('role').val() === 'faculty_mentor' )"
+        }
+      }
+    },
+
+    // Nested attendance/{sessionId}/{studentUid} (not a flat composite id like
+    // applications/offers) — self-check-in below needs to look up
+    // trainingSessions/{sessionId}/qrToken, and RTDB rules can't substring-parse
+    // a flat "$sessionId_$studentUid" wildcard to get $sessionId back out. Two
+    // separate wildcards solve that cleanly. Root .read institution-only now;
+    // deptStaff go through attendanceDeptIndex (keyed by the record's own
+    // attendanceId = "{sessionId}_{studentUid}", split back apart client-side —
+    // Firebase push ids and auth uids never contain "_", so that's safe).
+    "attendance": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$sessionId": {
+        "$studentUid": {
+          ".read": "auth != null && ( $studentUid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || data.child('department').val() === root.child('users').child(auth.uid).child('department').val() )",
+          // hod added alongside faculty_mentor/coordinator — every other
+          // dept-scoped write in this file already pairs coordinator+hod
+          // together (mentorMapping, drives, mockInterviews, resumeReviews,
+          // skillAssessments...); hod being solo-missing here looks like an
+          // oversight relative to that pattern, not a deliberate choice, and
+          // it was silently blocking hod from clearing attendance records
+          // when deleting a training batch/session (Training.tsx delete).
+          // Also switched to (data.exists() ? data : newData).department —
+          // newData doesn't exist on a delete, so the old newData-only check
+          // would fail deletion even for a legitimate coordinator/faculty_
+          // mentor/hod, since newData.child('department').val() is null with
+          // nothing there to compare. Latent until now because attendance was
+          // only ever created/updated before, never deleted.
+          ".write": "auth != null && ( ( ( root.child('users').child(auth.uid).child('role').val() === 'faculty_mentor' || root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && (data.exists() ? data.child('department') : newData.child('department')).val() === root.child('users').child(auth.uid).child('department').val() ) || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( !data.exists() && $studentUid === auth.uid && newData.child('studentId').val() === auth.uid && newData.child('status').val() === 'present' && newData.child('method').val() === 'qr' && newData.child('markedBy').val() === auth.uid && root.child('trainingSessions').child($sessionId).child('qrToken').exists() && newData.child('checkInToken').val() === root.child('trainingSessions').child($sessionId).child('qrToken').val() && root.child('trainingSessions').child($sessionId).child('checkInOpenUntil').exists() && now <= root.child('trainingSessions').child($sessionId).child('checkInOpenUntil').val() ) )"
+        }
+      }
+    },
+    "attendanceDeptIndex": {
+      "$department": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )",
+        "$attendanceId": {
+          ".write": "auth != null && ( $attendanceId.endsWith('_' + auth.uid) || root.child('users').child(auth.uid).child('role').val() !== 'student' )"
+        }
+      }
+    },
+
+    // Root .read institution-only now (was "any staff"); deptStaff go through
+    // mentorMappingDeptIndex.
+    "mentorMapping": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$mappingId": {
+        ".read": "auth != null && ( data.child('studentId').val() === auth.uid || data.child('facultyId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || data.child('department').val() === root.child('users').child(auth.uid).child('department').val() )",
+        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && (data.exists() ? data.child('department') : newData.child('department')).val() === root.child('users').child(auth.uid).child('department').val() ) )"
+      }
+    },
+    "mentorMappingDeptIndex": {
+      "$department": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )",
+        "$mappingId": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
+        }
+      }
+    },
+
+    // faculty_mentor is the "natural" owner of these three, but coordinator/hod
+    // get write access too — small colleges often have the placement
+    // coordinator double as a trainer. Root .read institution-only now;
+    // deptStaff go through mockInterviewsDeptIndex. Per-record read also always
+    // allows the recording mentor (mentorId === auth.uid), regardless of
+    // department, since they authored it.
+    "mockInterviews": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$interviewId": {
+        ".read": "auth != null && ( data.child('studentId').val() === auth.uid || data.child('mentorId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || data.child('department').val() === root.child('users').child(auth.uid).child('department').val() )",
+        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'faculty_mentor' || root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && (data.exists() ? data.child('department') : newData.child('department')).val() === root.child('users').child(auth.uid).child('department').val() ) )"
+      }
+    },
+    "mockInterviewsDeptIndex": {
+      "$department": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )",
+        "$interviewId": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
+        }
+      }
+    },
+
+    // A MockInterviewModule is the "campaign" (e.g. "Infosys Mock",
+    // 3-8-26 to 25-8-26) a coordinator/hod sets up ahead of a company visit
+    // — same create tier as mentorMapping (coordinator/hod/dean/cpo/admin;
+    // faculty_mentor logs MockEvaluations against it but doesn't create the
+    // module itself). Root .read institution-only (staff enumerate their
+    // department's modules via mockInterviewModulesDeptIndex instead), but
+    // a *specific* module by id is readable by any signed-in user — same
+    // "non-sensitive scheduling metadata" tier as trainingBatches/
+    // trainingSessions. That's what lets a student read the module their
+    // own MockEvaluation.moduleId points at (see MockPerformance.tsx) — they
+    // discover moduleIds via studentIndex/{uid}/mockEvaluations, not by
+    // listing modules, so they only ever fetch ones they're entitled to
+    // know about in the first place.
+    "mockInterviewModules": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$moduleId": {
+        ".read": "auth != null",
+        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && (data.exists() ? data.child('department') : newData.child('department')).val() === root.child('users').child(auth.uid).child('department').val() ) )"
+      }
+    },
+    "mockInterviewModulesDeptIndex": {
+      "$department": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )",
+        "$moduleId": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
+        }
+      }
+    },
+
+    // Daily per-mentee entries against a module — same write tier as
+    // mockInterviews (faculty_mentor/coordinator/hod, dept-matched). The app
+    // only lets a mentor pick from their own mentees when logging one (see
+    // StudentPicker in MentorTools.tsx), but the rule itself stays
+    // department-scoped like every other mentor-tooling collection here,
+    // not a strict "must be your own mentee" check — same tradeoff already
+    // made for mockInterviews/resumeReviews/skillAssessments.
+    "mockEvaluations": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$evaluationId": {
+        ".read": "auth != null && ( data.child('studentId').val() === auth.uid || data.child('mentorId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || data.child('department').val() === root.child('users').child(auth.uid).child('department').val() )",
+        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'faculty_mentor' || root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && (data.exists() ? data.child('department') : newData.child('department')).val() === root.child('users').child(auth.uid).child('department').val() ) )"
+      }
+    },
+    "mockEvaluationsDeptIndex": {
+      "$department": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )",
+        "$evaluationId": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
+        }
+      }
+    },
+
+    "resumeReviews": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$reviewId": {
+        ".read": "auth != null && ( data.child('studentId').val() === auth.uid || data.child('mentorId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || data.child('department').val() === root.child('users').child(auth.uid).child('department').val() )",
+        ".write": "auth != null && ( data.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'faculty_mentor' || root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && (data.exists() ? data.child('department') : newData.child('department')).val() === root.child('users').child(auth.uid).child('department').val() ) )"
+      }
+    },
+    "resumeReviewsDeptIndex": {
+      "$department": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )",
+        "$reviewId": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
+        }
+      }
+    },
+
+    "skillAssessments": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$assessmentId": {
+        ".read": "auth != null && ( data.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || data.child('department').val() === root.child('users').child(auth.uid).child('department').val() )",
+        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'faculty_mentor' || root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && (data.exists() ? data.child('department') : newData.child('department')).val() === root.child('users').child(auth.uid).child('department').val() ) )"
+      }
+    },
+    "skillAssessmentsDeptIndex": {
+      "$department": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )",
+        "$assessmentId": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
+        }
+      }
+    },
+
+    // Computed client-side for now (see comment in types file). Not wired up
+    // anywhere in the app yet (no read or write site exists) — left staff-wide
+    // and unscoped rather than building out department-scoping for a feature
+    // that isn't built. Revisit alongside whoever implements it.
+    "readinessScores": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'",
+      "$studentId": {
+        ".read": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() !== 'student' )",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
+      }
+    },
+
+    // Denormalized "which records are mine" index for collections that are
+    // many-per-student with no natural composite key (mockInterviews,
+    // resumeReviews, skillAssessments, mentorMapping). Structure:
+    // studentIndex/{studentUid}/{collectionName}/{recordId} = true.
+    // Staff-side code that creates those records must also write the matching
+    // index entry in the same update() call. The records themselves are
+    // already readable once you know the id (owner-or-staff check on each
+    // collection above) — this only solves "how do I find the ids".
+    "studentIndex": {
+      "$studentId": {
+        ".read": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() !== 'student' )",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
+      }
+    },
+
+    // departmentIndex/{department}/{studentUid} = true. students has no root
+    // .read for coordinator/hod (they're dept-scoped, unlike dean/principal/cpo
+    // above) — this lets them enumerate just their own department's student
+    // uids, then read each one individually via the existing per-record rule.
+    // Written by the student themselves at profile-completion time, or by
+    // dept-matching staff / institution roles bulk-importing a roster on the
+    // student's behalf (see bulkImportLib.ts).
+    "departmentIndex": {
+      "$department": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )",
+        "$studentUid": {
+          ".write": "auth != null && ( auth.uid === $studentUid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )"
+        }
+      }
+    },
+
+    // Alumni never log in (no Firebase Auth account), so this is staff-only
+    // end to end — same simple full-staff-read/write pattern already used
+    // for trainingBatches/notifications, no dept-scoping (see AlumniRecord
+    // doc comment in packages/types for why this is a separate node from
+    // students rather than reusing it).
+    "alumni": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'",
+      "$alumniId": {
+        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )"
+      }
+    },
+
+    // mentorIndex/{department}/{mentorUid} = true — same shape as
+    // departmentIndex, for the same reason: coordinator/hod need to list
+    // faculty_mentor accounts in their own department (to build a mentor
+    // picker) but can't list /users at all. Written by whoever creates the
+    // staff account (see createStaffAccount in staffAuthActions.ts).
+    "mentorIndex": {
+      "$department": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )",
+        "$mentorUid": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
+        }
+      }
+    },
+
+    // Who's prepping which student for which upcoming drive — see the
+    // DrivePrepAssignment doc comment in packages/types. Root .read
+    // institution-only now; deptStaff go through drivePrepAssignmentsDeptIndex.
+    // Per-record read also always allows the assigned mentor (mentorId ===
+    // auth.uid), regardless of department, since it's their own assignment.
+    "drivePrepAssignments": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$assignmentId": {
+        ".read": "auth != null && ( data.child('mentorId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || data.child('department').val() === root.child('users').child(auth.uid).child('department').val() )",
+        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && (data.exists() ? data.child('department') : newData.child('department')).val() === root.child('users').child(auth.uid).child('department').val() ) )"
+      }
+    },
+    "drivePrepAssignmentsDeptIndex": {
+      "$department": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )",
+        "$assignmentId": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
+        }
+      }
+    },
+
+    // A mentor's own working notes on their mentees — see the MenteeFollowUp
+    // doc comment in packages/types for why this is deliberately NOT
+    // student-readable (unlike mockInterviews/resumeReviews/skillAssessments).
+    // Read/write: the authoring mentor (mentorId === auth.uid) always has
+    // access to their own entries regardless of department (mirrors
+    // drivePrepAssignments' own-assignment carve-out); coordinator/hod get
+    // full dept-scoped access for oversight; institution roles see everything.
+    "menteeFollowUps": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$followUpId": {
+        ".read": "auth != null && ( data.child('mentorId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && data.child('department').val() === root.child('users').child(auth.uid).child('department').val() ) )",
+        ".write": "auth != null && ( (data.exists() ? data.child('mentorId') : newData.child('mentorId')).val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && (data.exists() ? data.child('department') : newData.child('department')).val() === root.child('users').child(auth.uid).child('department').val() ) )"
+      }
+    },
+    "menteeFollowUpsDeptIndex": {
+      "$department": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )",
+        "$followUpId": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
+        }
+      }
+    }
+  }
+}
