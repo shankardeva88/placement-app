@@ -63,8 +63,14 @@ export interface EvalRatingFields {
   overallPerformance: MockEvalRating;
 }
 
+// Local date components, not toISOString() — that formats in UTC, and for
+// any timezone ahead of UTC (e.g. IST), local midnight (see startOfDay
+// below) falls on the *previous* UTC calendar day, so toISOString() would
+// show yesterday's date every time, all day long.
 function dateKey(ts: number): string {
-  return new Date(ts).toISOString().slice(0, 10); // YYYY-MM-DD
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 /** Midnight (local) for a given day — evaluations are keyed/compared by day,

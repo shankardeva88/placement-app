@@ -46,8 +46,13 @@ const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
 const labelClass = "mb-1 block text-sm font-medium text-slate-700";
 
+// Local date components, not toISOString() — see the matching comment on
+// dateKey in mockEvaluationLib.ts. Using UTC here made this default to
+// yesterday's date all day, every day, for any timezone ahead of UTC.
 function toDateInputValue(ts: number): string {
-  return new Date(ts).toISOString().slice(0, 10);
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function formatDay(ts: number): string {
