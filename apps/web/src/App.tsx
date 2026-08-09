@@ -44,6 +44,7 @@ import DriveSummaryReport from "./pages/staff/reports/DriveSummaryReport";
 import MentorWiseReport from "./pages/staff/reports/MentorWiseReport";
 import MenteeRosterReport from "./pages/staff/reports/MenteeRosterReport";
 import MockInterviewReport from "./pages/staff/reports/MockInterviewReport";
+import MockInterviewAnalytics from "./pages/staff/reports/MockInterviewAnalytics";
 import ResumeReviewReport from "./pages/staff/reports/ResumeReviewReport";
 import SkillAssessmentReport from "./pages/staff/reports/SkillAssessmentReport";
 import MentorReportsHome from "./pages/staff/reports/MentorReportsHome";
@@ -353,6 +354,14 @@ export default function App() {
             element={
               <StaffLayoutRoute>
                 <MockInterviewReport />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/reports/mock-interview-analytics"
+            element={
+              <StaffLayoutRoute>
+                <MockInterviewAnalytics />
               </StaffLayoutRoute>
             }
           />
