@@ -237,6 +237,9 @@ export function DriveForm({
   function updateRoundName(roundId: string, name: string) {
     setRounds((prev) => prev.map((r) => (r.roundId === roundId ? { ...r, name } : r)));
   }
+  function updateRoundStatus(roundId: string, status: DriveRound["status"]) {
+    setRounds((prev) => prev.map((r) => (r.roundId === roundId ? { ...r, status } : r)));
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -502,13 +505,26 @@ export function DriveForm({
         <div className="space-y-2">
           {rounds.map((r) => (
             <div key={r.roundId} className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="Round name"
-                value={r.name}
-                onChange={(e) => updateRoundName(r.roundId, e.target.value)}
-                className={inputClass}
-              />
+              <div className="flex-1">
+                <input
+                  type="text"
+                  placeholder="Round name"
+                  value={r.name}
+                  onChange={(e) => updateRoundName(r.roundId, e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div className="w-40 shrink-0">
+                <select
+                  value={r.status}
+                  onChange={(e) => updateRoundStatus(r.roundId, e.target.value as DriveRound["status"])}
+                  className={inputClass}
+                >
+                  <option value="pending">Pending</option>
+                  <option value="in_progress">In progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
               <button type="button" onClick={() => removeRound(r.roundId)} className="shrink-0 text-slate-400 hover:text-red-600" aria-label="Remove round">
                 <X className="h-4 w-4" />
               </button>
