@@ -3,8 +3,13 @@ import { Briefcase } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { Drive, DriveStatus } from "@placement-app/types";
+import type { Application, ApplicationStatus, Drive, DriveStatus, Student } from "@placement-app/types";
+import { useAuth } from "../../auth/AuthContext";
+import { useMyMentees } from "../../lib/menteeFollowUpLib";
+import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
+import { useAllApplications } from "../../lib/applicantsLib";
 import { driveCtcSummary, driveRoleSummary } from "../../lib/driveRolesLib";
+import { RoundProgress } from "../../components/RoundProgress";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import type { BadgeVariant } from "../../components/ui/Badge";
@@ -17,6 +22,15 @@ const DRIVE_BADGE: Record<DriveStatus, BadgeVariant> = {
   ongoing: "warning",
   completed: "neutral",
   cancelled: "danger",
+};
+
+const APPLICATION_BADGE: Record<ApplicationStatus, BadgeVariant> = {
+  applied: "brand",
+  shortlisted: "brand",
+  in_round: "warning",
+  selected: "success",
+  rejected: "danger",
+  withdrawn: "neutral",
 };
 
 const DRIVE_TYPE_LABEL: Record<Drive["type"], string> = { full_time: "Full-time", internship: "Internship" };
@@ -37,7 +51,15 @@ const inputClass =
  * actions here. Drive operations stay coordinator/hod-tier; this page is
  * just visibility so a mentor can see what's coming up (or already ran)
  * without needing the full Drives management screen. */
-function DriveDetailCard({ drive }: { drive: Drive }) {
+function DriveDetailCard({
+  drive,
+  menteeApplications,
+  studentsByUid,
+}: {
+  drive: Drive;
+  menteeApplications: Application[];
+  studentsByUid: Record<string, Student>;
+}) {
   return (
     <Card>
       <div className="flex items-start justify-between gap-4">
@@ -112,13 +134,56 @@ function DriveDetailCard({ drive }: { drive: Drive }) {
           </div>
         </div>
       )}
+
+      {menteeApplications.length > 0 && (
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">My mentees in this drive</p>
+          <ul className="space-y-3">
+            {menteeApplications.map((a) => {
+              const student = studentsByUid[a.studentId];
+              return (
+                <li key={a.applicationId} className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="font-medium text-slate-800">
+                      {student ? `${student.rollNo} — ${student.name}` : a.studentId}
+                    </span>
+                    <Badge variant={APPLICATION_BADGE[a.status]}>{a.status.replace("_", " ")}</Badge>
+                  </div>
+                  <RoundProgress rounds={drive.rounds} application={a} />
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </Card>
   );
 }
 
 export default function FacultyMentorDrives() {
+  const { appUser, firebaseUser } = useAuth();
   const [drives, setDrives] = useState<Drive[] | null>(null);
   const [statusFilter, setStatusFilter] = useState<DriveStatus | "">("");
+
+  const mentees = useMyMentees(appUser, firebaseUser?.uid);
+  const students = useStudentsDirectory(appUser);
+  const applications = useAllApplications(appUser);
+
+  const studentsByUid = useMemo(() => Object.fromEntries((students ?? []).map((s) => [s.uid, s])), [students]);
+  const menteeUids = useMemo(() => new Set((mentees ?? []).map((m) => m.studentId)), [mentees]);
+
+  // Every drive that at least one of this mentor's mentees applied to,
+  // keyed by driveId — lets each DriveDetailCard show only its own slice
+  // instead of filtering the whole applications list per card render.
+  const menteeApplicationsByDrive = useMemo(() => {
+    const map = new Map<string, Application[]>();
+    for (const a of applications ?? []) {
+      if (!menteeUids.has(a.studentId)) continue;
+      if (!map.has(a.driveId)) map.set(a.driveId, []);
+      map.get(a.driveId)!.push(a);
+    }
+    return map;
+  }, [applications, menteeUids]);
 
   useEffect(() => {
     return onValue(ref(db, DB_NODES.drives), (snap) => {
@@ -165,7 +230,12 @@ export default function FacultyMentorDrives() {
 
       <div className="space-y-4">
         {filtered?.map((drive) => (
-          <DriveDetailCard key={drive.driveId} drive={drive} />
+          <DriveDetailCard
+            key={drive.driveId}
+            drive={drive}
+            menteeApplications={menteeApplicationsByDrive.get(drive.driveId) ?? []}
+            studentsByUid={studentsByUid}
+          />
         ))}
       </div>
     </div>
