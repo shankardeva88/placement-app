@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Award, FileBarChart, FileCheck, Users, Users2, UserCheck, Briefcase, GraduationCap } from "lucide-react";
+import { ArrowRight, Award, ClipboardCheck, FileBarChart, FileCheck, Users, Users2, UserCheck, Briefcase, GraduationCap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card } from "../../../components/ui/Card";
 import { PageHeader } from "../../../components/ui/PageHeader";
@@ -39,6 +39,13 @@ const REPORTS: { to: string; label: string; description: string; icon: LucideIco
     description: "Every mentor-mentee assignment, one row each — filter by mentor, department, or batch.",
     icon: UserCheck,
     gradient: "from-emerald-500 to-teal-600",
+  },
+  {
+    to: "/staff/reports/mock-interviews",
+    label: "Mock Interview Report",
+    description: "Every logged evaluation across every module — filter by batch, mentor, date, or module.",
+    icon: ClipboardCheck,
+    gradient: "from-indigo-500 to-purple-600",
   },
   {
     to: "/staff/reports/resume-reviews",
