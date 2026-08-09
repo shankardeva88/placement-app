@@ -1,5 +1,20 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Award, BarChart3, ClipboardCheck, FileBarChart, FileCheck, FileSpreadsheet, Users, Users2, UserCheck, Briefcase, GraduationCap } from "lucide-react";
+import {
+  ArrowRight,
+  Award,
+  BadgeCheck,
+  BarChart3,
+  BookOpen,
+  ClipboardCheck,
+  FileBarChart,
+  FileCheck,
+  FileSpreadsheet,
+  Users,
+  Users2,
+  UserCheck,
+  Briefcase,
+  GraduationCap,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card } from "../../../components/ui/Card";
 import { PageHeader } from "../../../components/ui/PageHeader";
@@ -73,6 +88,20 @@ const REPORTS: { to: string; label: string; description: string; icon: LucideIco
     label: "Skill Assessment Report",
     description: "Every student's assessment count, average score, and types covered.",
     icon: Award,
+    gradient: "from-violet-500 to-purple-600",
+  },
+  {
+    to: "/staff/reports/training",
+    label: "Training Report",
+    description: "Internal training batch attendance % plus external/corporate trainings — filter by batch, department, or training batch.",
+    icon: BookOpen,
+    gradient: "from-amber-500 to-orange-600",
+  },
+  {
+    to: "/staff/reports/certifications",
+    label: "Certification Report",
+    description: "Every certification a student has added, one row each — filter by department or batch, search by name.",
+    icon: BadgeCheck,
     gradient: "from-violet-500 to-purple-600",
   },
 ];

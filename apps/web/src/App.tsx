@@ -40,6 +40,8 @@ import Alumni from "./pages/staff/Alumni";
 import ReportsHome from "./pages/staff/reports/ReportsHome";
 import StudentMasterReport from "./pages/staff/reports/StudentMasterReport";
 import FullStudentReport from "./pages/staff/reports/FullStudentReport";
+import TrainingReport from "./pages/staff/reports/TrainingReport";
+import CertificationReport from "./pages/staff/reports/CertificationReport";
 import PlacementReport from "./pages/staff/reports/PlacementReport";
 import DriveSummaryReport from "./pages/staff/reports/DriveSummaryReport";
 import MentorWiseReport from "./pages/staff/reports/MentorWiseReport";
@@ -323,6 +325,22 @@ export default function App() {
             element={
               <StaffLayoutRoute>
                 <FullStudentReport />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/reports/training"
+            element={
+              <StaffLayoutRoute>
+                <TrainingReport />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/reports/certifications"
+            element={
+              <StaffLayoutRoute>
+                <CertificationReport />
               </StaffLayoutRoute>
             }
           />
