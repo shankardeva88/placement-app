@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Award, FileBarChart, FileCheck, Users, Users2, Briefcase, GraduationCap } from "lucide-react";
+import { ArrowRight, Award, FileBarChart, FileCheck, Users, Users2, UserCheck, Briefcase, GraduationCap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card } from "../../../components/ui/Card";
 import { PageHeader } from "../../../components/ui/PageHeader";
@@ -32,6 +32,13 @@ const REPORTS: { to: string; label: string; description: string; icon: LucideIco
     description: "Per mentor — mentee count, avg CGPA/backlogs, at-risk count, follow-up activity.",
     icon: Users2,
     gradient: "from-slate-500 to-slate-700",
+  },
+  {
+    to: "/staff/reports/mentee-roster",
+    label: "Mentee Roster Report",
+    description: "Every mentor-mentee assignment, one row each — filter by mentor, department, or batch.",
+    icon: UserCheck,
+    gradient: "from-emerald-500 to-teal-600",
   },
   {
     to: "/staff/reports/resume-reviews",

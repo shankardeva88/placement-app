@@ -42,6 +42,7 @@ import StudentMasterReport from "./pages/staff/reports/StudentMasterReport";
 import PlacementReport from "./pages/staff/reports/PlacementReport";
 import DriveSummaryReport from "./pages/staff/reports/DriveSummaryReport";
 import MentorWiseReport from "./pages/staff/reports/MentorWiseReport";
+import MenteeRosterReport from "./pages/staff/reports/MenteeRosterReport";
 import ResumeReviewReport from "./pages/staff/reports/ResumeReviewReport";
 import SkillAssessmentReport from "./pages/staff/reports/SkillAssessmentReport";
 import MentorReportsHome from "./pages/staff/reports/MentorReportsHome";
@@ -335,6 +336,14 @@ export default function App() {
             element={
               <StaffLayoutRoute>
                 <MentorWiseReport />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/reports/mentee-roster"
+            element={
+              <StaffLayoutRoute>
+                <MenteeRosterReport />
               </StaffLayoutRoute>
             }
           />
