@@ -565,7 +565,7 @@ function AssignMentorSection() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!appUser || !("department" in appUser) || !appUser.department) return;
+    if (!appUser || !facultyId) return;
     if (selectedIds.size === 0) return;
     const alreadyAssigned = menteesByMentor.get(facultyId) ?? new Set();
     const newStudentIds = Array.from(selectedIds).filter((uid) => !alreadyAssigned.has(uid));
@@ -573,10 +573,17 @@ function AssignMentorSection() {
       showToast("Everyone selected is already assigned to this mentor");
       return;
     }
+    // Each student's own department, not the actor's — a dept-scoped
+    // coordinator/hod only ever sees their own department's students
+    // anyway, but institution roles (admin/dean/cpo) have no department of
+    // their own and can select students spanning several departments.
+    const students = newStudentIds
+      .map((uid) => ({ studentId: uid, department: studentsByUid[uid]?.department }))
+      .filter((s): s is { studentId: string; department: Department } => !!s.department);
     setSubmitting(true);
     try {
-      await assignMentorBulk({ facultyId, studentIds: newStudentIds, department: appUser.department });
-      showToast(`Mentor assigned to ${newStudentIds.length} student${newStudentIds.length === 1 ? "" : "s"}`);
+      await assignMentorBulk({ facultyId, students });
+      showToast(`Mentor assigned to ${students.length} student${students.length === 1 ? "" : "s"}`);
       setSelectedIds(new Set());
       setFacultyId("");
     } finally {

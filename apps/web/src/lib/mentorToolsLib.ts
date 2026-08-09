@@ -41,8 +41,14 @@ export async function assignMentor(input: AssignMentorInput) {
 
 export interface AssignMentorBulkInput {
   facultyId: string;
-  studentIds: string[];
-  department: Department;
+  // Per-student department, not one shared value — a dept-scoped
+  // coordinator/hod's selected students are always their own department
+  // anyway, but institution roles (admin/dean/cpo) can select students
+  // spanning multiple departments in one batch, and have no department of
+  // their own to fall back on (see the AssignMentorSection bug this fixed:
+  // the actor's department was required and admin/dean/cpo simply don't
+  // have one, silently blocking the whole submit).
+  students: { studentId: string; department: Department }[];
 }
 
 /** Same shape as assignMentor, one mappingId per student, all written in a
@@ -51,17 +57,17 @@ export interface AssignMentorBulkInput {
 export async function assignMentorBulk(input: AssignMentorBulkInput) {
   const assignedAt = Date.now();
   const updates: Record<string, unknown> = {};
-  for (const studentId of input.studentIds) {
+  for (const { studentId, department } of input.students) {
     const mappingId = push(ref(db, DB_NODES.mentorMapping)).key as string;
     updates[`${DB_NODES.mentorMapping}/${mappingId}`] = {
       mappingId,
       facultyId: input.facultyId,
       studentId,
-      department: input.department,
+      department,
       assignedAt,
     };
     updates[`${DB_NODES.studentIndex}/${studentId}/${DB_NODES.mentorMapping}/${mappingId}`] = true;
-    updates[`${DB_NODES.mentorMappingDeptIndex}/${input.department}/${mappingId}`] = true;
+    updates[`${DB_NODES.mentorMappingDeptIndex}/${department}/${mappingId}`] = true;
   }
   await update(ref(db), updates);
 }
