@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { ShieldAlert, Trash2, UserPlus } from "lucide-react";
+import { AlertTriangle, ShieldAlert, Trash2, Upload, UserPlus } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { AppUser, Department } from "@placement-app/types";
+import type { AppUser, Department, FacultyDesignation } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
-import { createStaffAccount, updateStaffAccount, removeStaffAccount } from "../../lib/staffAuthActions";
-import type { StaffRole } from "../../lib/staffAuthActions";
+import { createStaffAccount, updateStaffAccount, removeStaffAccount, parseStaffRows } from "../../lib/staffAuthActions";
+import type { StaffRole, ParsedStaffRow } from "../../lib/staffAuthActions";
+import { parseDelimited } from "../../lib/csv";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -37,6 +38,178 @@ const ROLE_LABEL: Record<string, string> = {
   student: "Student",
   recruiter: "Recruiter",
 };
+
+const DESIGNATION_LABEL: Record<FacultyDesignation, string> = {
+  professor: "Professor",
+  associate_professor: "Associate Professor",
+  assistant_professor: "Assistant Professor",
+};
+
+interface StaffImportOutcome {
+  row: ParsedStaffRow;
+  result: "created" | "failed";
+  message?: string;
+}
+
+function ImportStaffForm() {
+  const { showToast } = useToast();
+  const [expanded, setExpanded] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [parsed, setParsed] = useState<ParsedStaffRow[] | null>(null);
+  const [unmappedHeaders, setUnmappedHeaders] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [outcomes, setOutcomes] = useState<StaffImportOutcome[] | null>(null);
+
+  const importableRows = (parsed ?? []).filter((r) => r.errors.length === 0);
+
+  function handleParse() {
+    const { headers, rows } = parseDelimited(pasteText);
+    if (headers.length === 0) {
+      showToast("Paste some data first");
+      return;
+    }
+    const { rows: parsedRows, unmappedHeaders: unmapped } = parseStaffRows(headers, rows);
+    setParsed(parsedRows);
+    setUnmappedHeaders(unmapped);
+    setOutcomes(null);
+  }
+
+  async function handleImport() {
+    if (importableRows.length === 0) return;
+    setImporting(true);
+    setProgress(0);
+    const results: StaffImportOutcome[] = [];
+    for (const row of importableRows) {
+      try {
+        await createStaffAccount({
+          email: row.email,
+          password: row.password,
+          name: row.name,
+          role: row.role,
+          department: row.department,
+          designation: row.designation,
+        });
+        results.push({ row, result: "created" });
+      } catch (err) {
+        results.push({ row, result: "failed", message: err instanceof Error ? err.message : "Unknown error" });
+      }
+      setProgress((p) => p + 1);
+    }
+    setOutcomes(results);
+    setImporting(false);
+    const createdCount = results.filter((r) => r.result === "created").length;
+    showToast(`${createdCount} of ${importableRows.length} staff account(s) created`);
+  }
+
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-800"
+      >
+        <Upload className="h-4 w-4" />
+        Import staff from a sheet
+      </button>
+    );
+  }
+
+  return (
+    <Card className="mb-6">
+      <h3 className="mb-1 flex items-center gap-2 text-base font-semibold text-slate-900">
+        <Upload className="h-5 w-5 text-brand-600" />
+        Import staff
+      </h3>
+      <p className="mb-3 text-sm text-slate-500">
+        Paste rows with Name, Email, Role, Department, Designation, and Password columns — works with a
+        tab-separated Excel/Sheets paste or a comma-separated CSV. Department is required for HOD/Coordinator/
+        Faculty Mentor rows, ignored otherwise; Designation is optional.
+      </p>
+
+      <textarea
+        rows={6}
+        value={pasteText}
+        onChange={(e) => setPasteText(e.target.value)}
+        placeholder={"Name\tEmail\tRole\tDepartment\tDesignation\tPassword"}
+        className="w-full rounded-lg border border-slate-300 p-3 font-mono text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+      />
+      <div className="mt-3 flex gap-2">
+        <Button onClick={handleParse}>Parse</Button>
+        <Button variant="secondary" onClick={() => setExpanded(false)}>
+          Cancel
+        </Button>
+      </div>
+
+      {parsed !== null && (
+        <div className="mt-4">
+          <h4 className="mb-2 text-sm font-semibold text-slate-900">Review ({parsed.length} row(s))</h4>
+
+          {unmappedHeaders.length > 0 && (
+            <p className="mb-2 flex items-start gap-1.5 text-xs text-amber-700">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Columns not recognized, ignored: {unmappedHeaders.join(", ")}
+            </p>
+          )}
+          <p className="mb-3 text-xs text-slate-500">{importableRows.length} of {parsed.length} row(s) will be imported.</p>
+
+          <div className="max-h-72 overflow-auto">
+            <table className="w-full min-w-[720px] text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 uppercase tracking-wide text-slate-500">
+                  <th className="py-1.5 pr-3">Name</th>
+                  <th className="py-1.5 pr-3">Email</th>
+                  <th className="py-1.5 pr-3">Role</th>
+                  <th className="py-1.5 pr-3">Dept</th>
+                  <th className="py-1.5 pr-3">Designation</th>
+                  <th className="py-1.5 pr-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {parsed.map((row) => {
+                  const outcome = outcomes?.find((o) => o.row.rowIndex === row.rowIndex);
+                  return (
+                    <tr key={row.rowIndex}>
+                      <td className="py-1.5 pr-3 font-medium text-slate-800">{row.name || "—"}</td>
+                      <td className="py-1.5 pr-3 text-slate-600">{row.email || "—"}</td>
+                      <td className="py-1.5 pr-3 text-slate-600">{ROLE_LABEL[row.role] ?? row.role}</td>
+                      <td className="py-1.5 pr-3 text-slate-600">{row.department ?? "—"}</td>
+                      <td className="py-1.5 pr-3 text-slate-600">{row.designation ? DESIGNATION_LABEL[row.designation] : "—"}</td>
+                      <td className="py-1.5 pr-3">
+                        {outcome ? (
+                          outcome.result === "created" ? (
+                            <Badge variant="success">Created</Badge>
+                          ) : (
+                            <Badge variant="danger">{outcome.message ?? "Failed"}</Badge>
+                          )
+                        ) : row.errors.length > 0 ? (
+                          <Badge variant="danger">{row.errors.join("; ")}</Badge>
+                        ) : row.warnings.length > 0 ? (
+                          <Badge variant="warning">{row.warnings.join("; ")}</Badge>
+                        ) : (
+                          <Badge variant="success">Ready</Badge>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <Button className="mt-4" onClick={handleImport} loading={importing} disabled={importableRows.length === 0}>
+            Import {importableRows.length} staff account(s)
+          </Button>
+          {importing && (
+            <p className="mt-2 text-xs text-slate-500">
+              {progress} of {importableRows.length} done…
+            </p>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
 
 function CreateStaffForm() {
   const { showToast } = useToast();
@@ -300,6 +473,7 @@ export default function ManageStaff() {
         gradient="from-violet-500 to-purple-600"
       />
 
+      <ImportStaffForm />
       <CreateStaffForm />
 
       <Card>

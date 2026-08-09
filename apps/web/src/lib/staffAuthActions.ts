@@ -164,6 +164,125 @@ export function parseMentorRows(headers: string[], rawRows: string[][]): ParseMe
   return { rows, unmappedHeaders };
 }
 
+export interface ParsedStaffRow {
+  rowIndex: number;
+  name: string;
+  email: string;
+  role: StaffRole;
+  department?: Department;
+  designation?: FacultyDesignation;
+  password: string;
+  errors: string[];
+  warnings: string[];
+}
+
+export interface ParseStaffResult {
+  rows: ParsedStaffRow[];
+  unmappedHeaders: string[];
+}
+
+const STAFF_NAME_HEADERS = new Set(["name", "full name", "staff name"]);
+const STAFF_EMAIL_HEADERS = new Set(["email", "email id", "mail id", "college email"]);
+const STAFF_ROLE_HEADERS = new Set(["role"]);
+const STAFF_DEPARTMENT_HEADERS = new Set(["department", "dept"]);
+const STAFF_DESIGNATION_HEADERS = new Set(["designation"]);
+const STAFF_PASSWORD_HEADERS = new Set(["password", "temporary password", "temp password"]);
+
+const ROLE_ALIASES: Record<string, StaffRole> = {
+  admin: "admin",
+  dean: "dean",
+  principal: "principal",
+  cpo: "cpo",
+  hod: "hod",
+  coordinator: "coordinator",
+  faculty_mentor: "faculty_mentor",
+  "faculty mentor": "faculty_mentor",
+  mentor: "faculty_mentor",
+};
+
+const VALID_DEPARTMENTS = new Set<Department>(["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"]);
+
+/** Admin-only bulk import — unlike parseMentorRows (always faculty_mentor,
+ * one department for the whole sheet), admin manages every role across
+ * every department, so Role and Department are per-row columns here. */
+export function parseStaffRows(headers: string[], rawRows: string[][]): ParseStaffResult {
+  let nameIdx = -1;
+  let emailIdx = -1;
+  let roleIdx = -1;
+  let deptIdx = -1;
+  let designationIdx = -1;
+  let passwordIdx = -1;
+  const unmappedHeaders: string[] = [];
+
+  headers.forEach((h, i) => {
+    const norm = normalizeMentorHeader(h);
+    if (STAFF_NAME_HEADERS.has(norm)) nameIdx = i;
+    else if (STAFF_EMAIL_HEADERS.has(norm)) emailIdx = i;
+    else if (STAFF_ROLE_HEADERS.has(norm)) roleIdx = i;
+    else if (STAFF_DEPARTMENT_HEADERS.has(norm)) deptIdx = i;
+    else if (STAFF_DESIGNATION_HEADERS.has(norm)) designationIdx = i;
+    else if (STAFF_PASSWORD_HEADERS.has(norm)) passwordIdx = i;
+    else if (norm) unmappedHeaders.push(h);
+  });
+
+  const get = (row: string[], idx: number) => (idx >= 0 ? (row[idx] ?? "").trim() : "");
+
+  const rows: ParsedStaffRow[] = [];
+  rawRows.forEach((row, i) => {
+    const name = get(row, nameIdx);
+    const email = get(row, emailIdx);
+    if (!name && !email) return; // blank/trailing row
+
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    if (!name) errors.push("Missing name");
+    if (!email || !email.includes("@")) errors.push("Missing or invalid email");
+
+    const password = get(row, passwordIdx);
+    if (!password) errors.push("Missing password");
+    else if (password.length < 6) errors.push("Password must be at least 6 characters");
+
+    const roleRaw = get(row, roleIdx).toLowerCase();
+    const role = ROLE_ALIASES[roleRaw];
+    if (!role) errors.push(roleRaw ? `Role "${roleRaw}" not recognized` : "Missing role");
+
+    const deptRaw = get(row, deptIdx).toUpperCase();
+    let department: Department | undefined;
+    if (role && DEPT_ROLES_NEEDING_DEPARTMENT.has(role)) {
+      if (!deptRaw) errors.push(`${ROLE_LABEL_FOR_ERRORS[role]} requires a department`);
+      else if (!VALID_DEPARTMENTS.has(deptRaw as Department)) errors.push(`Department "${deptRaw}" not recognized`);
+      else department = deptRaw as Department;
+    }
+
+    const designationRaw = get(row, designationIdx).toLowerCase();
+    let designation: FacultyDesignation | undefined;
+    if (role && DEPT_ROLES_NEEDING_DEPARTMENT.has(role)) {
+      if (designationRaw) {
+        const matched = DESIGNATION_ALIASES[designationRaw];
+        if (matched) designation = matched;
+        else warnings.push(`Designation "${designationRaw}" not recognized — left blank`);
+      }
+    }
+
+    // Fallback role only matters for the type — an unrecognized/missing role
+    // already put this row in `errors`, so it can never actually be imported.
+    rows.push({ rowIndex: i + 1, name, email, role: role ?? "faculty_mentor", department, designation, password, errors, warnings });
+  });
+
+  return { rows, unmappedHeaders };
+}
+
+const DEPT_ROLES_NEEDING_DEPARTMENT = new Set<StaffRole>(["hod", "coordinator", "faculty_mentor"]);
+const ROLE_LABEL_FOR_ERRORS: Record<StaffRole, string> = {
+  admin: "Admin",
+  dean: "Dean",
+  principal: "Principal",
+  cpo: "CPO",
+  hod: "HOD",
+  coordinator: "Coordinator",
+  faculty_mentor: "Faculty Mentor",
+};
+
 export interface UpdateStaffAccountInput {
   uid: string;
   name: string;
