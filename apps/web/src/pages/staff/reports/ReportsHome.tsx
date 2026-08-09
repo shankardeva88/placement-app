@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Award, BarChart3, ClipboardCheck, FileBarChart, FileCheck, Users, Users2, UserCheck, Briefcase, GraduationCap } from "lucide-react";
+import { ArrowRight, Award, BarChart3, ClipboardCheck, FileBarChart, FileCheck, FileSpreadsheet, Users, Users2, UserCheck, Briefcase, GraduationCap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card } from "../../../components/ui/Card";
 import { PageHeader } from "../../../components/ui/PageHeader";
@@ -10,6 +10,13 @@ const REPORTS: { to: string; label: string; description: string; icon: LucideIco
     label: "Student Master Report",
     description: "Full roster — CGPA, backlogs, verification, placement status.",
     icon: Users,
+    gradient: "from-emerald-500 to-teal-600",
+  },
+  {
+    to: "/staff/reports/students-full",
+    label: "Full Student Report",
+    description: "Every field on the profile — academics, contact, address, links, skills, all of it. Search + filters.",
+    icon: FileSpreadsheet,
     gradient: "from-emerald-500 to-teal-600",
   },
   {
