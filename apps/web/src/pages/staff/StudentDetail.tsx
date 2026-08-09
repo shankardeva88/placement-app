@@ -1,21 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, BadgeCheck, ExternalLink, Pencil, Power, Trash2, User } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { ApplicationStatus, Department, Drive, Gender, Student } from "@placement-app/types";
+import type { ApplicationStatus, Department, Drive, Gender, MockEvaluation, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { setStudentVerified, updateStudentProfile, setStudentActive, removeStudent } from "../../lib/studentsDirectoryLib";
 import type { StudentProfileUpdate } from "../../lib/studentsDirectoryLib";
 import { useAllApplications } from "../../lib/applicantsLib";
 import { useAllOffers } from "../../lib/offersManagementLib";
+import { useIndexedList } from "../../lib/mentorProgressLib";
+import { useModulesByIds } from "../../lib/mockEvaluationLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import type { BadgeVariant } from "../../components/ui/Badge";
 import { RoundProgress } from "../../components/RoundProgress";
+import { MockEvaluationModuleCard } from "../../components/MockEvaluationModuleCard";
 import { Button } from "../../components/ui/Button";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { PageHeader } from "../../components/ui/PageHeader";
@@ -36,6 +39,10 @@ const APPLICATION_STATUS_BADGE: Record<ApplicationStatus, BadgeVariant> = {
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
 const labelClass = "mb-1 block text-xs font-medium text-slate-600";
+
+function formatDay(ts: number): string {
+  return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
 
 function EditStudentForm({ student, uid, onDone }: { student: Student; uid: string; onDone: () => void }) {
   const { showToast } = useToast();
@@ -212,6 +219,20 @@ export default function StudentDetail() {
   const allOffers = useAllOffers(appUser);
   const applications = allApplications?.filter((a) => a.studentId === uid) ?? [];
   const offers = allOffers?.filter((o) => o.studentId === uid) ?? [];
+  const mockEvaluations = useIndexedList<MockEvaluation>(uid, DB_NODES.mockEvaluations);
+  const mockModuleIds = useMemo(
+    () => Array.from(new Set((mockEvaluations ?? []).map((e) => e.moduleId))),
+    [mockEvaluations]
+  );
+  const mockModules = useModulesByIds(mockModuleIds);
+  const mockEvalsByModule = useMemo(() => {
+    const map: Record<string, MockEvaluation[]> = {};
+    for (const e of mockEvaluations ?? []) {
+      map[e.moduleId] ??= [];
+      map[e.moduleId].push(e);
+    }
+    return map;
+  }, [mockEvaluations]);
   const [drives, setDrives] = useState<Record<string, Drive>>({});
   const [verifying, setVerifying] = useState(false);
   const [togglingActive, setTogglingActive] = useState(false);
@@ -537,6 +558,29 @@ export default function StudentDetail() {
               </ul>
             )}
           </Card>
+
+          <div className="mt-4">
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Mock Interview Performance</h3>
+            {mockEvaluations === null ? (
+              <Skeleton className="h-24" />
+            ) : mockModuleIds.length === 0 ? (
+              <Card className="text-sm text-slate-500">No mock interview evaluations yet.</Card>
+            ) : (
+              <div className="space-y-4">
+                {mockModuleIds.map((moduleId) => {
+                  const m = mockModules[moduleId];
+                  return (
+                    <MockEvaluationModuleCard
+                      key={moduleId}
+                      moduleName={m?.name ?? "Mock interview module"}
+                      dateRange={m ? `${formatDay(m.startDate)} – ${formatDay(m.endDate)}` : ""}
+                      evaluations={mockEvalsByModule[moduleId]}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>
