@@ -167,15 +167,18 @@ export default function FullStudentReport() {
 
       <Card className="mb-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search roll no, name, or email"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className={`${inputClass} pl-9`}
-            />
+          <div>
+            <label className={labelClass}>Search</label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Roll no, name, or email"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={`${inputClass} pl-9`}
+              />
+            </div>
           </div>
           <div>
             <label className={labelClass}>Department</label>
