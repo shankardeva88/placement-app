@@ -81,9 +81,17 @@ async function sessionDeletionUpdates(sessionId: string): Promise<Record<string,
   const attendanceByStudent = (attSnap.val() as Record<string, AttendanceRecord> | null) ?? {};
   const updates: Record<string, unknown> = {
     [`${DB_NODES.trainingSessions}/${sessionId}`]: null,
-    [`${DB_NODES.attendance}/${sessionId}`]: null,
   };
+  // Per-student keys, not a single `attendance/{sessionId}: null` — the
+  // .write rule only exists at attendance/{sessionId}/{studentUid}, never
+  // at the session level itself or the attendance root. Write rules only
+  // cascade DOWN from a grant; a rule that exists solely on a descendant
+  // is never consulted for a shallower write, so a whole-subtree null-out
+  // here had no valid permission anywhere and silently failed the entire
+  // multi-path update() (including the session/batch deletion alongside
+  // it, since one denied path fails the whole update atomically).
   for (const [studentUid, record] of Object.entries(attendanceByStudent)) {
+    updates[`${DB_NODES.attendance}/${sessionId}/${studentUid}`] = null;
     updates[`${DB_NODES.attendanceDeptIndex}/${record.department}/${sessionId}_${studentUid}`] = null;
   }
   return updates;
