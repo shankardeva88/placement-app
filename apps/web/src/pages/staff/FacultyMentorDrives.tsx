@@ -96,11 +96,19 @@ function DriveDetailCard({ drive }: { drive: Drive }) {
         <div className="mt-4 border-t border-slate-100 pt-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Rounds</p>
           <div className="flex flex-wrap gap-2 text-sm">
-            {drive.rounds.map((r) => (
-              <Badge key={r.roundId} variant={r.status === "completed" ? "success" : r.status === "in_progress" ? "warning" : "neutral"}>
-                {r.name} — {r.status.replace("_", " ")}
-              </Badge>
-            ))}
+            {drive.rounds.map((r) => {
+              // Once the whole drive is marked completed, every round is
+              // done too — shown regardless of each round's own stored
+              // status, which stays whatever it was last saved as (a drive
+              // created before per-round status editing existed just has
+              // every round stuck at the initial "pending" default).
+              const status = drive.status === "completed" ? "completed" : r.status;
+              return (
+                <Badge key={r.roundId} variant={status === "completed" ? "success" : status === "in_progress" ? "warning" : "neutral"}>
+                  {r.name} — {status.replace("_", " ")}
+                </Badge>
+              );
+            })}
           </div>
         </div>
       )}
