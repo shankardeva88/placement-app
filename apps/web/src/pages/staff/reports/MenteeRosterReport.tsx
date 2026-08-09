@@ -46,14 +46,13 @@ export default function MenteeRosterReport() {
       .map((r) => ({ ...r, mentorName: mentorsByUid[r.mapping.facultyId]?.name ?? r.mapping.facultyId }));
   }, [mappings, students, studentsByUid, mentorsByUid]);
 
-  const mentorOptions = useMemo(() => {
-    if (!rows) return [];
-    const seen = new Map<string, string>();
-    for (const r of rows) seen.set(r.mapping.facultyId, r.mentorName);
-    return Array.from(seen.entries())
-      .map(([uid, name]) => ({ uid, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [rows]);
+  // Every mentor account, not just ones who already have a mentee assigned
+  // — otherwise a mentor with zero mentees can never even be selected in
+  // the filter, let alone spotted as needing an assignment.
+  const mentorOptions = useMemo(
+    () => (mentors ?? []).map((m) => ({ uid: m.uid, name: m.name })).sort((a, b) => a.name.localeCompare(b.name)),
+    [mentors]
+  );
 
   const batchYears = useMemo(() => {
     if (!rows) return [];
@@ -68,7 +67,7 @@ export default function MenteeRosterReport() {
       .filter((r) => !deptFilter || r.student.department === deptFilter)
       .filter((r) => !batchFilter || r.student.batchYear === batchFilter)
       .filter((r) => !term || r.student.rollNo.toLowerCase().includes(term) || r.student.name.toLowerCase().includes(term))
-      .sort((a, b) => a.mentorName.localeCompare(b.mentorName) || a.student.rollNo.localeCompare(b.student.rollNo));
+      .sort((a, b) => a.student.rollNo.localeCompare(b.student.rollNo));
   }, [rows, search, mentorFilter, deptFilter, batchFilter]);
 
   const loading = filtered === null;
