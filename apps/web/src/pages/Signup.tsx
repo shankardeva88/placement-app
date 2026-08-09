@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { GraduationCap } from "lucide-react";
 import { signUpStudent } from "../lib/authActions";
 import { AuthLayout } from "../components/AuthLayout";
 import { Card } from "../components/ui/Card";
@@ -42,14 +41,9 @@ export default function Signup() {
   return (
     <AuthLayout>
       <Card className="w-full max-w-sm">
-        <div className="mb-6 flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-indigo-600 text-white shadow-sm shadow-brand-200">
-            <GraduationCap className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900">Create student account</h1>
-            <p className="text-sm text-slate-500">Takes about a minute</p>
-          </div>
+        <div className="mb-6">
+          <h1 className="text-lg font-semibold text-slate-900">Create student account</h1>
+          <p className="text-sm text-slate-500">Takes about a minute</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

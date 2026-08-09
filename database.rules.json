@@ -312,6 +312,16 @@
     "attendance": {
       ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
       "$sessionId": {
+        // No .read existed at this level before — only at the "attendance"
+        // root (institution-only) and the per-student leaf below (needs a
+        // known studentUid). deleteTrainingSession/deleteTrainingBatch
+        // (Training.tsx delete) need to read the WHOLE session's attendance
+        // map first, to know which attendanceDeptIndex entries to clean up
+        // — that shallow read fell back to the institution-only root rule
+        // and got denied for coordinator/hod/faculty_mentor. Department here
+        // comes from the session's batch (attendance records don't carry
+        // department at this level, only per-student inside).
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' || root.child('users').child(auth.uid).child('role').val() === 'faculty_mentor' ) && root.child('trainingBatches').child(root.child('trainingSessions').child($sessionId).child('batchId').val()).child('department').val() === root.child('users').child(auth.uid).child('department').val() ) )",
         "$studentUid": {
           ".read": "auth != null && ( $studentUid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || data.child('department').val() === root.child('users').child(auth.uid).child('department').val() )",
           // hod added alongside faculty_mentor/coordinator — every other
