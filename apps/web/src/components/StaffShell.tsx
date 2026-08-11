@@ -13,6 +13,7 @@ import {
   FileBarChart,
   Users2,
   ClipboardCheck,
+  KeyRound,
   Menu,
   X,
   LogOut,
@@ -134,6 +135,14 @@ export function StaffShell({ children }: { children: ReactNode }) {
 
   const signOutButton = (
     <div className="border-t border-slate-200 p-3">
+      <NavLink
+        to="/staff/change-password"
+        onClick={() => setDrawerOpen(false)}
+        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+      >
+        <KeyRound className="h-4 w-4" />
+        Change Password
+      </NavLink>
       <button
         onClick={handleLogout}
         className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"

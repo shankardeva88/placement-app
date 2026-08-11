@@ -7,6 +7,8 @@ import { RootRedirect } from "./components/RootRedirect";
 import { ToastProvider } from "./components/ui/Toast";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ChangePassword from "./pages/ChangePassword";
 import ProfileSetup from "./pages/ProfileSetup";
 import Dashboard from "./pages/Dashboard";
 import Drives from "./pages/Drives";
@@ -63,12 +65,21 @@ export default function App() {
           <Route path="/" element={<RootRedirect />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route
             path="/profile-setup"
             element={
               <ProtectedRoute>
                 <ProfileSetup />
               </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/change-password"
+            element={
+              <AppLayoutRoute>
+                <ChangePassword />
+              </AppLayoutRoute>
             }
           />
           <Route
@@ -237,6 +248,14 @@ export default function App() {
             element={
               <StaffLayoutRoute>
                 <StaffNotifications />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/change-password"
+            element={
+              <StaffLayoutRoute>
+                <ChangePassword />
               </StaffLayoutRoute>
             }
           />
