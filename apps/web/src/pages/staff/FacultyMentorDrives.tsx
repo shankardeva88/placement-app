@@ -100,8 +100,8 @@ function DriveDetailCard({
         <div className="flex flex-wrap gap-2 text-sm">
           <Badge variant="neutral">CGPA ≥ {drive.eligibility.minCgpa}</Badge>
           <Badge variant="neutral">Backlogs ≤ {drive.eligibility.maxBacklogsAllowed}</Badge>
-          <Badge variant="neutral">{drive.eligibility.departments.join(", ") || "Any department"}</Badge>
-          <Badge variant="neutral">Batch {drive.eligibility.batchYears.join(", ")}</Badge>
+          <Badge variant="neutral">{(drive.eligibility.departments ?? []).join(", ") || "Any department"}</Badge>
+          <Badge variant="neutral">Batch {(drive.eligibility.batchYears ?? []).join(", ")}</Badge>
           {drive.eligibility.requiredSkills && drive.eligibility.requiredSkills.length > 0 && (
             <Badge variant="neutral">Skills: {drive.eligibility.requiredSkills.join(", ")}</Badge>
           )}
@@ -114,7 +114,7 @@ function DriveDetailCard({
         </div>
       </div>
 
-      {drive.rounds.length > 0 && (
+      {(drive.rounds ?? []).length > 0 && (
         <div className="mt-4 border-t border-slate-100 pt-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Rounds</p>
           <div className="flex flex-wrap gap-2 text-sm">

@@ -167,7 +167,7 @@ function CoordinatorDashboard() {
   const scopedDrives = useMemo(() => {
     if (!drives) return null;
     if (isInstitution || !myDept) return drives;
-    return drives.filter((d) => d.eligibility.departments.length === 0 || d.eligibility.departments.includes(myDept));
+    return drives.filter((d) => (d.eligibility.departments ?? []).length === 0 || d.eligibility.departments.includes(myDept));
   }, [drives, isInstitution, myDept]);
 
   const upcomingDrives = useMemo(() => {

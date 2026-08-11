@@ -56,6 +56,7 @@ function StudentSearchPicker({
         placeholder="Search by roll no or name"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
         className={inputClass}
       />
       <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200">

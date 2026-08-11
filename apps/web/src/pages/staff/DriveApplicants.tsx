@@ -102,7 +102,7 @@ export default function DriveApplicants() {
               ) : (
                 <p className="text-sm text-slate-400">Details restricted (different department)</p>
               )}
-              {drive && drive.rounds.length > 0 && (
+              {drive && (drive.rounds ?? []).length > 0 && (
                 <div className="mt-2">
                   <RoundProgress rounds={drive.rounds} application={application} />
                 </div>
@@ -124,7 +124,7 @@ export default function DriveApplicants() {
                   </option>
                 ))}
               </select>
-              {drive && drive.rounds.length > 0 && (
+              {drive && (drive.rounds ?? []).length > 0 && (
                 <select
                   value={application.currentRoundId ?? ""}
                   disabled={updatingId === application.applicationId}

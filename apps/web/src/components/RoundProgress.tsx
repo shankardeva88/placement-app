@@ -30,7 +30,7 @@ export function RoundProgress({
   rounds: DriveRound[];
   application: Application | null | undefined;
 }) {
-  if (rounds.length === 0) return null;
+  if (!rounds || rounds.length === 0) return null;
   const entries = computeRoundProgress(rounds, application);
 
   return (

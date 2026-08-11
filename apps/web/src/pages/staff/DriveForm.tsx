@@ -111,6 +111,7 @@ function SelectedStudentsPicker({
           placeholder="Min CGPA"
           value={minCgpaFilter}
           onChange={(e) => setMinCgpaFilter(e.target.value ? Number(e.target.value) : "")}
+          onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
           className={inputClass}
         />
         <input
@@ -118,6 +119,7 @@ function SelectedStudentsPicker({
           placeholder="Search roll no or name"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
           className={inputClass}
         />
       </div>

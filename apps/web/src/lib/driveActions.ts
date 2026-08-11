@@ -31,10 +31,10 @@ export function checkEligibility(student: Student, drive: Drive): EligibilityRes
       `${student.activeBacklogs} active backlog(s) — max allowed is ${criteria.maxBacklogsAllowed}`
     );
   }
-  if (criteria.departments.length > 0 && !criteria.departments.includes(student.department)) {
+  if ((criteria.departments ?? []).length > 0 && !criteria.departments.includes(student.department)) {
     reasons.push(`${student.department} is not an eligible department`);
   }
-  if (criteria.batchYears.length > 0 && !criteria.batchYears.includes(student.batchYear)) {
+  if ((criteria.batchYears ?? []).length > 0 && !criteria.batchYears.includes(student.batchYear)) {
     reasons.push(`Batch year ${student.batchYear} is not eligible`);
   }
   if (criteria.requiredSkills && criteria.requiredSkills.length > 0) {

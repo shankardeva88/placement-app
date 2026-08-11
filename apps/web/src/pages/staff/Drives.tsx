@@ -103,7 +103,7 @@ function DriveCard({ drive }: { drive: Drive }) {
         </div>
         <div>
           <dt className="text-slate-500">Eligible depts</dt>
-          <dd className="font-medium text-slate-900">{drive.eligibility.departments.join(", ")}</dd>
+          <dd className="font-medium text-slate-900">{(drive.eligibility.departments ?? []).join(", ") || "Any department"}</dd>
         </div>
         <div>
           <dt className="text-slate-500">Drive date</dt>
