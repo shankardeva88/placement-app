@@ -1,3 +1,13 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Prevents mobile browsers from interpreting a scroll-bounce at the top of
+   a page (e.g. right after login, when new content mounts and the page
+   jumps) as a pull-to-refresh gesture — that gesture triggers a genuine
+   native page reload, which looks exactly like "the page keeps reloading
+   itself" with no JS error to show for it. */
+html,
+body {
+  overscroll-behavior: none;
+}
