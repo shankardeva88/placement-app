@@ -34,9 +34,9 @@ const STAFF_NAV_ITEMS = [
   { to: "/staff/notifications", label: "Notifications", icon: Bell },
 ];
 
-// Admin sits at the top of the role hierarchy (see database.rules.json) —
-// full operational access plus the one thing nobody else gets: account/role
-// management.
+// Admin and cpo (the overall campus placement officer, see
+// database.rules.json's institution tier) are the only roles with
+// account/role management on top of full operational access.
 const MANAGE_STAFF_ITEM = { to: "/staff/manage-staff", label: "Manage Staff", icon: UserPlus };
 const ADMIN_NAV_ITEMS = [...STAFF_NAV_ITEMS, MANAGE_STAFF_ITEM];
 
@@ -105,7 +105,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
   const initial = name.charAt(0).toUpperCase();
   const roleLabel = appUser ? ROLE_LABEL[appUser.role] ?? appUser.role : "";
   const navItems =
-    appUser?.role === "admin"
+    appUser?.role === "admin" || appUser?.role === "cpo"
       ? ADMIN_NAV_ITEMS
       : appUser?.role === "faculty_mentor"
         ? FACULTY_MENTOR_NAV_ITEMS

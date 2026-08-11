@@ -434,19 +434,19 @@ function StaffRow({ user }: { user: AppUser }) {
 
 export default function ManageStaff() {
   const { appUser } = useAuth();
-  const isAdmin = appUser?.role === "admin";
+  const canManageStaff = appUser?.role === "admin" || appUser?.role === "cpo";
   const [staffList, setStaffList] = useState<AppUser[] | null>(null);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canManageStaff) return;
     return onValue(ref(db, DB_NODES.users), (snap) => {
       const val = snap.val() as Record<string, AppUser> | null;
       const list = val ? Object.values(val).filter((u) => u.role !== "student") : [];
       setStaffList(list);
     });
-  }, [isAdmin]);
+  }, [canManageStaff]);
 
-  if (!isAdmin) {
+  if (!canManageStaff) {
     return (
       <div>
         <PageHeader
@@ -457,8 +457,8 @@ export default function ManageStaff() {
         />
         <Card className="flex items-center gap-3 text-sm text-slate-600">
           <ShieldAlert className="h-5 w-5 shrink-0 text-amber-500" />
-          Staff account creation and role changes are handled by an admin account. Contact your admin if you need a
-          new staff account or a role change.
+          Staff account creation and role changes are handled by an admin or CPO account. Contact one of them if you
+          need a new staff account or a role change.
         </Card>
       </div>
     );

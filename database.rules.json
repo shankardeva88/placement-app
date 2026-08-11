@@ -16,10 +16,11 @@
     // superset of the tier(s) below — a coordinator check always accompanies
     // a hod check, an institution check always accompanies admin, etc. admin
     // sits at the very top: everywhere an institution role can read/write,
-    // 'admin' is added to the same OR chain, on top of admin's exclusive
-    // /users (staff account/role management) access. This lets one person
-    // hold a single role that covers both account administration and full
-    // operational access, instead of needing two logins.
+    // 'admin' is added to the same OR chain, on top of admin's /users (staff
+    // account/role management) access — also granted to 'cpo' specifically
+    // (the overall campus placement officer), so full account administration
+    // isn't gated behind a separate admin login for that role. dean/principal
+    // stay at the ordinary institution tier for /users writes.
     //
     // Department scoping: every collection tied to a specific student
     // (applications, offers, joiningReports, attendance, mentorMapping,
@@ -43,13 +44,14 @@
     // below — per-$uid-only rules never authorize a parent-level read, see
     // the applications comment further down for why that matters).
     //
-    // .write is intentionally admin-only for STAFF roles (plus the student
+    // .write is intentionally admin/cpo-only for STAFF roles (plus the student
     // self-signup escape hatch): staff account creation/role-editing used to
     // be spread across dean/cpo/hod/coordinator/faculty_mentor, which meant a
     // coordinator could create an HOD account despite HOD outranking them.
-    // Centralizing on one dedicated "admin" role is the single source of
-    // truth for who holds what role — see ManageStaff.tsx / updateStaffAccount
-    // in staffAuthActions.ts.
+    // Centralizing on admin (plus cpo, the campus placement officer who needs
+    // the same account-administration reach) is the single source of truth
+    // for who holds what role — see ManageStaff.tsx / updateStaffAccount in
+    // staffAuthActions.ts.
     //
     // The last clause is a narrower carve-out: any non-student staff can
     // create a brand-new record with role 'student' (never edit an existing
@@ -87,7 +89,7 @@
         // department-scoping tier as mentorMapping/drivePrepAssignments
         // writes elsewhere in this file. Editing an existing mentor (or any
         // other role change) still requires admin, same as before.
-        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'admin' || ( !data.exists() && auth.uid === $uid && newData.child('role').val() === 'student' ) || ( !data.exists() && newData.child('role').val() === 'student' && root.child('users').child(auth.uid).child('role').val() !== 'student' ) || ( !data.exists() && newData.child('role').val() === 'faculty_mentor' && ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && newData.child('department').val() === root.child('users').child(auth.uid).child('department').val() ) || ( !newData.exists() && data.child('role').val() === 'student' && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && root.child('students').child($uid).child('department').val() === root.child('users').child(auth.uid).child('department').val() ) ) ) )",
+        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || ( !data.exists() && auth.uid === $uid && newData.child('role').val() === 'student' ) || ( !data.exists() && newData.child('role').val() === 'student' && root.child('users').child(auth.uid).child('role').val() !== 'student' ) || ( !data.exists() && newData.child('role').val() === 'faculty_mentor' && ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && newData.child('department').val() === root.child('users').child(auth.uid).child('department').val() ) || ( !newData.exists() && data.child('role').val() === 'student' && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && root.child('students').child($uid).child('department').val() === root.child('users').child(auth.uid).child('department').val() ) ) ) )",
 
         // Two coordinator-facing actions beyond create, both student-only,
         // both scoped by cross-referencing root.child('students').child($uid)
