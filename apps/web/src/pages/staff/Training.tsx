@@ -57,6 +57,14 @@ function CreateBatchForm({ onDone }: { onDone: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const eligibleStudents = useMemo(
+    () =>
+      (students ?? [])
+        .filter((s) => !s.isAlumni && s.department === department && s.batchYear === batchYear)
+        .sort((a, b) => a.rollNo.localeCompare(b.rollNo)),
+    [students, department, batchYear]
+  );
+
   function toggleStudent(uid: string) {
     setSelectedIds((prev) => (prev.includes(uid) ? prev.filter((x) => x !== uid) : [...prev, uid]));
   }
@@ -125,8 +133,10 @@ function CreateBatchForm({ onDone }: { onDone: () => void }) {
         <label className={labelClass}>Students ({selectedIds.length} selected)</label>
         <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 p-2">
           {students === null && <p className="p-2 text-sm text-slate-400">Loading…</p>}
-          {students?.length === 0 && <p className="p-2 text-sm text-slate-400">No students found.</p>}
-          {students?.filter((s) => !s.isAlumni).map((s) => (
+          {students !== null && eligibleStudents.length === 0 && (
+            <p className="p-2 text-sm text-slate-400">No {department} students in batch {batchYear}.</p>
+          )}
+          {eligibleStudents.map((s) => (
             <label key={s.studentId} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-slate-50">
               <input type="checkbox" checked={selectedIds.includes(s.uid)} onChange={() => toggleStudent(s.uid)} />
               <span className="font-medium text-slate-700">{s.rollNo}</span> — {s.name}
@@ -160,6 +170,14 @@ function EditBatchForm({ batch, onDone }: { batch: TrainingBatch; onDone: () => 
   const [selectedIds, setSelectedIds] = useState<string[]>(batch.studentIds);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const eligibleStudents = useMemo(
+    () =>
+      (students ?? [])
+        .filter((s) => !s.isAlumni && s.department === department && s.batchYear === batchYear)
+        .sort((a, b) => a.rollNo.localeCompare(b.rollNo)),
+    [students, department, batchYear]
+  );
 
   function toggleStudent(uid: string) {
     setSelectedIds((prev) => (prev.includes(uid) ? prev.filter((x) => x !== uid) : [...prev, uid]));
@@ -221,8 +239,10 @@ function EditBatchForm({ batch, onDone }: { batch: TrainingBatch; onDone: () => 
         <label className={labelClass}>Students ({selectedIds.length} selected)</label>
         <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
           {students === null && <p className="p-2 text-sm text-slate-400">Loading…</p>}
-          {students?.length === 0 && <p className="p-2 text-sm text-slate-400">No students found.</p>}
-          {students?.filter((s) => !s.isAlumni).map((s) => (
+          {students !== null && eligibleStudents.length === 0 && (
+            <p className="p-2 text-sm text-slate-400">No {department} students in batch {batchYear}.</p>
+          )}
+          {eligibleStudents.map((s) => (
             <label key={s.studentId} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-slate-50">
               <input type="checkbox" checked={selectedIds.includes(s.uid)} onChange={() => toggleStudent(s.uid)} />
               <span className="font-medium text-slate-700">{s.rollNo}</span> — {s.name}
@@ -693,6 +713,28 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
   const [deletingBatch, setDeletingBatch] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [dateFilter, setDateFilter] = useState("");
+
+  // A multi-day batch (see RecurringSessionForm — morning + evening across a
+  // date range) used to dump every session into one flat list, which reads
+  // fine for a single day but turns unscannable once there's a week's worth.
+  // Group by calendar day instead, with a filter to jump straight to one.
+  const dateKey = (ts: number) => new Date(ts).toDateString();
+  const dateOptions = useMemo(() => Array.from(new Set(sessions.map((s) => dateKey(s.date)))), [sessions]);
+  const visibleSessions = useMemo(
+    () => (dateFilter ? sessions.filter((s) => dateKey(s.date) === dateFilter) : sessions),
+    [sessions, dateFilter]
+  );
+  const sessionsByDate = useMemo(() => {
+    const groups: { dateKey: string; date: number; sessions: TrainingSession[] }[] = [];
+    for (const s of visibleSessions) {
+      const key = dateKey(s.date);
+      const last = groups[groups.length - 1];
+      if (last && last.dateKey === key) last.sessions.push(s);
+      else groups.push({ dateKey: key, date: s.date, sessions: [s] });
+    }
+    return groups;
+  }, [visibleSessions]);
 
   return (
     <Card>
@@ -759,65 +801,89 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
       {sessions.length === 0 ? (
         <p className="mt-3 text-sm text-slate-500">No sessions scheduled yet.</p>
       ) : (
-        <ul className="mt-4 divide-y divide-slate-100">
-          {sessions.map((session) => (
-            <li key={session.sessionId} className="py-2.5">
-              <div className="flex w-full items-center justify-between gap-3 text-sm">
-                <button
-                  onClick={() => setOpenSessionId((prev) => (prev === session.sessionId ? null : session.sessionId))}
-                  className="flex flex-1 items-center justify-between gap-3 text-left"
-                >
-                  <div>
-                    <p className="font-medium text-slate-800">{session.topic}</p>
-                    <p className="text-xs text-slate-500">
-                      {new Date(session.date).toLocaleDateString()} · {session.startTime}–{session.endTime} · {session.mode}
-                    </p>
-                  </div>
-                  <span className="text-xs font-medium text-brand-700">
-                    {openSessionId === session.sessionId ? "Hide roster" : "Mark attendance"}
-                  </span>
-                </button>
-                {canManageSchedule && (
-                  <div className="flex shrink-0 gap-1">
-                    <button
-                      type="button"
-                      title="Edit session"
-                      onClick={() => {
-                        setDeletingSessionId(null);
-                        setEditingSessionId((prev) => (prev === session.sessionId ? null : session.sessionId));
-                      }}
-                      className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      title="Delete session"
-                      onClick={() => {
-                        setEditingSessionId(null);
-                        setDeletingSessionId((prev) => (prev === session.sessionId ? null : session.sessionId));
-                      }}
-                      className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-              {editingSessionId === session.sessionId && (
-                <EditSessionForm session={session} onDone={() => setEditingSessionId(null)} />
-              )}
-              {deletingSessionId === session.sessionId && (
-                <DeleteSessionConfirm
-                  sessionId={session.sessionId}
-                  onDone={() => setDeletingSessionId(null)}
-                  onCancel={() => setDeletingSessionId(null)}
-                />
-              )}
-              {openSessionId === session.sessionId && <AttendanceRoster session={session} batch={batch} />}
-            </li>
+        <>
+          {dateOptions.length > 1 && (
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="mt-4 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
+              <option value="">All dates ({sessions.length} sessions)</option>
+              {dateOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {sessionsByDate.map((group) => (
+            <div key={group.dateKey} className="mt-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {new Date(group.date).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}
+              </h4>
+              <ul className="mt-1 divide-y divide-slate-100">
+                {group.sessions.map((session) => (
+                  <li key={session.sessionId} className="py-2.5">
+                    <div className="flex w-full items-center justify-between gap-3 text-sm">
+                      <button
+                        onClick={() => setOpenSessionId((prev) => (prev === session.sessionId ? null : session.sessionId))}
+                        className="flex flex-1 items-center justify-between gap-3 text-left"
+                      >
+                        <div>
+                          <p className="font-medium text-slate-800">{session.topic}</p>
+                          <p className="text-xs text-slate-500">
+                            {session.startTime}–{session.endTime} · {session.mode}
+                          </p>
+                        </div>
+                        <span className="text-xs font-medium text-brand-700">
+                          {openSessionId === session.sessionId ? "Hide roster" : "Mark attendance"}
+                        </span>
+                      </button>
+                      {canManageSchedule && (
+                        <div className="flex shrink-0 gap-1">
+                          <button
+                            type="button"
+                            title="Edit session"
+                            onClick={() => {
+                              setDeletingSessionId(null);
+                              setEditingSessionId((prev) => (prev === session.sessionId ? null : session.sessionId));
+                            }}
+                            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Delete session"
+                            onClick={() => {
+                              setEditingSessionId(null);
+                              setDeletingSessionId((prev) => (prev === session.sessionId ? null : session.sessionId));
+                            }}
+                            className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {editingSessionId === session.sessionId && (
+                      <EditSessionForm session={session} onDone={() => setEditingSessionId(null)} />
+                    )}
+                    {deletingSessionId === session.sessionId && (
+                      <DeleteSessionConfirm
+                        sessionId={session.sessionId}
+                        onDone={() => setDeletingSessionId(null)}
+                        onCancel={() => setDeletingSessionId(null)}
+                      />
+                    )}
+                    {openSessionId === session.sessionId && <AttendanceRoster session={session} batch={batch} />}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </>
       )}
     </Card>
   );

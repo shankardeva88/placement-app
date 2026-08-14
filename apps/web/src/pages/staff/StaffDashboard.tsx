@@ -469,6 +469,12 @@ function FacultyMentorDashboard() {
     return Array.from(counts.entries()).sort((a, b) => a[0] - b[0]);
   }, [menteeStudents]);
 
+  const [batchFilter, setBatchFilter] = useState<number | "">("");
+  const visibleMentees = useMemo(
+    () => (batchFilter ? menteeStudents.filter((s) => s.batchYear === batchFilter) : menteeStudents),
+    [menteeStudents, batchFilter]
+  );
+
   return (
     <div>
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600 p-6 text-white shadow-lg shadow-brand-200 sm:p-8">
@@ -497,7 +503,23 @@ function FacultyMentorDashboard() {
         <StatTile label="Top CGPA" value={stats ? String(stats.topCgpa) : "…"} icon={FileBarChart} gradient="from-sky-500 to-cyan-600" />
       </div>
 
-      <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">My mentees</h2>
+      <div className="mb-3 mt-8 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">My mentees</h2>
+        {byBatch.length > 1 && (
+          <select
+            value={batchFilter}
+            onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          >
+            <option value="">All batches</option>
+            {byBatch.map(([year]) => (
+              <option key={year} value={year}>
+                Batch {year}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
       {loading ? (
         <div className="space-y-3">
           <Skeleton className="h-16" />
@@ -505,9 +527,11 @@ function FacultyMentorDashboard() {
         </div>
       ) : menteeStudents.length === 0 ? (
         <EmptyState icon={Users} title="No mentees assigned to you yet" />
+      ) : visibleMentees.length === 0 ? (
+        <Card className="text-sm text-slate-400">No mentees in batch {batchFilter}.</Card>
       ) : (
         <div className="space-y-3">
-          {menteeStudents.map((s) => (
+          {visibleMentees.map((s) => (
             <MenteeRow key={s.studentId} student={s} />
           ))}
         </div>

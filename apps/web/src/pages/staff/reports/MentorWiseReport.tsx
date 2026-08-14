@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Download, Users2 } from "lucide-react";
 import type { MenteeFollowUp, MentorMapping } from "@placement-app/types";
@@ -21,8 +21,15 @@ export default function MentorWiseReport() {
   const mentors = useMentorDirectory(appUser);
   const students = useStudentsDirectory(appUser);
 
+  const [batchFilter, setBatchFilter] = useState<number | "">("");
+
   const studentsByUid = useMemo(() => Object.fromEntries((students ?? []).map((s) => [s.uid, s])), [students]);
   const mentorsByUid = useMemo(() => Object.fromEntries((mentors ?? []).map((m) => [m.uid, m])), [mentors]);
+
+  const batchYears = useMemo(
+    () => Array.from(new Set((students ?? []).map((s) => s.batchYear))).sort((a, b) => a - b),
+    [students]
+  );
 
   // Last follow-up per student, computed once from the whole department's
   // follow-ups rather than a per-student hook — this report needs every
@@ -45,28 +52,32 @@ export default function MentorWiseReport() {
 
     return Array.from(byMentor.entries())
       .map(([facultyId, myMappings]) => {
-        const menteeStudents = myMappings.map((m) => studentsByUid[m.studentId]).filter((s) => s !== undefined);
+        const menteeStudents = myMappings
+          .map((m) => studentsByUid[m.studentId])
+          .filter((s) => s !== undefined)
+          .filter((s) => !batchFilter || s.batchYear === batchFilter);
         const total = menteeStudents.length;
-        const avgCgpa = total > 0 ? Math.round((menteeStudents.reduce((a, s) => a + s.cgpa, 0) / total) * 100) / 100 : 0;
-        const avgBacklogs = total > 0 ? Math.round((menteeStudents.reduce((a, s) => a + s.activeBacklogs, 0) / total) * 10) / 10 : 0;
+        const maxCgpa = total > 0 ? Math.max(...menteeStudents.map((s) => s.cgpa)) : 0;
+        const backlogCount = menteeStudents.filter((s) => s.activeBacklogs > 0).length;
         const atRiskCount = menteeStudents.filter(
           (s) => computeAtRiskReasons(s, lastFollowUpByStudent[s.uid] ?? null).length > 0
         ).length;
-        const mentorFollowUps = (followUps ?? []).filter((f) => f.mentorId === facultyId);
+        const menteeUids = new Set(menteeStudents.map((s) => s.uid));
+        const mentorFollowUps = (followUps ?? []).filter((f) => f.mentorId === facultyId && menteeUids.has(f.studentId));
         const lastActivityAt = mentorFollowUps.length > 0 ? Math.max(...mentorFollowUps.map((f) => f.createdAt)) : null;
         return {
           facultyId,
           mentorName: mentorsByUid[facultyId]?.name ?? facultyId,
           menteeCount: total,
-          avgCgpa,
-          avgBacklogs,
+          maxCgpa,
+          backlogCount,
           atRiskCount,
           followUpCount: mentorFollowUps.length,
           lastActivityAt,
         };
       })
       .sort((a, b) => a.mentorName.localeCompare(b.mentorName));
-  }, [mappings, followUps, studentsByUid, mentorsByUid, lastFollowUpByStudent]);
+  }, [mappings, followUps, studentsByUid, mentorsByUid, lastFollowUpByStudent, batchFilter]);
 
   const loading = rows === null;
 
@@ -74,12 +85,12 @@ export default function MentorWiseReport() {
     if (!rows) return;
     downloadCsv(
       "mentor-wise-report.csv",
-      ["Mentor", "Mentees", "Avg CGPA", "Avg Backlogs", "At-risk", "Follow-ups Logged", "Last Activity"],
+      ["Mentor", "Mentees", "Max CGPA", "No. with Backlogs", "At-risk", "Follow-ups Logged", "Last Activity"],
       rows.map((r) => [
         r.mentorName,
         r.menteeCount,
-        r.avgCgpa,
-        r.avgBacklogs,
+        r.maxCgpa,
+        r.backlogCount,
         r.atRiskCount,
         r.followUpCount,
         r.lastActivityAt ? new Date(r.lastActivityAt).toLocaleDateString() : "",
@@ -109,6 +120,21 @@ export default function MentorWiseReport() {
         }
       />
 
+      <Card className="mb-4">
+        <select
+          value={batchFilter}
+          onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
+          className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 sm:w-auto"
+        >
+          <option value="">All batches</option>
+          {batchYears.map((y) => (
+            <option key={y} value={y}>
+              Batch {y}
+            </option>
+          ))}
+        </select>
+      </Card>
+
       {loading && <Skeleton className="h-40" />}
 
       {!loading && (
@@ -119,8 +145,8 @@ export default function MentorWiseReport() {
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-4">Mentor</th>
                   <th className="py-2 pr-4">Mentees</th>
-                  <th className="py-2 pr-4">Avg CGPA</th>
-                  <th className="py-2 pr-4">Avg Backlogs</th>
+                  <th className="py-2 pr-4">Max CGPA</th>
+                  <th className="py-2 pr-4">No. with Backlogs</th>
                   <th className="py-2 pr-4">At-risk</th>
                   <th className="py-2 pr-4">Follow-ups</th>
                   <th className="py-2 pr-4">Last activity</th>
@@ -131,8 +157,8 @@ export default function MentorWiseReport() {
                   <tr key={r.facultyId}>
                     <td className="py-2 pr-4 font-medium text-slate-800">{r.mentorName}</td>
                     <td className="py-2 pr-4 text-slate-600">{r.menteeCount}</td>
-                    <td className="py-2 pr-4 text-slate-600">{r.avgCgpa}</td>
-                    <td className="py-2 pr-4 text-slate-600">{r.avgBacklogs}</td>
+                    <td className="py-2 pr-4 text-slate-600">{r.maxCgpa}</td>
+                    <td className="py-2 pr-4 text-slate-600">{r.backlogCount}</td>
                     <td className="py-2 pr-4 text-slate-600">{r.atRiskCount}</td>
                     <td className="py-2 pr-4 text-slate-600">{r.followUpCount}</td>
                     <td className="py-2 pr-4 text-slate-600">

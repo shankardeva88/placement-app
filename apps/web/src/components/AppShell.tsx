@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { logout } from "../lib/authActions";
+import { getSeenIds, useRelevantNotifications } from "../lib/notificationsLib";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -35,6 +36,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { student, appUser } = useAuth();
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const notifications = useRelevantNotifications(student);
+  // Re-read on every render (route changes included) rather than caching in
+  // state — cheap localStorage read, and it means the badge clears as soon
+  // as the student navigates away from Notifications after opening one.
+  const unreadCount = (notifications ?? []).filter((n) => !getSeenIds().has(n.notificationId)).length;
 
   async function handleLogout() {
     await logout();
@@ -61,6 +67,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           <Icon className="h-4 w-4" />
           {label}
+          {to === "/notifications" && unreadCount > 0 && (
+            <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-semibold text-white">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
         </NavLink>
       ))}
     </nav>

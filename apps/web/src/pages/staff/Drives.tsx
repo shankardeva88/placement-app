@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Briefcase, ListChecks, Plus, Users } from "lucide-react";
+import { Briefcase, ListChecks, Plus, Trash2, Users } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
 import type { Drive, DriveStatus } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
-import { createDrive, updateDrive, updateDriveStatus } from "../../lib/staffDriveActions";
+import { createDrive, updateDrive, updateDriveStatus, deleteDrive } from "../../lib/staffDriveActions";
+import { useAllApplications } from "../../lib/applicantsLib";
 import { driveRoleSummary, driveCtcSummary } from "../../lib/driveRolesLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
@@ -40,10 +41,11 @@ function toEligibility(values: DriveFormValues) {
   };
 }
 
-function DriveCard({ drive }: { drive: Drive }) {
+function DriveCard({ drive, applicantCount }: { drive: Drive; applicantCount: number | null }) {
   const { showToast } = useToast();
   const [editing, setEditing] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function handleUpdate(values: DriveFormValues) {
     await updateDrive(drive.driveId, {
@@ -69,6 +71,18 @@ function DriveCard({ drive }: { drive: Drive }) {
       showToast(`Marked ${status}`);
     } finally {
       setChangingStatus(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm(`Are you sure you want to delete "${drive.companyName}"? This can't be undone.`)) return;
+    setDeleting(true);
+    try {
+      await deleteDrive(drive.driveId);
+      showToast("Drive deleted");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not delete drive");
+      setDeleting(false);
     }
   }
 
@@ -139,16 +153,45 @@ function DriveCard({ drive }: { drive: Drive }) {
             </option>
           ))}
         </select>
+        <Button
+          variant="danger"
+          onClick={handleDelete}
+          loading={deleting}
+          disabled={applicantCount === null || applicantCount > 0}
+          title={
+            applicantCount === null
+              ? "Loading applicant count…"
+              : applicantCount > 0
+                ? `Can't delete — ${applicantCount} student(s) have already applied. Mark it cancelled instead.`
+                : "Delete this drive"
+          }
+        >
+          <Trash2 className="h-4 w-4" />
+          Delete
+        </Button>
       </div>
     </Card>
   );
 }
 
 export default function StaffDrives() {
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, appUser } = useAuth();
   const { showToast } = useToast();
   const [drives, setDrives] = useState<Drive[] | null>(null);
   const [creating, setCreating] = useState(false);
+  const applications = useAllApplications(appUser);
+
+  // Only counts applicants within the coordinator/hod's own department scope
+  // (applicationsDeptIndex, see the doc comment on useDriveApplicants in
+  // applicantsLib.ts) — same limitation the Applicants page already has for
+  // a drive open to multiple departments. Institution roles see everyone, so
+  // their delete-safety check is exact.
+  const applicantCountByDrive = useMemo(() => {
+    if (!applications) return null;
+    const counts: Record<string, number> = {};
+    for (const a of applications) counts[a.driveId] = (counts[a.driveId] ?? 0) + 1;
+    return counts;
+  }, [applications]);
 
   useEffect(() => {
     return onValue(ref(db, DB_NODES.drives), (snap) => {
@@ -216,7 +259,11 @@ export default function StaffDrives() {
 
       <div className="space-y-4">
         {drives?.map((drive) => (
-          <DriveCard key={drive.driveId} drive={drive} />
+          <DriveCard
+            key={drive.driveId}
+            drive={drive}
+            applicantCount={applicantCountByDrive ? (applicantCountByDrive[drive.driveId] ?? 0) : null}
+          />
         ))}
       </div>
     </div>

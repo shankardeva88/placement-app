@@ -1,6 +1,6 @@
 import { initializeApp, deleteApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { ref, update, serverTimestamp } from "firebase/database";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { ref, update, get, serverTimestamp } from "firebase/database";
 import { db, firebaseConfig } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
 import type { Department, Gender } from "@placement-app/types";
@@ -19,9 +19,12 @@ const HEADER_MAP: Record<string, string> = {
   [normalizeHeader("Full Name(As per Aadhar)")]: "name",
   [normalizeHeader("Gender")]: "gender",
   [normalizeHeader("Branch")]: "department",
+  [normalizeHeader("DEPT")]: "department",
   [normalizeHeader("B.Tech CGPA")]: "cgpa",
+  [normalizeHeader("CGPA")]: "cgpa",
   [normalizeHeader("Backlogs")]: "activeBacklogs",
   [normalizeHeader("Year of Passedout")]: "batchYear",
+  [normalizeHeader("Batch")]: "batchYear",
   [normalizeHeader("Phone Number")]: "studentPhone",
   [normalizeHeader("Date of Birth")]: "dateOfBirth",
   [normalizeHeader("X Class Percentage %")]: "tenthPercentage",
@@ -29,8 +32,13 @@ const HEADER_MAP: Record<string, string> = {
   [normalizeHeader("XII/Diploma Percentage %")]: "twelfthPercentage",
   [normalizeHeader("XII/Diploma Year of passing")]: "twelfthYearOfPassing",
   [normalizeHeader("Email Address (College Domain Mail ID)")]: "email",
+  [normalizeHeader("Email")]: "email",
   [normalizeHeader("Personal Email")]: "personalEmail",
   [normalizeHeader("Resume Link (It should be accessible by everyone)")]: "resumeUrl",
+  // Password is always the roll number (see createBulkStudent) — mapped here
+  // only so a "Password" column in the sheet doesn't show up as unmapped;
+  // parseStudentRows below warns if it's present but doesn't match the roll number.
+  [normalizeHeader("Password")]: "password",
 };
 
 const DEPARTMENT_ALIASES: Record<string, Department> = {
@@ -146,6 +154,9 @@ export function parseStudentRows(headers: string[], rawRows: string[][]): ParseR
     if (!rollNo) errors.push("Missing roll number");
     if (rollNo && rollNo.length < 6) warnings.push("Roll number is under 6 characters — it's used as the temporary password, Firebase requires 6+");
 
+    const passwordCol = get(row, "password");
+    if (passwordCol && passwordCol !== rollNo) warnings.push(`Password column "${passwordCol}" ignored — login password is always the roll number`);
+
     const name = get(row, "name");
     if (!name) errors.push("Missing name");
 
@@ -212,7 +223,7 @@ export function parseStudentRows(headers: string[], rawRows: string[][]): ParseR
   return { rows, unmappedHeaders };
 }
 
-export type CreateBulkStudentResult = { uid: string } | { error: string };
+export type CreateBulkStudentResult = { uid: string } | { alreadyExists: true } | { error: string };
 
 /** Same secondary-app technique as createStaffAccount (in staffAuthActions.ts)
  * — creating a user on the primary auth instance would sign the admin out.
@@ -223,8 +234,28 @@ export async function createBulkStudent(row: ParsedStudentRow): Promise<CreateBu
   const secondaryApp = initializeApp(firebaseConfig, `secondary-bulk-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   try {
     const secondaryAuth = getAuth(secondaryApp);
-    const cred = await createUserWithEmailAndPassword(secondaryAuth, row.email, row.rollNo);
-    const uid = cred.user.uid;
+
+    let uid: string;
+    try {
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, row.email, row.rollNo);
+      uid = cred.user.uid;
+    } catch (createErr) {
+      // "email-already-in-use" almost always means a previous import attempt
+      // created this Auth login but never finished the DB write (rules
+      // rejection, closed tab, dropped connection mid-import) — an orphaned
+      // account with the roll number still as its password. Recover it by
+      // signing in rather than reporting a false "already exists" failure.
+      const code = (createErr as { code?: string }).code;
+      if (code !== "auth/email-already-in-use") throw createErr;
+      const cred = await signInWithEmailAndPassword(secondaryAuth, row.email, row.rollNo);
+      uid = cred.user.uid;
+    }
+
+    const existing = await get(ref(db, `${DB_NODES.students}/${uid}`));
+    if (existing.exists()) {
+      await signOut(secondaryAuth);
+      return { alreadyExists: true };
+    }
 
     try {
       await writeStudentRecords(uid, row);
@@ -234,7 +265,7 @@ export async function createBulkStudent(row: ParsedStudentRow): Promise<CreateBu
       // hits exactly this (rules deny the write after the account already
       // exists). Delete it rather than leave an orphaned login with no
       // profile and an email that's now permanently "taken".
-      await cred.user.delete().catch(() => {});
+      await secondaryAuth.currentUser?.delete().catch(() => {});
       throw writeErr;
     }
 

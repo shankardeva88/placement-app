@@ -113,7 +113,7 @@ export default function Dashboard() {
   const { appUser, student } = useAuth();
   const applications = useMyApplications(student?.uid);
   const offers = useOwnedDriveRecords<Offer>(student?.uid, DB_NODES.offers);
-  const notifications = useRelevantNotifications(student?.department);
+  const notifications = useRelevantNotifications(student);
 
   const applicationCount = applications?.filter((a) => a.record !== null).length;
   const offerCount = offers?.filter((o) => o.record !== null).length;

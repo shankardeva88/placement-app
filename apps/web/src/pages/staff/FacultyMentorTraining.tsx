@@ -27,16 +27,21 @@ const UPCOMING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
  * This is purely "what's going on, and how are my specific mentees doing" —
  * useMyTraining is the exact same per-student hook the student's own
  * Training page uses, reused per mentee here. */
-function MenteeTrainingRow({ student }: { student: Student }) {
+function MenteeTrainingRow({ student, trainingFilter }: { student: Student; trainingFilter: string }) {
   const [expanded, setExpanded] = useState(false);
   const batches = useMyTraining(student.uid);
 
+  // The page-level training filter narrows which mentees show up, but a
+  // mentee can still be in several training batches at once — without this,
+  // expanding a card after filtering to one training showed every batch's
+  // sessions mixed together, not just the one being filtered on.
   const allSessions = useMemo(() => {
     if (!batches) return [];
     return batches
+      .filter((b) => !trainingFilter || b.batch.batchId === trainingFilter)
       .flatMap((b) => b.sessions.map((s) => ({ ...s, batchName: b.batch.name })))
       .sort((a, b) => b.session.date - a.session.date);
-  }, [batches]);
+  }, [batches, trainingFilter]);
 
   const marked = allSessions.filter((s) => s.attendance !== null);
   const present = marked.filter((s) => s.attendance?.status === "present" || s.attendance?.status === "late");
@@ -102,6 +107,9 @@ export default function FacultyMentorTraining() {
 
   const studentsByUid = useMemo(() => Object.fromEntries((students ?? []).map((s) => [s.uid, s])), [students]);
 
+  const [batchFilter, setBatchFilter] = useState<number | "">("");
+  const [trainingFilter, setTrainingFilter] = useState("");
+
   const menteeStudents = useMemo(() => {
     if (!mentees) return [];
     return mentees
@@ -109,6 +117,36 @@ export default function FacultyMentorTraining() {
       .filter((s): s is Student => s !== undefined)
       .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
   }, [mentees, studentsByUid]);
+
+  // A mentor's mentees can span more than one batch (same reasoning as the
+  // batch filter on the coordinator-side Mentor-wise Report) — narrow the
+  // list down instead of scrolling through every mentee's attendance card.
+  const menteeBatchYears = useMemo(
+    () => Array.from(new Set(menteeStudents.map((s) => s.batchYear))).sort((a, b) => a - b),
+    [menteeStudents]
+  );
+  // Which training batches actually have a mentee in them — a mentor's
+  // mentees are typically split across several training batches (aptitude,
+  // coding, etc.), and without this every mentee shows collapsed in one long
+  // list with no way to jump to "just the ones in Batch X".
+  const menteeTrainingBatches = useMemo(() => {
+    if (!allBatches) return [];
+    const menteeUids = new Set(menteeStudents.map((s) => s.uid));
+    return allBatches
+      .filter((b) => b.studentIds.some((uid) => menteeUids.has(uid)))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [allBatches, menteeStudents]);
+
+  const visibleMentees = useMemo(() => {
+    let list = menteeStudents;
+    if (batchFilter) list = list.filter((s) => s.batchYear === batchFilter);
+    if (trainingFilter) {
+      const batch = menteeTrainingBatches.find((b) => b.batchId === trainingFilter);
+      const ids = new Set(batch?.studentIds ?? []);
+      list = list.filter((s) => ids.has(s.uid));
+    }
+    return list;
+  }, [menteeStudents, batchFilter, trainingFilter, menteeTrainingBatches]);
 
   // "What's going on" — sessions in the last day through the next 7 days,
   // same window the coordinator dashboard widget uses, scoped to this
@@ -157,7 +195,37 @@ export default function FacultyMentorTraining() {
         </Card>
       )}
 
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">My mentees' attendance</h2>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">My mentees' attendance</h2>
+        {menteeBatchYears.length > 1 && (
+          <select
+            value={batchFilter}
+            onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          >
+            <option value="">All batches</option>
+            {menteeBatchYears.map((y) => (
+              <option key={y} value={y}>
+                Batch {y}
+              </option>
+            ))}
+          </select>
+        )}
+        {menteeTrainingBatches.length > 1 && (
+          <select
+            value={trainingFilter}
+            onChange={(e) => setTrainingFilter(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          >
+            <option value="">All trainings</option>
+            {menteeTrainingBatches.map((b) => (
+              <option key={b.batchId} value={b.batchId}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
       {loading ? (
         <div className="space-y-3">
           <Skeleton className="h-16" />
@@ -165,10 +233,12 @@ export default function FacultyMentorTraining() {
         </div>
       ) : menteeStudents.length === 0 ? (
         <EmptyState icon={BookOpen} title="No mentees assigned to you yet" />
+      ) : visibleMentees.length === 0 ? (
+        <Card className="text-sm text-slate-400">No mentees match these filters.</Card>
       ) : (
         <div className="space-y-3">
-          {menteeStudents.map((s) => (
-            <MenteeTrainingRow key={s.studentId} student={s} />
+          {visibleMentees.map((s) => (
+            <MenteeTrainingRow key={s.studentId} student={s} trainingFilter={trainingFilter} />
           ))}
         </div>
       )}

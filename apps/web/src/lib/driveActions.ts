@@ -8,6 +8,21 @@ export interface EligibilityResult {
   reasons: string[];
 }
 
+/** Whether a drive should be shown to a student at all — hand-picked drives
+ * (selectedStudentIds set) are invite-only, so only the picked students see
+ * them; otherwise batch is a fixed attribute (unlike CGPA/backlogs/skills,
+ * which stay visible-but-ineligible so a student knows what to work toward)
+ * so a batch mismatch hides the drive entirely. Shared between the student
+ * Drives page (list visibility) and notificationsLib (who gets pinged about
+ * a new drive) so the two stay in sync. */
+export function isDriveVisibleToStudent(student: Student, drive: Drive): boolean {
+  if (drive.selectedStudentIds && drive.selectedStudentIds.length > 0) {
+    return drive.selectedStudentIds.includes(student.uid);
+  }
+  const batchYears = drive.eligibility.batchYears ?? [];
+  return batchYears.length === 0 || batchYears.includes(student.batchYear);
+}
+
 /** minPri isn't checked yet — Placement Readiness Index isn't computed
  * anywhere in the app yet (see ReadinessScore comment in the types package).
  * When a drive has selectedStudentIds set, that list is the sole gate —

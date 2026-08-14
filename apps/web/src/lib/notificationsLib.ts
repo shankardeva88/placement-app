@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { AppNotification, Department } from "@placement-app/types";
+import type { AppNotification, Drive, Student } from "@placement-app/types";
+import { isDriveVisibleToStudent } from "./driveActions";
 
 const SEEN_KEY = "placement-app:seen-notifications";
 
@@ -25,11 +26,18 @@ export function markSeen(seenIds: Set<string>, id: string): Set<string> {
   return next;
 }
 
-/** Membership for eligible_list/selected_students/custom audiences isn't in
- * the data model, so those are included for everyone (see Notifications
- * page) — only the "department" audience type can actually be filtered. */
-export function useRelevantNotifications(department: Department | undefined): AppNotification[] | null {
+/** Membership for freeform custom audiences isn't in the data model, so those
+ * are included for everyone (see Notifications page). "department" filters
+ * directly. "eligible_list"/"selected_students" filter too, but only when
+ * filterValue is a real driveId (auto-sent on drive creation — see
+ * createDrive in staffDriveActions.ts) — same isDriveVisibleToStudent rule
+ * the student Drives page itself uses, so "who got notified" and "who can
+ * see the drive" never drift apart. A manually-sent notification of either
+ * type with no matching drive falls back to visible-to-everyone, same as
+ * before. */
+export function useRelevantNotifications(student: Student | null | undefined): AppNotification[] | null {
   const [notifications, setNotifications] = useState<AppNotification[] | null>(null);
+  const [drives, setDrives] = useState<Record<string, Drive> | null>(null);
 
   useEffect(() => {
     return onValue(ref(db, DB_NODES.notifications), (snap) => {
@@ -40,8 +48,19 @@ export function useRelevantNotifications(department: Department | undefined): Ap
     });
   }, []);
 
-  if (!notifications || !department) return notifications;
-  return notifications.filter(
-    (n) => n.audience.type !== "department" || n.audience.filterValue === department
-  );
+  useEffect(() => {
+    return onValue(ref(db, DB_NODES.drives), (snap) => {
+      setDrives((snap.val() as Record<string, Drive> | null) ?? {});
+    });
+  }, []);
+
+  if (!notifications || !student) return notifications;
+  return notifications.filter((n) => {
+    if (n.audience.type === "department") return n.audience.filterValue === student.department;
+    if (n.audience.type === "eligible_list" || n.audience.type === "selected_students") {
+      const drive = n.audience.filterValue && drives ? drives[n.audience.filterValue] : undefined;
+      if (drive) return isDriveVisibleToStudent(student, drive);
+    }
+    return true;
+  });
 }

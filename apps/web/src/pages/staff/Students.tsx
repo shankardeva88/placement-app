@@ -6,6 +6,7 @@ import type { Department, Gender, PlacementStatus } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { createBulkStudent } from "../../lib/bulkImportLib";
+import { useAllTrainingBatches } from "../../lib/trainingManagementLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -210,6 +211,7 @@ function AddStudentForm({ onDone }: { onDone: () => void }) {
 export default function Students() {
   const { appUser } = useAuth();
   const students = useStudentsDirectory(appUser);
+  const trainingBatches = useAllTrainingBatches();
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState<Department | "">("");
   const [batchFilter, setBatchFilter] = useState<number | "">("");
@@ -225,12 +227,31 @@ export default function Students() {
     return Array.from(new Set(students.map((s) => s.batchYear))).sort((a, b) => a - b);
   }, [students]);
 
+  // Two unrelated "training" concepts share this page: s.trainings is
+  // completion records from the Import Trainings CSV upload; TrainingBatch
+  // is the live scheduled batch from Training.tsx (attendance/sessions).
+  // Prefixing option values keeps them distinguishable even if a batch and
+  // an imported record happen to share a name.
   const trainingNames = useMemo(() => {
     if (!students) return [];
     const names = new Set<string>();
     for (const s of students) for (const name of Object.keys(s.trainings ?? {})) names.add(name);
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [students]);
+
+  const trainingBatchOptions = useMemo(() => {
+    if (!trainingBatches) return [];
+    return Array.from(new Set(trainingBatches.map((b) => b.name))).sort((a, b) => a.localeCompare(b));
+  }, [trainingBatches]);
+
+  const studentIdsByBatchName = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const b of trainingBatches ?? []) {
+      if (!map.has(b.name)) map.set(b.name, new Set());
+      for (const uid of b.studentIds) map.get(b.name)!.add(uid);
+    }
+    return map;
+  }, [trainingBatches]);
 
   const filtered = useMemo(() => {
     if (!students) return null;
@@ -241,7 +262,11 @@ export default function Students() {
         if (!showAlumni && s.isAlumni) return false;
         if (deptFilter && s.department !== deptFilter) return false;
         if (batchFilter && s.batchYear !== batchFilter) return false;
-        if (trainingFilter && !(s.trainings ?? {})[trainingFilter]) return false;
+        if (trainingFilter.startsWith("batch:")) {
+          if (!studentIdsByBatchName.get(trainingFilter.slice(6))?.has(s.uid)) return false;
+        } else if (trainingFilter.startsWith("import:")) {
+          if (!(s.trainings ?? {})[trainingFilter.slice(7)]) return false;
+        }
         if (recentlyUpdatedOnly && (!s.lastSignificantUpdateAt || s.lastSignificantUpdateAt < cutoff)) return false;
         if (!term) return true;
         return (
@@ -264,7 +289,7 @@ export default function Students() {
         // which is exactly the order this fixed-width format needs.
         return a.rollNo.localeCompare(b.rollNo);
       });
-  }, [students, search, deptFilter, batchFilter, trainingFilter, recentlyUpdatedOnly, showAlumni, sortBy]);
+  }, [students, search, deptFilter, batchFilter, trainingFilter, studentIdsByBatchName, recentlyUpdatedOnly, showAlumni, sortBy]);
 
   return (
     <div>
@@ -338,11 +363,24 @@ export default function Students() {
         </select>
         <select value={trainingFilter} onChange={(e) => setTrainingFilter(e.target.value)} className={`${inputClass} sm:w-48`}>
           <option value="">All trainings</option>
-          {trainingNames.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
+          {trainingBatchOptions.length > 0 && (
+            <optgroup label="Scheduled batches">
+              {trainingBatchOptions.map((t) => (
+                <option key={`batch:${t}`} value={`batch:${t}`}>
+                  {t}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {trainingNames.length > 0 && (
+            <optgroup label="Imported trainings">
+              {trainingNames.map((t) => (
+                <option key={`import:${t}`} value={`import:${t}`}>
+                  {t}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
       </div>
 

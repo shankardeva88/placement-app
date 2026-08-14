@@ -14,7 +14,7 @@ const CAN_BULK_IMPORT_ROLES = ["coordinator", "hod", "dean", "principal", "cpo",
 
 interface ImportOutcome {
   row: ParsedStudentRow;
-  result: "created" | "failed";
+  result: "created" | "alreadyExists" | "failed";
   message?: string;
 }
 
@@ -53,13 +53,27 @@ export default function BulkImportStudents() {
     const results: ImportOutcome[] = [];
     for (const row of importableRows) {
       const res = await createBulkStudent(row);
-      results.push("uid" in res ? { row, result: "created" } : { row, result: "failed", message: res.error });
+      if ("uid" in res) results.push({ row, result: "created" });
+      else if ("alreadyExists" in res) results.push({ row, result: "alreadyExists" });
+      else results.push({ row, result: "failed", message: res.error });
       setProgress((p) => p + 1);
+      // Firebase's identitytoolkit signup endpoint rate-limits rapid-fire
+      // account creation from one client — hammering it with no delay trips
+      // "auth/too-many-requests" partway through a large batch. Space out
+      // requests, and stop immediately (rather than burning through the rest
+      // of the rows while blocked) so the remaining rows stay untouched and
+      // re-importable once the block clears.
+      if ("error" in res && res.error.includes("auth/too-many-requests")) {
+        showToast("Firebase is rate-limiting account creation — stopped early. Wait 15–30 min, then re-import the remaining rows.");
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300));
     }
     setOutcomes(results);
     setImporting(false);
     const createdCount = results.filter((r) => r.result === "created").length;
-    showToast(`${createdCount} of ${importableRows.length} student(s) created`);
+    const alreadyExistsCount = results.filter((r) => r.result === "alreadyExists").length;
+    showToast(`${createdCount} created, ${alreadyExistsCount} already existed, ${results.length - createdCount - alreadyExistsCount} failed`);
   }
 
   if (!canImport) {
@@ -80,7 +94,7 @@ export default function BulkImportStudents() {
     <div>
       <PageHeader
         title="Bulk Import Students"
-        subtitle="Paste roster data — roll number, name, gender, branch, CGPA, backlogs, passout year, phone, DOB, 10th/12th, emails, resume link."
+        subtitle="Paste roster data — roll number, name, dept, CGPA, email, and batch are required; gender, backlogs, phone, DOB, 10th/12th, personal email, and resume link are optional and can be filled in by the student later."
         icon={Upload}
         gradient="from-violet-500 to-purple-600"
       />
@@ -132,6 +146,7 @@ export default function BulkImportStudents() {
                   <th className="py-1.5 pr-3">Roll No</th>
                   <th className="py-1.5 pr-3">Name</th>
                   <th className="py-1.5 pr-3">Dept</th>
+                  <th className="py-1.5 pr-3">Batch</th>
                   <th className="py-1.5 pr-3">CGPA</th>
                   <th className="py-1.5 pr-3">Email</th>
                   <th className="py-1.5 pr-3">Status</th>
@@ -145,6 +160,7 @@ export default function BulkImportStudents() {
                       <td className="py-1.5 pr-3 font-medium text-slate-800">{row.rollNo || "—"}</td>
                       <td className="py-1.5 pr-3 text-slate-600">{row.name || "—"}</td>
                       <td className="py-1.5 pr-3 text-slate-600">{row.department}</td>
+                      <td className="py-1.5 pr-3 text-slate-600">{row.batchYear || "—"}</td>
                       <td className="py-1.5 pr-3 text-slate-600">{row.cgpa}</td>
                       <td className="py-1.5 pr-3 text-slate-600">{row.email || "—"}</td>
                       <td className="py-1.5 pr-3">
@@ -182,6 +198,7 @@ export default function BulkImportStudents() {
           <p className="mb-3 flex items-center gap-1.5 text-sm text-slate-600">
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
             {outcomes.filter((o) => o.result === "created").length} created,{" "}
+            {outcomes.filter((o) => o.result === "alreadyExists").length} already imported (skipped),{" "}
             {outcomes.filter((o) => o.result === "failed").length} failed
           </p>
           {outcomes.filter((o) => o.result === "failed").length > 0 && (

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { ref, get, update } from "firebase/database";
+import { useMemo } from "react";
+import { ref, update } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
 import type { AppUser, Application, ApplicationStatus, Student } from "@placement-app/types";
@@ -18,31 +18,37 @@ export interface ApplicantRow {
  * instead (see useDeptScopedCollection). A dept-scoped coordinator/hod
  * reviewing a drive open to multiple departments only sees their own
  * department's applicants here; institution roles see everyone — see the
- * DB_NODES doc comment in packages/types for why. */
-export function useDriveApplicants(appUser: AppUser | null, driveId: string | undefined): ApplicantRow[] | null {
+ * DB_NODES doc comment in packages/types for why.
+ *
+ * Takes an already-loaded `students` list (from useStudentsDirectory,
+ * caller-owned) rather than fetching each applicant's record itself — this
+ * used to do one individual get() per applicant inside a useEffect keyed on
+ * the WHOLE department's applications collection, so every single write
+ * anywhere in the department (any drive, any status change) re-triggered a
+ * fresh fetch-every-applicant cascade for whichever drive's page was open.
+ * A high-traffic drive (many applicants, many status updates in flight)
+ * made its own page pay for that cascade worst of all — a lookup into an
+ * already-subscribed list is just a plain derived value, no network calls
+ * or effect re-runs involved. */
+export function useDriveApplicants(
+  appUser: AppUser | null,
+  driveId: string | undefined,
+  students: Student[] | null
+): ApplicantRow[] | null {
   const applications = useAllApplications(appUser);
-  const [rows, setRows] = useState<ApplicantRow[] | null>(null);
 
-  const scoped = useMemo(
-    () => (applications && driveId ? applications.filter((a) => a.driveId === driveId) : null),
-    [applications, driveId]
-  );
+  const studentsByUid = useMemo(() => {
+    const map = new Map<string, Student>();
+    for (const s of students ?? []) map.set(s.uid, s);
+    return map;
+  }, [students]);
 
-  useEffect(() => {
-    if (!scoped) return;
-    Promise.all(
-      scoped.map(async (application): Promise<ApplicantRow> => {
-        try {
-          const studentSnap = await get(ref(db, `${DB_NODES.students}/${application.studentId}`));
-          return { application, student: studentSnap.exists() ? (studentSnap.val() as Student) : null };
-        } catch {
-          return { application, student: null };
-        }
-      })
-    ).then(setRows);
-  }, [scoped]);
-
-  return rows;
+  return useMemo(() => {
+    if (!applications || !driveId || !students) return null;
+    return applications
+      .filter((a) => a.driveId === driveId)
+      .map((application) => ({ application, student: studentsByUid.get(application.studentId) ?? null }));
+  }, [applications, driveId, students, studentsByUid]);
 }
 
 export function useAllApplications(appUser: AppUser | null): Application[] | null {

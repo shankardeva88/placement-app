@@ -62,7 +62,16 @@ export default function TrainingReport() {
   const rows = useMemo(() => {
     if (!students || !batches || !sessions) return null;
     return students.map((s) => {
-      const batchIds = studentBatchIds.get(s.uid) ?? [];
+      const allBatchIds = studentBatchIds.get(s.uid) ?? [];
+      // Scoped to the selected training batch when a filter is set — a
+      // student can be enrolled in several training batches at once, so
+      // without this the attendance %/session count and the displayed batch
+      // name(s) stayed an aggregate across ALL of a student's batches even
+      // after filtering the row list down to one, both in the table and the
+      // CSV export (same bug already fixed for the mentor-side training
+      // view — see MenteeTrainingRow's trainingFilter in
+      // FacultyMentorTraining.tsx).
+      const batchIds = trainingBatchFilter ? allBatchIds.filter((bid) => bid === trainingBatchFilter) : allBatchIds;
       const relevantSessions = batchIds.flatMap((bid) => sessionsByBatch.get(bid) ?? []);
       const total = relevantSessions.length;
       const attended = relevantSessions.filter((sess) => {
@@ -72,9 +81,9 @@ export default function TrainingReport() {
       const pct = total > 0 ? Math.round((attended / total) * 100) : null;
       const trainingBatchNames = batchIds.map((bid) => batchesById[bid]?.name ?? bid);
       const externalTrainings = Object.keys(s.trainings ?? {});
-      return { student: s, batchIds, trainingBatchNames, attended, total, pct, externalTrainings };
+      return { student: s, allBatchIds, trainingBatchNames, attended, total, pct, externalTrainings };
     });
-  }, [students, batches, sessions, studentBatchIds, sessionsByBatch, attendance, batchesById]);
+  }, [students, batches, sessions, studentBatchIds, sessionsByBatch, attendance, batchesById, trainingBatchFilter]);
 
   const batchYears = useMemo(() => {
     if (!students) return [];
@@ -92,7 +101,7 @@ export default function TrainingReport() {
     return rows
       .filter((r) => !deptFilter || r.student.department === deptFilter)
       .filter((r) => !batchYearFilter || r.student.batchYear === batchYearFilter)
-      .filter((r) => !trainingBatchFilter || r.batchIds.includes(trainingBatchFilter))
+      .filter((r) => !trainingBatchFilter || r.allBatchIds.includes(trainingBatchFilter))
       .filter((r) => !term || r.student.rollNo.toLowerCase().includes(term) || r.student.name.toLowerCase().includes(term))
       .sort((a, b) => a.student.rollNo.localeCompare(b.student.rollNo));
   }, [rows, search, deptFilter, batchYearFilter, trainingBatchFilter]);

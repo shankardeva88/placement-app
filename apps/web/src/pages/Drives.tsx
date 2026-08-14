@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Briefcase, ExternalLink } from "lucide-react";
 import type { Application, Drive } from "@placement-app/types";
 import { useAuth } from "../auth/AuthContext";
-import { applyToDrive, checkEligibility } from "../lib/driveActions";
+import { applyToDrive, checkEligibility, isDriveVisibleToStudent } from "../lib/driveActions";
 import { allDriveRoles, applicationRoleLabel, driveCtcSummary, driveRoleSummary, isMultiRole } from "../lib/driveRolesLib";
 import { useMyApplications } from "../lib/useMyApplications";
 import { useToast } from "../components/ui/Toast";
@@ -165,7 +165,13 @@ export default function Drives() {
   const [tab, setTab] = useState<"all" | "mine">("all");
   const results = useMyApplications(student?.uid);
 
-  const visible = results?.filter((r) => (tab === "mine" ? r.record !== null : true));
+  // Already-applied drives always stay visible under "My Applications"
+  // regardless of visibility rules (see isDriveVisibleToStudent).
+  const visible = results?.filter((r) => {
+    if (tab === "mine") return r.record !== null;
+    if (!student) return true;
+    return isDriveVisibleToStudent(student, r.drive);
+  });
 
   return (
     <div>

@@ -9,10 +9,10 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
 import { PageHeader } from "../components/ui/PageHeader";
 
-// Membership for eligible_list/selected_students/custom audiences isn't stored
-// anywhere in the notification itself, so — until that's part of the data
-// model — those are shown to everyone rather than hidden entirely, and just
-// labeled distinctly so it's clear they were originally targeted.
+// eligible_list/selected_students are filtered to real recipients when
+// filterValue is a driveId (see useRelevantNotifications); "custom" has no
+// membership data to filter by, so it's shown to everyone. Labels below are
+// just for display, not filtering.
 const AUDIENCE_LABEL: Record<NotificationAudienceType, string> = {
   all: "All students",
   department: "Department",
@@ -23,7 +23,7 @@ const AUDIENCE_LABEL: Record<NotificationAudienceType, string> = {
 
 export default function Notifications() {
   const { student } = useAuth();
-  const notifications = useRelevantNotifications(student?.department);
+  const notifications = useRelevantNotifications(student);
   const [seenIds, setSeenIds] = useState<Set<string>>(() => getSeenIds());
 
   if (!student) return null;

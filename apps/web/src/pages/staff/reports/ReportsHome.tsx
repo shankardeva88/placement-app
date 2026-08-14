@@ -51,7 +51,7 @@ const REPORTS: { to: string; label: string; description: string; icon: LucideIco
   {
     to: "/staff/reports/mentors",
     label: "Mentor-wise Report",
-    description: "Per mentor — mentee count, avg CGPA/backlogs, at-risk count, follow-up activity.",
+    description: "Per mentor — mentee count, max CGPA, no. with backlogs, at-risk count, follow-up activity. Filter by batch.",
     icon: Users2,
     gradient: "from-slate-500 to-slate-700",
   },
