@@ -15,6 +15,7 @@ import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { Avatar } from "../../components/ui/Avatar";
 
 const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
 const GENDERS: Gender[] = ["male", "female", "other", "prefer_not_to_say"];
@@ -414,24 +415,27 @@ export default function Students() {
         {filtered?.map((s) => (
           <Link key={s.studentId} to={`/staff/students/${s.studentId}`}>
             <Card className="flex items-center justify-between gap-4 transition-shadow hover:shadow-md">
-              <div className="min-w-0">
-                <p className="font-medium text-slate-900">
-                  {s.rollNo} — {s.name}
-                </p>
-                <p className="text-sm text-slate-500">
-                  {s.department} · Batch {s.batchYear} · CGPA {s.cgpa}
-                </p>
-                {(s.skills ?? []).length > 0 && (
-                  <p className="mt-0.5 truncate text-xs text-slate-400">{(s.skills ?? []).join(", ")}</p>
-                )}
-                {Object.keys(s.trainings ?? {}).length > 0 && (
-                  <p className="mt-0.5 truncate text-xs text-slate-400">
-                    Training: {Object.keys(s.trainings ?? {}).join(", ")}
+              <div className="flex min-w-0 items-center gap-3">
+                <Avatar photoUrl={s.photoUrl} name={s.name} />
+                <div className="min-w-0">
+                  <p className="font-medium text-slate-900">
+                    {s.rollNo} — {s.name}
                   </p>
-                )}
-                {s.lastSignificantUpdateAt && (
-                  <p className="mt-0.5 text-xs text-slate-400">Profile updated {formatRelativeTime(s.lastSignificantUpdateAt)}</p>
-                )}
+                  <p className="text-sm text-slate-500">
+                    {s.department} · Batch {s.batchYear} · CGPA {s.cgpa}
+                  </p>
+                  {(s.skills ?? []).length > 0 && (
+                    <p className="mt-0.5 truncate text-xs text-slate-400">{(s.skills ?? []).join(", ")}</p>
+                  )}
+                  {Object.keys(s.trainings ?? {}).length > 0 && (
+                    <p className="mt-0.5 truncate text-xs text-slate-400">
+                      Training: {Object.keys(s.trainings ?? {}).join(", ")}
+                    </p>
+                  )}
+                  {s.lastSignificantUpdateAt && (
+                    <p className="mt-0.5 text-xs text-slate-400">Profile updated {formatRelativeTime(s.lastSignificantUpdateAt)}</p>
+                  )}
+                </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {s.lastSignificantUpdateAt && Date.now() - s.lastSignificantUpdateAt < RECENT_WINDOW_MS && (

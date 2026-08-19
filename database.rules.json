@@ -172,6 +172,7 @@
         "githubUrl": { ".write": "auth != null && $studentId === auth.uid" },
         "portfolioUrl": { ".write": "auth != null && $studentId === auth.uid" },
         "resumeUrl": { ".write": "auth != null && $studentId === auth.uid" },
+        "photoUrl": { ".write": "auth != null && $studentId === auth.uid" },
         "skills": { ".write": "auth != null && $studentId === auth.uid" },
         "certifications": { ".write": "auth != null && $studentId === auth.uid" },
         "lastSignificantUpdateAt": { ".write": "auth != null && $studentId === auth.uid" },

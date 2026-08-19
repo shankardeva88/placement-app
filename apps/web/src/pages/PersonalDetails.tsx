@@ -8,6 +8,7 @@ import { useToast } from "../components/ui/Toast";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { PageHeader } from "../components/ui/PageHeader";
+import { Avatar } from "../components/ui/Avatar";
 
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
@@ -74,6 +75,9 @@ function IdentityHeader() {
       <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
         <BadgeCheck className="h-4 w-4" />
         On file with the placement cell
+      </div>
+      <div className="mb-4 flex items-center gap-3">
+        <Avatar photoUrl={student.photoUrl} name={student.name} size="lg" />
       </div>
       <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
         <div>
@@ -155,6 +159,7 @@ export default function PersonalDetails() {
   const [githubUrl, setGithubUrl] = useState(student?.githubUrl ?? "");
   const [portfolioUrl, setPortfolioUrl] = useState(student?.portfolioUrl ?? "");
   const [resumeUrl, setResumeUrl] = useState(student?.resumeUrl ?? "");
+  const [photoUrl, setPhotoUrl] = useState(student?.photoUrl ?? "");
 
   const [skillsText, setSkillsText] = useState(student?.skills?.join(", ") ?? "");
   const [certifications, setCertifications] = useState(
@@ -207,6 +212,7 @@ export default function PersonalDetails() {
     setGithubUrl(student.githubUrl ?? "");
     setPortfolioUrl(student.portfolioUrl ?? "");
     setResumeUrl(student.resumeUrl ?? "");
+    setPhotoUrl(student.photoUrl ?? "");
     setSkillsText(student.skills?.join(", ") ?? "");
     setCertifications(student.certifications?.map((c) => ({ name: c.name, url: c.url ?? "" })) ?? []);
   }
@@ -252,6 +258,7 @@ export default function PersonalDetails() {
         githubUrl,
         portfolioUrl,
         resumeUrl,
+        photoUrl,
         skills: skillsText
           .split(",")
           .map((s) => s.trim())
@@ -513,6 +520,34 @@ export default function PersonalDetails() {
                 />
               </ViewOrEdit>
             </Field>
+          </Section>
+
+          <Section title="Profile photo">
+            <div className="sm:col-span-2">
+              <Field label="Photo link">
+                {editing ? (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <Avatar photoUrl={photoUrl} name={student?.name ?? ""} size="lg" />
+                      <input
+                        type="url"
+                        placeholder="https://drive.google.com/..."
+                        value={photoUrl}
+                        onChange={(e) => setPhotoUrl(e.target.value)}
+                        className={inputClass}
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      A clear face photo helps the placement cell and companies recognize you at drives/interviews.
+                      Paste a Google Drive share link (set to "Anyone with the link can view") or any direct image
+                      URL — no file upload here.
+                    </p>
+                  </>
+                ) : (
+                  <Avatar photoUrl={photoUrl} name={student?.name ?? ""} size="lg" />
+                )}
+              </Field>
+            </div>
           </Section>
 
           <Section title="Resume">

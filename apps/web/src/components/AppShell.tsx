@@ -19,6 +19,7 @@ import {
 import { useAuth } from "../auth/AuthContext";
 import { logout } from "../lib/authActions";
 import { getSeenIds, useRelevantNotifications } from "../lib/notificationsLib";
+import { Avatar } from "./ui/Avatar";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -48,7 +49,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const name = student?.name ?? appUser?.name ?? "Student";
-  const initial = name.charAt(0).toUpperCase();
 
   const navLinks = (
     <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
@@ -133,9 +133,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </button>
           <span className="font-semibold text-slate-900 lg:hidden">Placement Portal</span>
           <div className="ml-auto flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-indigo-600 text-sm font-semibold text-white">
-              {initial}
-            </div>
+            <Avatar photoUrl={student?.photoUrl} name={name} size="sm" />
             <span className="hidden text-sm font-medium text-slate-700 sm:block">{name}</span>
           </div>
         </header>

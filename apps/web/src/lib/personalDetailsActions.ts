@@ -38,6 +38,7 @@ export interface PersonalDetailsInput {
   githubUrl: string;
   portfolioUrl: string;
   resumeUrl: string;
+  photoUrl: string;
 
   skills: string[];
   certifications: { name: string; url?: string }[];

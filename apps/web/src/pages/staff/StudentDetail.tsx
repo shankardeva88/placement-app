@@ -22,6 +22,7 @@ import { MockEvaluationModuleCard } from "../../components/MockEvaluationModuleC
 import { Button } from "../../components/ui/Button";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { Avatar } from "../../components/ui/Avatar";
 
 const CAN_MANAGE_ROLES = ["coordinator", "hod", "dean", "principal", "cpo", "admin"];
 const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
@@ -311,6 +312,9 @@ export default function StudentDetail() {
 
       {student && (
         <>
+          <div className="mb-4">
+            <Avatar photoUrl={student.photoUrl} name={student.name} size="lg" />
+          </div>
           <PageHeader
             title={`${student.rollNo} — ${student.name}`}
             subtitle={

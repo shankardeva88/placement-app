@@ -155,6 +155,12 @@ export interface Student {
   githubUrl?: string;
   portfolioUrl?: string;
 
+  // Directly-viewable image link (not a Drive share page like resumeUrl below)
+  // — a Drive share link opens Drive's viewer, not the raw image, so it can't
+  // be dropped into an <img src>. Students are pointed at a host that gives a
+  // direct link (e.g. Drive's "uc?export=view&id=" form, or any public image
+  // URL) — see the PersonalDetails.tsx field for the exact guidance shown.
+  photoUrl?: string;
   resumeUrl?: string; // Google Drive share link for now (Storage deferred — see README)
   // Typed as always-present, but RTDB silently omits empty arrays on write
   // (writing skills: [] just doesn't persist the key) — so any record

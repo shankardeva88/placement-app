@@ -15,6 +15,7 @@ import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import type { BadgeVariant } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
+import { Avatar } from "../../components/ui/Avatar";
 import { RoundProgress } from "../../components/RoundProgress";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
@@ -197,25 +198,28 @@ export default function DriveApplicants() {
       <div className="space-y-3">
         {sortedRows?.map(({ application, student }) => (
           <Card key={application.applicationId} className="flex flex-wrap items-center justify-between gap-4">
-            <div className="min-w-0">
-              {student ? (
-                <>
-                  <p className="font-medium text-slate-900">
-                    {student.rollNo} — {student.name}
-                  </p>
-                  <p className="text-sm text-slate-500">
-                    {student.department} · CGPA {student.cgpa}
-                    {drive && isMultiRole(drive) && ` · Applied for ${applicationRoleLabel(drive, application)}`}
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm text-slate-400">Details restricted (different department)</p>
-              )}
-              {drive && (drive.rounds ?? []).length > 0 && (
-                <div className="mt-2">
-                  <RoundProgress rounds={drive.rounds} application={application} />
-                </div>
-              )}
+            <div className="flex min-w-0 items-center gap-3">
+              {student && <Avatar photoUrl={student.photoUrl} name={student.name} />}
+              <div className="min-w-0">
+                {student ? (
+                  <>
+                    <p className="font-medium text-slate-900">
+                      {student.rollNo} — {student.name}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {student.department} · CGPA {student.cgpa}
+                      {drive && isMultiRole(drive) && ` · Applied for ${applicationRoleLabel(drive, application)}`}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-400">Details restricted (different department)</p>
+                )}
+                {drive && (drive.rounds ?? []).length > 0 && (
+                  <div className="mt-2">
+                    <RoundProgress rounds={drive.rounds} application={application} />
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-3">
               <Badge variant={STATUS_BADGE[application.status]}>{application.status.replace("_", " ")}</Badge>
