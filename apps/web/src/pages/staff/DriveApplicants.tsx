@@ -49,6 +49,21 @@ export default function DriveApplicants() {
   const [bulkApplying, setBulkApplying] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(0);
   const [bulkTotal, setBulkTotal] = useState(0);
+  const [sortBy, setSortBy] = useState<"default" | "rollNo" | "cgpa">("default");
+
+  // "Details restricted" rows (different department, see the empty-state
+  // branch below) have no student record to sort by — pinned to the end
+  // rather than left in whatever position the unsorted default happened to
+  // place them, for both the rollNo and cgpa orderings.
+  const sortedRows = useMemo(() => {
+    if (!rows || sortBy === "default") return rows;
+    const withStudent = rows.filter((r) => r.student);
+    const withoutStudent = rows.filter((r) => !r.student);
+    withStudent.sort((a, b) =>
+      sortBy === "rollNo" ? a.student!.rollNo.localeCompare(b.student!.rollNo) : b.student!.cgpa - a.student!.cgpa
+    );
+    return [...withStudent, ...withoutStudent];
+  }, [rows, sortBy]);
 
   useEffect(() => {
     if (!driveId) return;
@@ -161,8 +176,26 @@ export default function DriveApplicants() {
         <EmptyState icon={Users} title="No applicants yet" />
       )}
 
+      {rows !== null && rows.length > 0 && (
+        <div className="mb-3 flex items-center justify-end gap-2">
+          <label htmlFor="applicants-sort" className="text-xs font-medium text-slate-500">
+            Sort by
+          </label>
+          <select
+            id="applicants-sort"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as "default" | "rollNo" | "cgpa")}
+            className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          >
+            <option value="default">Application order</option>
+            <option value="rollNo">Roll No</option>
+            <option value="cgpa">CGPA (high to low)</option>
+          </select>
+        </div>
+      )}
+
       <div className="space-y-3">
-        {rows?.map(({ application, student }) => (
+        {sortedRows?.map(({ application, student }) => (
           <Card key={application.applicationId} className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0">
               {student ? (
