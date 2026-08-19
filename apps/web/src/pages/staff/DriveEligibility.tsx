@@ -52,6 +52,7 @@ export default function DriveEligibility() {
 
   const [pending, setPending] = useState<Record<string, string>>({}); // studentId -> mentorId (unsaved edits)
   const [saving, setSaving] = useState(false);
+  const [sortBy, setSortBy] = useState<"cgpa" | "rollNo">("cgpa");
 
   // MockEvaluation (Mock Interview Modules, e.g. "Infosys Mock") has no
   // driveId, unlike the older one-off MockInterview — a module isn't tied to
@@ -71,7 +72,29 @@ export default function DriveEligibility() {
     if (!drive || !students) return null;
     return students
       .filter((s) => checkEligibility(s, drive).eligible)
-      .sort((a, b) => b.cgpa - a.cgpa);
+      .sort((a, b) => (sortBy === "rollNo" ? a.rollNo.localeCompare(b.rollNo) : b.cgpa - a.cgpa));
+  }, [drive, students, sortBy]);
+
+  // "Students in scope" for the header count below — narrowed to the
+  // students who could possibly be eligible at all (right batch year/
+  // department), not every student useStudentsDirectory hands back. Without
+  // this, a drive open to only the current graduating batch still counted
+  // every other batch year in the denominator too, so e.g. "244 of 565"
+  // looked like most of the department was ineligible on CGPA/backlogs when
+  // really ~320 of those 565 were a different batch year entirely, never in
+  // the running to begin with. Hand-picked drives use the picked-list size
+  // itself — criteria don't apply there (see checkEligibility).
+  const inScopeCount = useMemo(() => {
+    if (!drive || !students) return null;
+    if (drive.selectedStudentIds && drive.selectedStudentIds.length > 0) return drive.selectedStudentIds.length;
+    const departments = drive.eligibility.departments ?? [];
+    const batchYears = drive.eligibility.batchYears ?? [];
+    return students.filter(
+      (s) =>
+        !s.isAlumni &&
+        (departments.length === 0 || departments.includes(s.department)) &&
+        (batchYears.length === 0 || batchYears.includes(s.batchYear))
+    ).length;
   }, [drive, students]);
 
   const assignedMentorFor = (studentId: string) =>
@@ -159,7 +182,7 @@ export default function DriveEligibility() {
 
       <PageHeader
         title={drive ? `${drive.companyName} — Eligibility List` : "Eligibility List"}
-        subtitle={drive ? `${eligible?.length ?? "…"} of ${students?.length ?? "…"} students in scope are eligible` : undefined}
+        subtitle={drive ? `${eligible?.length ?? "…"} of ${inScopeCount ?? "…"} students in scope are eligible` : undefined}
         icon={ListChecks}
         gradient="from-blue-500 to-indigo-600"
         action={
@@ -208,6 +231,20 @@ export default function DriveEligibility() {
 
       {eligible !== null && (
         <Card className="mb-4">
+          <div className="mb-3 flex items-center justify-end gap-2">
+            <label htmlFor="eligibility-sort" className="text-xs font-medium text-slate-500">
+              Sort by
+            </label>
+            <select
+              id="eligibility-sort"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as "cgpa" | "rollNo")}
+              className={inputClass}
+            >
+              <option value="cgpa">CGPA (high to low)</option>
+              <option value="rollNo">Roll No</option>
+            </select>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-left text-sm">
               <thead>
