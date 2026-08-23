@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Briefcase } from "lucide-react";
+import { Briefcase, ChevronDown, ChevronUp } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -64,17 +64,31 @@ function DriveDetailCard({
   menteeApplications: Application[];
   studentsByUid: Record<string, Student>;
 }) {
+  // Eligibility/rounds/mentee-applications collapsed by default — a mentor
+  // scanning the full drive history (every drive ever run, per the page
+  // subtitle) doesn't need all three expanded for every single card at
+  // once; click a drive to see its details.
+  const [expanded, setExpanded] = useState(false);
+
   return (
     <Card>
-      <div className="flex items-start justify-between gap-4">
+      <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-start justify-between gap-4 text-left">
         <div>
           <h3 className="text-base font-semibold text-slate-900">{drive.companyName}</h3>
           <p className="text-sm text-slate-500">
             {driveRoleSummary(drive)} · {DRIVE_TYPE_LABEL[drive.type]}
           </p>
         </div>
-        <Badge variant={DRIVE_BADGE[drive.status]}>{drive.status}</Badge>
-      </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {menteeApplications.length > 0 && (
+            <Badge variant="brand">
+              {menteeApplications.length} mentee{menteeApplications.length === 1 ? "" : "s"}
+            </Badge>
+          )}
+          <Badge variant={DRIVE_BADGE[drive.status]}>{drive.status}</Badge>
+          {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+        </div>
+      </button>
 
       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
         <div>
@@ -99,66 +113,70 @@ function DriveDetailCard({
         </div>
       </dl>
 
-      <div className="mt-4 border-t border-slate-100 pt-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Eligibility</p>
-        <div className="flex flex-wrap gap-2 text-sm">
-          <Badge variant="neutral">CGPA ≥ {drive.eligibility.minCgpa}</Badge>
-          <Badge variant="neutral">Backlogs ≤ {drive.eligibility.maxBacklogsAllowed}</Badge>
-          <Badge variant="neutral">{(drive.eligibility.departments ?? []).join(", ") || "Any department"}</Badge>
-          <Badge variant="neutral">Batch {(drive.eligibility.batchYears ?? []).join(", ")}</Badge>
-          {drive.eligibility.requiredSkills && drive.eligibility.requiredSkills.length > 0 && (
-            <Badge variant="neutral">Skills: {drive.eligibility.requiredSkills.join(", ")}</Badge>
-          )}
-          {drive.eligibility.requiredTrainings && drive.eligibility.requiredTrainings.length > 0 && (
-            <Badge variant="neutral">Trainings: {drive.eligibility.requiredTrainings.join(", ")}</Badge>
-          )}
-          {drive.eligibility.gender && drive.eligibility.gender !== "any" && (
-            <Badge variant="neutral">{drive.eligibility.gender} only</Badge>
-          )}
-        </div>
-      </div>
-
-      {(drive.rounds ?? []).length > 0 && (
-        <div className="mt-4 border-t border-slate-100 pt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Rounds</p>
-          <div className="flex flex-wrap gap-2 text-sm">
-            {drive.rounds.map((r) => {
-              // Once the whole drive is marked completed, every round is
-              // done too — shown regardless of each round's own stored
-              // status, which stays whatever it was last saved as (a drive
-              // created before per-round status editing existed just has
-              // every round stuck at the initial "pending" default).
-              const status = drive.status === "completed" ? "completed" : r.status;
-              return (
-                <Badge key={r.roundId} variant={status === "completed" ? "success" : status === "in_progress" ? "warning" : "neutral"}>
-                  {r.name} — {status.replace("_", " ")}
-                </Badge>
-              );
-            })}
+      {expanded && (
+        <>
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Eligibility</p>
+            <div className="flex flex-wrap gap-2 text-sm">
+              <Badge variant="neutral">CGPA ≥ {drive.eligibility.minCgpa}</Badge>
+              <Badge variant="neutral">Backlogs ≤ {drive.eligibility.maxBacklogsAllowed}</Badge>
+              <Badge variant="neutral">{(drive.eligibility.departments ?? []).join(", ") || "Any department"}</Badge>
+              <Badge variant="neutral">Batch {(drive.eligibility.batchYears ?? []).join(", ")}</Badge>
+              {drive.eligibility.requiredSkills && drive.eligibility.requiredSkills.length > 0 && (
+                <Badge variant="neutral">Skills: {drive.eligibility.requiredSkills.join(", ")}</Badge>
+              )}
+              {drive.eligibility.requiredTrainings && drive.eligibility.requiredTrainings.length > 0 && (
+                <Badge variant="neutral">Trainings: {drive.eligibility.requiredTrainings.join(", ")}</Badge>
+              )}
+              {drive.eligibility.gender && drive.eligibility.gender !== "any" && (
+                <Badge variant="neutral">{drive.eligibility.gender} only</Badge>
+              )}
+            </div>
           </div>
-        </div>
-      )}
 
-      {menteeApplications.length > 0 && (
-        <div className="mt-4 border-t border-slate-100 pt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">My mentees in this drive</p>
-          <ul className="space-y-3">
-            {menteeApplications.map((a) => {
-              const student = studentsByUid[a.studentId];
-              return (
-                <li key={a.applicationId} className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="font-medium text-slate-800">
-                      {student ? `${student.rollNo} — ${student.name}` : a.studentId}
-                    </span>
-                    <Badge variant={APPLICATION_BADGE[a.status]}>{a.status.replace("_", " ")}</Badge>
-                  </div>
-                  <RoundProgress rounds={drive.rounds} application={a} />
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+          {(drive.rounds ?? []).length > 0 && (
+            <div className="mt-4 border-t border-slate-100 pt-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Rounds</p>
+              <div className="flex flex-wrap gap-2 text-sm">
+                {drive.rounds.map((r) => {
+                  // Once the whole drive is marked completed, every round is
+                  // done too — shown regardless of each round's own stored
+                  // status, which stays whatever it was last saved as (a drive
+                  // created before per-round status editing existed just has
+                  // every round stuck at the initial "pending" default).
+                  const status = drive.status === "completed" ? "completed" : r.status;
+                  return (
+                    <Badge key={r.roundId} variant={status === "completed" ? "success" : status === "in_progress" ? "warning" : "neutral"}>
+                      {r.name} — {status.replace("_", " ")}
+                    </Badge>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {menteeApplications.length > 0 && (
+            <div className="mt-4 border-t border-slate-100 pt-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">My mentees in this drive</p>
+              <ul className="space-y-3">
+                {menteeApplications.map((a) => {
+                  const student = studentsByUid[a.studentId];
+                  return (
+                    <li key={a.applicationId} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="font-medium text-slate-800">
+                          {student ? `${student.rollNo} — ${student.name}` : a.studentId}
+                        </span>
+                        <Badge variant={APPLICATION_BADGE[a.status]}>{a.status.replace("_", " ")}</Badge>
+                      </div>
+                      <RoundProgress rounds={drive.rounds} application={a} />
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </>
       )}
     </Card>
   );
