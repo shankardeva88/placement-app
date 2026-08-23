@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { Users, Search, Upload, UserPlus, GraduationCap } from "lucide-react";
+import { Users, Search, Upload, UserPlus, GraduationCap, RefreshCw } from "lucide-react";
 import type { Department, Gender, PlacementStatus } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
@@ -316,6 +316,12 @@ export default function Students() {
                 <Button variant="secondary">
                   <Upload className="h-4 w-4" />
                   Bulk Import
+                </Button>
+              </Link>
+              <Link to="/staff/bulk-update-students">
+                <Button variant="secondary">
+                  <RefreshCw className="h-4 w-4" />
+                  Bulk Update
                 </Button>
               </Link>
               <Link to="/staff/import-trainings">

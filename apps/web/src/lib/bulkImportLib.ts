@@ -10,7 +10,7 @@ import type { Department, Gender } from "@placement-app/types";
  * Keyed to the exact columns from the source roster (roll number, name,
  * gender, branch, CGPA, backlogs, passout year, phone, DOB, 10th/12th
  * percentage+year, college email, personal email, resume link). */
-function normalizeHeader(h: string): string {
+export function normalizeHeader(h: string): string {
   return h.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
@@ -66,14 +66,14 @@ const DEPARTMENT_ALIASES: Record<string, Department> = {
   artificialintelligenceanddatascience: "AIDS",
 };
 
-function parseDepartment(raw: string): { value: Department; warning?: string } {
+export function parseDepartment(raw: string): { value: Department; warning?: string } {
   const key = normalizeHeader(raw);
   const mapped = DEPARTMENT_ALIASES[key];
   if (mapped) return { value: mapped };
   return { value: "OTHER", warning: `Branch "${raw}" not recognized — set to OTHER, please fix manually` };
 }
 
-function parseGender(raw: string): { value: Gender; warning?: string } {
+export function parseGender(raw: string): { value: Gender; warning?: string } {
   const key = normalizeHeader(raw);
   if (["m", "male"].includes(key)) return { value: "male" };
   if (["f", "female"].includes(key)) return { value: "female" };
@@ -85,7 +85,7 @@ function parseGender(raw: string): { value: Gender; warning?: string } {
 /** Indian sheets are almost always DD/MM/YYYY, not the US MM/DD/YYYY that
  * Date.parse assumes — parsing that ambiguity wrong silently swaps day and
  * month, so this parses DD/MM/YYYY explicitly first. */
-function parseIndianDate(raw: string): number | undefined {
+export function parseIndianDate(raw: string): number | undefined {
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
   const parts = trimmed.split(/[/.-]/);
@@ -103,7 +103,7 @@ function parseIndianDate(raw: string): number | undefined {
   return isNaN(fallback) ? undefined : fallback;
 }
 
-function parseNumber(raw: string): number | undefined {
+export function parseNumber(raw: string): number | undefined {
   const n = parseFloat(raw.trim());
   return isNaN(n) ? undefined : n;
 }

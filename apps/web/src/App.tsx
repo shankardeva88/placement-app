@@ -27,6 +27,7 @@ import DriveApplicants from "./pages/staff/DriveApplicants";
 import DriveEligibility from "./pages/staff/DriveEligibility";
 import Students from "./pages/staff/Students";
 import BulkImportStudents from "./pages/staff/BulkImportStudents";
+import BulkUpdateStudents from "./pages/staff/BulkUpdateStudents";
 import ImportTrainings from "./pages/staff/ImportTrainings";
 import StudentDetail from "./pages/staff/StudentDetail";
 import StaffOffers from "./pages/staff/Offers";
@@ -216,6 +217,14 @@ export default function App() {
             element={
               <StaffLayoutRoute>
                 <BulkImportStudents />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/bulk-update-students"
+            element={
+              <StaffLayoutRoute>
+                <BulkUpdateStudents />
               </StaffLayoutRoute>
             }
           />
