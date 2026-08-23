@@ -1,46 +1,66 @@
 /** Parses pasted spreadsheet data — auto-detects comma (CSV export) vs tab
  * (pasting directly from Excel/Sheets) by checking the header line. Handles
- * quoted fields for both delimiters; doesn't handle quoted fields spanning
- * multiple lines (not a real concern for the roster data this feeds). */
+ * quoted fields for both delimiters, including a quoted field that spans
+ * multiple physical lines (e.g. a multi-line address pasted from Excel/
+ * Sheets) — this used to split the input into lines first and parse each
+ * one independently, so a literal newline inside a quoted cell broke that
+ * one logical row into two: whatever came before the newline got cut off
+ * mid-field (silently truncating that cell's value), and whatever came
+ * after became its own garbled, unmatched row. Scanning the whole input in
+ * one pass instead means a newline only ends a row when it's outside an
+ * open quote. */
 export function parseDelimited(text: string): { headers: string[]; rows: string[][] } {
-  const trimmed = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
-  if (!trimmed) return { headers: [], rows: [] };
+  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (!normalized.trim()) return { headers: [], rows: [] };
 
-  const lines = trimmed.split("\n").filter((l) => l.trim().length > 0);
-  const delimiter = lines[0].includes("\t") ? "\t" : ",";
+  const firstLineEnd = normalized.indexOf("\n");
+  const firstLine = firstLineEnd === -1 ? normalized : normalized.slice(0, firstLineEnd);
+  const delimiter = firstLine.includes("\t") ? "\t" : ",";
 
-  function parseLine(line: string): string[] {
-    const cells: string[] = [];
-    let current = "";
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (inQuotes) {
-        if (ch === '"') {
-          if (line[i + 1] === '"') {
-            current += '"';
-            i++;
-          } else {
-            inQuotes = false;
-          }
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  function endField() {
+    row.push(current.trim());
+    current = "";
+  }
+  function endRow() {
+    endField();
+    rows.push(row);
+    row = [];
+  }
+
+  for (let i = 0; i < normalized.length; i++) {
+    const ch = normalized[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (normalized[i + 1] === '"') {
+          current += '"';
+          i++;
         } else {
-          current += ch;
+          inQuotes = false;
         }
-      } else if (ch === '"') {
-        inQuotes = true;
-      } else if (ch === delimiter) {
-        cells.push(current.trim());
-        current = "";
       } else {
         current += ch;
       }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === delimiter) {
+      endField();
+    } else if (ch === "\n") {
+      endRow();
+    } else {
+      current += ch;
     }
-    cells.push(current.trim());
-    return cells;
   }
+  if (current !== "" || row.length > 0) endRow();
 
-  const [headerLine, ...rowLines] = lines;
-  return { headers: parseLine(headerLine), rows: rowLines.map(parseLine) };
+  const nonEmptyRows = rows.filter((r) => r.some((c) => c.length > 0));
+  if (nonEmptyRows.length === 0) return { headers: [], rows: [] };
+  const [headerLine, ...rowLines] = nonEmptyRows;
+  return { headers: headerLine, rows: rowLines };
 }
 
 export function toCsv(headers: string[], rows: (string | number)[][]): string {

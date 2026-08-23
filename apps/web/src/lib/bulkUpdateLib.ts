@@ -254,7 +254,7 @@ export async function applyStudentUpdate(
 
   if (changedFields.length === 0) return { changedFields, skippedFields };
 
-  const updates: Record<string, unknown> = { updatedAt: serverTimestamp() };
+  const updates: Record<string, unknown> = { [`${DB_NODES.students}/${existing.uid}/updatedAt`]: serverTimestamp() };
   for (const field of changedFields) updates[`${DB_NODES.students}/${existing.uid}/${field}`] = values[field];
 
   if (movingDept && canMoveDept) {
