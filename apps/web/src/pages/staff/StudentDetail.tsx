@@ -65,6 +65,7 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
     resumeUrl: student.resumeUrl ?? "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -72,8 +73,14 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    setError(null);
     setSubmitting(true);
     try {
+      // null, not undefined, for a blank optional field — Firebase's update()
+      // throws synchronously on an `undefined` property value (silently
+      // failing the WHOLE save, every field including ones that did have a
+      // value, not just the blank one) whereas `null` is its valid way to
+      // clear a field. See the StudentProfileUpdate doc comment.
       const updates: StudentProfileUpdate = {
         rollNo: form.rollNo,
         name: form.name,
@@ -82,18 +89,20 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
         cgpa: form.cgpa,
         activeBacklogs: form.activeBacklogs,
         gender: form.gender,
-        studentPhone: form.studentPhone || undefined,
-        personalEmail: form.personalEmail || undefined,
-        dateOfBirth: form.dateOfBirth ? new Date(form.dateOfBirth).getTime() : undefined,
-        tenthPercentage: form.tenthPercentage === "" ? undefined : Number(form.tenthPercentage),
-        tenthYearOfPassing: form.tenthYearOfPassing === "" ? undefined : Number(form.tenthYearOfPassing),
-        twelfthPercentage: form.twelfthPercentage === "" ? undefined : Number(form.twelfthPercentage),
-        twelfthYearOfPassing: form.twelfthYearOfPassing === "" ? undefined : Number(form.twelfthYearOfPassing),
-        resumeUrl: form.resumeUrl || undefined,
+        studentPhone: form.studentPhone || null,
+        personalEmail: form.personalEmail || null,
+        dateOfBirth: form.dateOfBirth ? new Date(form.dateOfBirth).getTime() : null,
+        tenthPercentage: form.tenthPercentage === "" ? null : Number(form.tenthPercentage),
+        tenthYearOfPassing: form.tenthYearOfPassing === "" ? null : Number(form.tenthYearOfPassing),
+        twelfthPercentage: form.twelfthPercentage === "" ? null : Number(form.twelfthPercentage),
+        twelfthYearOfPassing: form.twelfthYearOfPassing === "" ? null : Number(form.twelfthYearOfPassing),
+        resumeUrl: form.resumeUrl || null,
       };
       await updateStudentProfile(uid, updates);
       showToast("Profile updated");
       onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save");
     } finally {
       setSubmitting(false);
     }
@@ -103,6 +112,7 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
     <Card className="mb-4">
       <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Edit roster info</h3>
       <form onSubmit={handleSubmit} className="space-y-3">
+        {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           <div>
             <label className={labelClass}>Roll number</label>

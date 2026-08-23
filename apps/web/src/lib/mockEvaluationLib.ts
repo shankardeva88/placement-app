@@ -171,10 +171,17 @@ export async function recordMockEvaluation(input: RecordMockEvaluationInput) {
     hr: input.hr,
     selfConfidence: input.selfConfidence,
     overallPerformance: input.overallPerformance,
-    notes: input.notes,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
+  // Not a plain `notes: input.notes` above — Firebase's update() rejects
+  // `undefined` anywhere in the payload, including nested inside a value
+  // object like this one, not just at the top level. A mentor logging an
+  // evaluation with no notes typed (a common, valid case) would silently
+  // fail the WHOLE submission — the evaluation, deptIndex entry, and
+  // studentIndex entry all together — with no error shown, since the
+  // caller's handleSubmit has no catch either.
+  if (input.notes) evaluation.notes = input.notes;
   await update(ref(db), {
     [`${DB_NODES.mockEvaluations}/${evaluationId}`]: evaluation,
     [`${DB_NODES.mockEvaluationsDeptIndex}/${input.department}/${evaluationId}`]: true,

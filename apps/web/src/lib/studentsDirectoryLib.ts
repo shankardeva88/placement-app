@@ -59,6 +59,12 @@ export async function setStudentVerified(uid: string, verified: boolean) {
  * creation time, the ones a coordinator/hod is the source of truth for
  * (confirmed scope). Personal/self-reported fields (address, skills, social
  * links, parent contact) stay student-editable only, unchanged from before. */
+// The optional fields are `| null`, not just `?`, because the caller needs a
+// way to say "this is genuinely blank" — Firebase's update() throws
+// synchronously if any property is literally `undefined` (as opposed to
+// `null`, which is the valid, supported way to clear/omit a field), so a
+// form that blanks out an already-empty field has to send null, not leave
+// the key `undefined`. See EditStudentForm in StudentDetail.tsx.
 export interface StudentProfileUpdate {
   rollNo?: string;
   name?: string;
@@ -67,14 +73,14 @@ export interface StudentProfileUpdate {
   cgpa?: number;
   activeBacklogs?: number;
   gender?: Gender;
-  studentPhone?: string;
-  personalEmail?: string;
-  dateOfBirth?: number;
-  tenthPercentage?: number;
-  tenthYearOfPassing?: number;
-  twelfthPercentage?: number;
-  twelfthYearOfPassing?: number;
-  resumeUrl?: string;
+  studentPhone?: string | null;
+  personalEmail?: string | null;
+  dateOfBirth?: number | null;
+  tenthPercentage?: number | null;
+  tenthYearOfPassing?: number | null;
+  twelfthPercentage?: number | null;
+  twelfthYearOfPassing?: number | null;
+  resumeUrl?: string | null;
 }
 
 export async function updateStudentProfile(uid: string, updates: StudentProfileUpdate) {
