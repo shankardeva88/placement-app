@@ -213,7 +213,7 @@ export interface EligibilityCriteria {
 }
 
 export type DriveStatus = "upcoming" | "ongoing" | "completed" | "cancelled";
-export type DriveType = "full_time" | "internship"; // add now, use later
+export type DriveType = "full_time" | "internship" | "internship_plus_full_time"; // add now, use later
 
 export interface DriveRound {
   roundId: string;

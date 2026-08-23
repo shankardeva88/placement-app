@@ -33,7 +33,11 @@ const APPLICATION_BADGE: Record<ApplicationStatus, BadgeVariant> = {
   withdrawn: "neutral",
 };
 
-const DRIVE_TYPE_LABEL: Record<Drive["type"], string> = { full_time: "Full-time", internship: "Internship" };
+const DRIVE_TYPE_LABEL: Record<Drive["type"], string> = {
+  full_time: "Full-time",
+  internship: "Internship",
+  internship_plus_full_time: "Internship + Full-time",
+};
 
 const STATUS_FILTERS: { value: DriveStatus | ""; label: string }[] = [
   { value: "", label: "All" },

@@ -317,6 +317,7 @@ export function DriveForm({
           <select value={type} onChange={(e) => setType(e.target.value as DriveType)} className={inputClass}>
             <option value="full_time">Full time</option>
             <option value="internship">Internship</option>
+            <option value="internship_plus_full_time">Internship + Full time</option>
           </select>
         </div>
         <div>

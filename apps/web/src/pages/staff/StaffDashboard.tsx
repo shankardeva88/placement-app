@@ -43,7 +43,11 @@ import { TrendLineChart } from "../../components/charts/TrendLineChart";
 
 const INSTITUTION_ROLES = new Set(["dean", "principal", "cpo", "admin"]);
 
-const DRIVE_TYPE_LABEL: Record<DriveType, string> = { full_time: "Full-time", internship: "Internship" };
+const DRIVE_TYPE_LABEL: Record<DriveType, string> = {
+  full_time: "Full-time",
+  internship: "Internship",
+  internship_plus_full_time: "Internship + Full-time",
+};
 const DRIVE_STATUS_BADGE: Record<DriveStatus, BadgeVariant> = {
   upcoming: "brand",
   ongoing: "warning",
