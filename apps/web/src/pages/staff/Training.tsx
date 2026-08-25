@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { BarChart3, BookOpen, CalendarPlus, Pencil, Plus, QrCode, Trash2 } from "lucide-react";
+import { BarChart3, BookOpen, CalendarPlus, ChevronDown, ChevronUp, Pencil, Plus, QrCode, Trash2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import type { AttendanceStatus, Department, SkillTrack, TrainingBatch, TrainingSession } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
@@ -714,6 +714,10 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState("");
+  // Sessions/attendance collapsed by default — every batch card used to
+  // dump its full session list open at once, which is a lot to scroll past
+  // just to see which trainings exist; click a batch to see its schedule.
+  const [expanded, setExpanded] = useState(false);
 
   // A multi-day batch (see RecurringSessionForm — morning + evening across a
   // date range) used to dump every session into one flat list, which reads
@@ -739,12 +743,21 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
   return (
     <Card>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-base font-semibold text-slate-900">{batch.name}</h3>
-          <p className="text-sm capitalize text-slate-500">
-            {batch.skillTrack.replace("_", " ")} · {batch.department} · {batch.batchYear} · {batch.studentIds.length} students
-          </p>
-        </div>
+        <button type="button" onClick={() => setExpanded((v) => !v)} className="flex flex-1 items-start gap-2 text-left">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">{batch.name}</h3>
+            <p className="text-sm capitalize text-slate-500">
+              {batch.skillTrack.replace("_", " ")} · {batch.department} · {batch.batchYear} · {batch.studentIds.length} students
+              {" · "}
+              {sessions.length} session{sessions.length === 1 ? "" : "s"}
+            </p>
+          </div>
+          {expanded ? (
+            <ChevronUp className="mt-1 h-4 w-4 shrink-0 text-slate-400" />
+          ) : (
+            <ChevronDown className="mt-1 h-4 w-4 shrink-0 text-slate-400" />
+          )}
+        </button>
         {canManageSchedule && (
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => setAddingRecurring((v) => !v)}>
@@ -798,7 +811,7 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
         <CreateSessionForm batchId={batch.batchId} onDone={() => setAddingSession(false)} />
       )}
 
-      {sessions.length === 0 ? (
+      {expanded && (sessions.length === 0 ? (
         <p className="mt-3 text-sm text-slate-500">No sessions scheduled yet.</p>
       ) : (
         <>
@@ -884,7 +897,7 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
             </div>
           ))}
         </>
-      )}
+      ))}
     </Card>
   );
 }
@@ -896,12 +909,26 @@ export default function StaffTraining() {
   const canManageSchedule = !!appUser && SCHEDULE_MANAGER_ROLES.includes(appUser.role);
   const batches = useAllTrainingBatches();
   const [creating, setCreating] = useState(false);
+  const [batchYearFilter, setBatchYearFilter] = useState<number | "">("");
+
+  const batchYearOptions = useMemo(
+    () => Array.from(new Set((batches ?? []).map((b) => b.batchYear))).sort((a, b) => a - b),
+    [batches]
+  );
+  const filteredBatches = useMemo(() => {
+    if (!batches) return batches;
+    return batchYearFilter ? batches.filter((b) => b.batchYear === batchYearFilter) : batches;
+  }, [batches, batchYearFilter]);
 
   return (
     <div>
       <PageHeader
         title="Training"
-        subtitle="Batches, sessions, and attendance."
+        subtitle={
+          batches && filteredBatches && filteredBatches.length !== batches.length
+            ? `${filteredBatches.length} of ${batches.length} batch(es)`
+            : "Batches, sessions, and attendance."
+        }
         icon={BookOpen}
         gradient="from-amber-500 to-orange-600"
         action={
@@ -929,13 +956,33 @@ export default function StaffTraining() {
         </Card>
       )}
 
+      {batches !== null && batches.length > 0 && batchYearOptions.length > 1 && (
+        <div className="mb-4">
+          <select
+            value={batchYearFilter}
+            onChange={(e) => setBatchYearFilter(e.target.value ? Number(e.target.value) : "")}
+            className={`${inputClass} sm:w-48`}
+          >
+            <option value="">All batches</option>
+            {batchYearOptions.map((y) => (
+              <option key={y} value={y}>
+                Batch {y}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {batches === null && <Skeleton className="h-40" />}
       {batches !== null && batches.length === 0 && !creating && (
         <EmptyState icon={BookOpen} title="No training batches yet" />
       )}
+      {batches !== null && batches.length > 0 && filteredBatches?.length === 0 && (
+        <EmptyState icon={BookOpen} title="No training batches in this batch year" />
+      )}
 
       <div className="space-y-4">
-        {batches?.map((b) => (
+        {filteredBatches?.map((b) => (
           <BatchCard key={b.batchId} batch={b} canManageSchedule={canManageSchedule} />
         ))}
       </div>
