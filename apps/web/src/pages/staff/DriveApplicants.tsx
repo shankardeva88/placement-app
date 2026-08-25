@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, UserPlus, Users } from "lucide-react";
+import { ArrowLeft, Search, UserPlus, Users } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -51,20 +51,37 @@ export default function DriveApplicants() {
   const [bulkProgress, setBulkProgress] = useState(0);
   const [bulkTotal, setBulkTotal] = useState(0);
   const [sortBy, setSortBy] = useState<"default" | "rollNo" | "cgpa">("default");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "">("");
 
-  // "Details restricted" rows (different department, see the empty-state
-  // branch below) have no student record to sort by — pinned to the end
-  // rather than left in whatever position the unsorted default happened to
-  // place them, for both the rollNo and cgpa orderings.
+  // A "details restricted" row (different department, see the empty-state
+  // branch below) has no student record to search/filter on — search and
+  // the status filter still apply (status/roll-no-search work off the
+  // application itself where possible), but it can never match a name
+  // search since there's no name to check.
+  const filteredRows = useMemo(() => {
+    if (!rows) return rows;
+    const term = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (statusFilter && r.application.status !== statusFilter) return false;
+      if (!term) return true;
+      if (!r.student) return false;
+      return r.student.rollNo.toLowerCase().includes(term) || r.student.name.toLowerCase().includes(term);
+    });
+  }, [rows, search, statusFilter]);
+
+  // "Details restricted" rows have no student record to sort by — pinned to
+  // the end rather than left in whatever position the unsorted default
+  // happened to place them, for both the rollNo and cgpa orderings.
   const sortedRows = useMemo(() => {
-    if (!rows || sortBy === "default") return rows;
-    const withStudent = rows.filter((r) => r.student);
-    const withoutStudent = rows.filter((r) => !r.student);
+    if (!filteredRows || sortBy === "default") return filteredRows;
+    const withStudent = filteredRows.filter((r) => r.student);
+    const withoutStudent = filteredRows.filter((r) => !r.student);
     withStudent.sort((a, b) =>
       sortBy === "rollNo" ? a.student!.rollNo.localeCompare(b.student!.rollNo) : b.student!.cgpa - a.student!.cgpa
     );
     return [...withStudent, ...withoutStudent];
-  }, [rows, sortBy]);
+  }, [filteredRows, sortBy]);
 
   useEffect(() => {
     if (!driveId) return;
@@ -153,7 +170,15 @@ export default function DriveApplicants() {
 
       <PageHeader
         title={drive ? `${drive.companyName} — Applicants` : "Applicants"}
-        subtitle={drive ? `${driveRoleSummary(drive)} · ${rows?.length ?? 0} applicant(s)` : undefined}
+        subtitle={
+          drive
+            ? `${driveRoleSummary(drive)} · ${
+                sortedRows && rows && sortedRows.length !== rows.length
+                  ? `${sortedRows.length} of ${rows.length} applicant(s)`
+                  : `${rows?.length ?? 0} applicant(s)`
+              }`
+            : undefined
+        }
         icon={Users}
         gradient="from-blue-500 to-indigo-600"
         action={
@@ -178,21 +203,53 @@ export default function DriveApplicants() {
       )}
 
       {rows !== null && rows.length > 0 && (
-        <div className="mb-3 flex items-center justify-end gap-2">
-          <label htmlFor="applicants-sort" className="text-xs font-medium text-slate-500">
-            Sort by
-          </label>
-          <select
-            id="applicants-sort"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as "default" | "rollNo" | "cgpa")}
-            className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-          >
-            <option value="default">Application order</option>
-            <option value="rollNo">Roll No</option>
-            <option value="cgpa">CGPA (high to low)</option>
-          </select>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search roll no or name"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="rounded-lg border border-slate-300 py-1.5 pl-8 pr-3 text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label htmlFor="applicants-status-filter" className="text-xs font-medium text-slate-500">
+              Status
+            </label>
+            <select
+              id="applicants-status-filter"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as ApplicationStatus | "")}
+              className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
+              <option value="">All statuses</option>
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s.replace("_", " ")}
+                </option>
+              ))}
+            </select>
+            <label htmlFor="applicants-sort" className="text-xs font-medium text-slate-500">
+              Sort by
+            </label>
+            <select
+              id="applicants-sort"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as "default" | "rollNo" | "cgpa")}
+              className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
+              <option value="default">Application order</option>
+              <option value="rollNo">Roll No</option>
+              <option value="cgpa">CGPA (high to low)</option>
+            </select>
+          </div>
         </div>
+      )}
+
+      {rows !== null && rows.length > 0 && sortedRows?.length === 0 && (
+        <EmptyState icon={Search} title="No applicants match this search/filter" />
       )}
 
       <div className="space-y-3">
