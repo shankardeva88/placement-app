@@ -231,6 +231,7 @@ export default function Students() {
   const [entranceTypeFilter, setEntranceTypeFilter] = useState<EntranceExamType | "">("");
   const [rankMin, setRankMin] = useState("");
   const [rankMax, setRankMax] = useState("");
+  const [backlogFilter, setBacklogFilter] = useState<"" | "0" | "1" | "2" | "3" | "4+">("");
   const [recentlyUpdatedOnly, setRecentlyUpdatedOnly] = useState(false);
   const [showAlumni, setShowAlumni] = useState(false);
   const [sortBy, setSortBy] = useState<"rollNo" | "recentlyUpdated">("rollNo");
@@ -281,6 +282,7 @@ export default function Students() {
         if (deptFilter && s.department !== deptFilter) return false;
         if (batchFilter && s.batchYear !== batchFilter) return false;
         if (entranceTypeFilter && s.entranceType !== entranceTypeFilter) return false;
+        if (backlogFilter && !(backlogFilter === "4+" ? s.activeBacklogs >= 4 : s.activeBacklogs === Number(backlogFilter))) return false;
         if (rankMinNum != null || rankMaxNum != null) {
           const rank = numericRank(s.entranceRank);
           if (rank == null) return false;
@@ -321,6 +323,7 @@ export default function Students() {
     deptFilter,
     batchFilter,
     entranceTypeFilter,
+    backlogFilter,
     rankMinNum,
     rankMaxNum,
     trainingFilter,
@@ -417,6 +420,18 @@ export default function Students() {
               {t}
             </option>
           ))}
+        </select>
+        <select
+          value={backlogFilter}
+          onChange={(e) => setBacklogFilter(e.target.value as typeof backlogFilter)}
+          className={`${inputClass} sm:w-40`}
+        >
+          <option value="">All backlog counts</option>
+          <option value="0">0 backlogs</option>
+          <option value="1">1 backlog</option>
+          <option value="2">2 backlogs</option>
+          <option value="3">3 backlogs</option>
+          <option value="4+">4+ backlogs</option>
         </select>
         <select value={trainingFilter} onChange={(e) => setTrainingFilter(e.target.value)} className={`${inputClass} sm:w-48`}>
           <option value="">All trainings</option>
