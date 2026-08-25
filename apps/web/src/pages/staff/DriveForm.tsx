@@ -195,6 +195,19 @@ export function DriveForm({
   const [restrictToSelected, setRestrictToSelected] = useState(!!initial?.selectedStudentIds?.length);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>(initial?.selectedStudentIds ?? []);
 
+  // In hand-picked mode there's no eligibility batch-year picker shown at all
+  // (see the restrictToSelected branch below — the whole criteria section is
+  // hidden, "the criteria fields don't apply"), but eligibility.batchYears
+  // was still being submitted anyway from whatever it happened to default
+  // to (the current year) — silently tagging a hand-picked drive with the
+  // wrong batch, with no UI to notice or fix it. Derived from the actual
+  // picked students instead, so it's always correct and never a separate
+  // field that can drift out of sync with who's really on the list.
+  const selectedStudentsBatchYears = useMemo(
+    () => Array.from(new Set(activeStudents.filter((s) => selectedStudentIds.includes(s.uid)).map((s) => s.batchYear))).sort((a, b) => a - b),
+    [activeStudents, selectedStudentIds]
+  );
+
   const [companyName, setCompanyName] = useState(initial?.companyName ?? "");
   const [jobRole, setJobRole] = useState(initial?.jobRole ?? "");
   const [type, setType] = useState<DriveType>(initial?.type ?? "full_time");
@@ -277,7 +290,7 @@ export function DriveForm({
         minCgpa,
         maxBacklogsAllowed,
         departments,
-        batchYears,
+        batchYears: restrictToSelected ? selectedStudentsBatchYears : batchYears,
         requiredSkills: skillsText
           .split(",")
           .map((s) => s.trim())
@@ -398,6 +411,12 @@ export function DriveForm({
               <p className="text-sm text-slate-400">Loading students…</p>
             ) : (
               <SelectedStudentsPicker students={activeStudents} selectedIds={selectedStudentIds} onChange={setSelectedStudentIds} />
+            )}
+            {selectedStudentsBatchYears.length > 0 && (
+              <p className="mt-2 text-xs text-slate-400">
+                Recorded batch year(s) for filtering/reports: {selectedStudentsBatchYears.join(", ")} — taken from the
+                students picked above, not editable separately.
+              </p>
             )}
           </div>
         ) : (
