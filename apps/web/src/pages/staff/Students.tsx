@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Users, Search, Upload, UserPlus, GraduationCap, RefreshCw } from "lucide-react";
-import type { Department, Gender, PlacementStatus } from "@placement-app/types";
+import type { Department, EntranceExamType, Gender, PlacementStatus } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { createBulkStudent } from "../../lib/bulkImportLib";
@@ -19,6 +19,7 @@ import { Avatar } from "../../components/ui/Avatar";
 
 const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
 const GENDERS: Gender[] = ["male", "female", "other", "prefer_not_to_say"];
+const ENTRANCE_TYPES: EntranceExamType[] = ["EAMCET", "ECET"];
 const CAN_BULK_IMPORT_ROLES = ["coordinator", "hod", "dean", "principal", "cpo", "admin"];
 const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -217,6 +218,7 @@ export default function Students() {
   const [deptFilter, setDeptFilter] = useState<Department | "">("");
   const [batchFilter, setBatchFilter] = useState<number | "">("");
   const [trainingFilter, setTrainingFilter] = useState("");
+  const [entranceTypeFilter, setEntranceTypeFilter] = useState<EntranceExamType | "">("");
   const [recentlyUpdatedOnly, setRecentlyUpdatedOnly] = useState(false);
   const [showAlumni, setShowAlumni] = useState(false);
   const [sortBy, setSortBy] = useState<"rollNo" | "recentlyUpdated">("rollNo");
@@ -263,6 +265,7 @@ export default function Students() {
         if (!showAlumni && s.isAlumni) return false;
         if (deptFilter && s.department !== deptFilter) return false;
         if (batchFilter && s.batchYear !== batchFilter) return false;
+        if (entranceTypeFilter && s.entranceType !== entranceTypeFilter) return false;
         if (trainingFilter.startsWith("batch:")) {
           if (!studentIdsByBatchName.get(trainingFilter.slice(6))?.has(s.uid)) return false;
         } else if (trainingFilter.startsWith("import:")) {
@@ -273,6 +276,7 @@ export default function Students() {
         return (
           s.name.toLowerCase().includes(term) ||
           s.rollNo.toLowerCase().includes(term) ||
+          (s.entranceRank ?? "").toLowerCase().includes(term) ||
           (s.skills ?? []).some((skill) => skill.toLowerCase().includes(term)) ||
           Object.keys(s.trainings ?? {}).some((training) => training.toLowerCase().includes(term))
         );
@@ -290,7 +294,7 @@ export default function Students() {
         // which is exactly the order this fixed-width format needs.
         return a.rollNo.localeCompare(b.rollNo);
       });
-  }, [students, search, deptFilter, batchFilter, trainingFilter, studentIdsByBatchName, recentlyUpdatedOnly, showAlumni, sortBy]);
+  }, [students, search, deptFilter, batchFilter, entranceTypeFilter, trainingFilter, studentIdsByBatchName, recentlyUpdatedOnly, showAlumni, sortBy]);
 
   return (
     <div>
@@ -342,7 +346,7 @@ export default function Students() {
           <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by name, roll number, skill, or training"
+            placeholder="Search by name, roll number, rank, skill, or training"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className={`${inputClass} pl-9`}
@@ -365,6 +369,18 @@ export default function Students() {
           {batchYears.map((y) => (
             <option key={y} value={y}>
               Batch {y}
+            </option>
+          ))}
+        </select>
+        <select
+          value={entranceTypeFilter}
+          onChange={(e) => setEntranceTypeFilter(e.target.value as EntranceExamType | "")}
+          className={`${inputClass} sm:w-40`}
+        >
+          <option value="">All entrance types</option>
+          {ENTRANCE_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {t}
             </option>
           ))}
         </select>
@@ -429,6 +445,7 @@ export default function Students() {
                   </p>
                   <p className="text-sm text-slate-500">
                     {s.department} · Batch {s.batchYear} · CGPA {s.cgpa}
+                    {s.entranceRank && ` · ${s.entranceType ? `${s.entranceType}: ` : ""}${s.entranceRank}`}
                   </p>
                   {(s.skills ?? []).length > 0 && (
                     <p className="mt-0.5 truncate text-xs text-slate-400">{(s.skills ?? []).join(", ")}</p>
