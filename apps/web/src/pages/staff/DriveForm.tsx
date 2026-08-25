@@ -54,8 +54,8 @@ function SelectedStudentsPicker({
   selectedIds: string[];
   onChange: (ids: string[]) => void;
 }) {
-  const [deptFilter, setDeptFilter] = useState<Department | "">("");
-  const [batchFilter, setBatchFilter] = useState<number | "">("");
+  const [deptFilters, setDeptFilters] = useState<Department[]>([]);
+  const [batchFilters, setBatchFilters] = useState<number[]>([]);
   const [minCgpaFilter, setMinCgpaFilter] = useState<number | "">("");
   const [maxBacklogsFilter, setMaxBacklogsFilter] = useState<number | "">("");
   const [genderFilter, setGenderFilter] = useState<Gender | "">("");
@@ -73,8 +73,8 @@ function SelectedStudentsPicker({
     const skill = skillFilter.trim().toLowerCase();
     const training = trainingFilter.trim().toLowerCase();
     return students
-      .filter((s) => !deptFilter || s.department === deptFilter)
-      .filter((s) => !batchFilter || s.batchYear === batchFilter)
+      .filter((s) => deptFilters.length === 0 || deptFilters.includes(s.department))
+      .filter((s) => batchFilters.length === 0 || batchFilters.includes(s.batchYear))
       .filter((s) => minCgpaFilter === "" || s.cgpa >= minCgpaFilter)
       .filter((s) => maxBacklogsFilter === "" || s.activeBacklogs <= maxBacklogsFilter)
       .filter((s) => !genderFilter || s.gender === genderFilter)
@@ -82,8 +82,14 @@ function SelectedStudentsPicker({
       .filter((s) => !training || Object.keys(s.trainings ?? {}).some((t) => t.toLowerCase().includes(training)))
       .filter((s) => !q || s.rollNo.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
       .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
-  }, [students, deptFilter, batchFilter, minCgpaFilter, maxBacklogsFilter, genderFilter, skillFilter, trainingFilter, query]);
+  }, [students, deptFilters, batchFilters, minCgpaFilter, maxBacklogsFilter, genderFilter, skillFilter, trainingFilter, query]);
 
+  function toggleDeptFilter(d: Department) {
+    setDeptFilters((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
+  }
+  function toggleBatchFilter(y: number) {
+    setBatchFilters((prev) => (prev.includes(y) ? prev.filter((x) => x !== y) : [...prev, y]));
+  }
   function toggle(uid: string) {
     onChange(selectedIds.includes(uid) ? selectedIds.filter((x) => x !== uid) : [...selectedIds, uid]);
   }
@@ -98,27 +104,29 @@ function SelectedStudentsPicker({
 
   return (
     <div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value as Department | "")} className={inputClass}>
-          <option value="">All departments</option>
+      <div className="mb-2">
+        <p className="mb-1 text-xs font-medium text-slate-500">Departments (blank = all)</p>
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
           {DEPARTMENTS.map((d) => (
-            <option key={d} value={d}>
+            <label key={d} className="flex items-center gap-1 text-xs text-slate-600">
+              <input type="checkbox" checked={deptFilters.includes(d)} onChange={() => toggleDeptFilter(d)} />
               {d}
-            </option>
+            </label>
           ))}
-        </select>
-        <select
-          value={batchFilter}
-          onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
-          className={inputClass}
-        >
-          <option value="">All batches</option>
+        </div>
+      </div>
+      <div className="mb-2">
+        <p className="mb-1 text-xs font-medium text-slate-500">Batch years (blank = all)</p>
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
           {batchYears.map((y) => (
-            <option key={y} value={y}>
-              Batch {y}
-            </option>
+            <label key={y} className="flex items-center gap-1 text-xs text-slate-600">
+              <input type="checkbox" checked={batchFilters.includes(y)} onChange={() => toggleBatchFilter(y)} />
+              {y}
+            </label>
           ))}
-        </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <input
           type="number"
           step="0.01"
