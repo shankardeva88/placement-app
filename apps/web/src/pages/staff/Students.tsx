@@ -23,6 +23,16 @@ const ENTRANCE_TYPES: EntranceExamType[] = ["EAMCET", "ECET"];
 const CAN_BULK_IMPORT_ROLES = ["coordinator", "hod", "dean", "principal", "cpo", "admin"];
 const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
+// entranceRank is free text ("SPOT"/"BCAT" for category admissions, not a
+// number — see the Student.entranceRank doc comment), so a rank range
+// filter can only ever match the numeric ones; category admissions have no
+// rank to compare against a range and are excluded when the filter is set.
+function numericRank(rank?: string): number | null {
+  if (!rank) return null;
+  const n = Number(rank);
+  return Number.isFinite(n) ? n : null;
+}
+
 function formatRelativeTime(ts: number): string {
   const diffMs = Date.now() - ts;
   const minutes = Math.floor(diffMs / (60 * 1000));
@@ -219,6 +229,8 @@ export default function Students() {
   const [batchFilter, setBatchFilter] = useState<number | "">("");
   const [trainingFilter, setTrainingFilter] = useState("");
   const [entranceTypeFilter, setEntranceTypeFilter] = useState<EntranceExamType | "">("");
+  const [rankMin, setRankMin] = useState("");
+  const [rankMax, setRankMax] = useState("");
   const [recentlyUpdatedOnly, setRecentlyUpdatedOnly] = useState(false);
   const [showAlumni, setShowAlumni] = useState(false);
   const [sortBy, setSortBy] = useState<"rollNo" | "recentlyUpdated">("rollNo");
@@ -256,6 +268,9 @@ export default function Students() {
     return map;
   }, [trainingBatches]);
 
+  const rankMinNum = rankMin === "" ? null : Number(rankMin);
+  const rankMaxNum = rankMax === "" ? null : Number(rankMax);
+
   const filtered = useMemo(() => {
     if (!students) return null;
     const term = search.trim().toLowerCase();
@@ -266,6 +281,12 @@ export default function Students() {
         if (deptFilter && s.department !== deptFilter) return false;
         if (batchFilter && s.batchYear !== batchFilter) return false;
         if (entranceTypeFilter && s.entranceType !== entranceTypeFilter) return false;
+        if (rankMinNum != null || rankMaxNum != null) {
+          const rank = numericRank(s.entranceRank);
+          if (rank == null) return false;
+          if (rankMinNum != null && rank < rankMinNum) return false;
+          if (rankMaxNum != null && rank > rankMaxNum) return false;
+        }
         if (trainingFilter.startsWith("batch:")) {
           if (!studentIdsByBatchName.get(trainingFilter.slice(6))?.has(s.uid)) return false;
         } else if (trainingFilter.startsWith("import:")) {
@@ -294,7 +315,20 @@ export default function Students() {
         // which is exactly the order this fixed-width format needs.
         return a.rollNo.localeCompare(b.rollNo);
       });
-  }, [students, search, deptFilter, batchFilter, entranceTypeFilter, trainingFilter, studentIdsByBatchName, recentlyUpdatedOnly, showAlumni, sortBy]);
+  }, [
+    students,
+    search,
+    deptFilter,
+    batchFilter,
+    entranceTypeFilter,
+    rankMinNum,
+    rankMaxNum,
+    trainingFilter,
+    studentIdsByBatchName,
+    recentlyUpdatedOnly,
+    showAlumni,
+    sortBy,
+  ]);
 
   return (
     <div>
@@ -409,6 +443,26 @@ export default function Students() {
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-1.5 text-sm text-slate-600">
+          Rank between
+          <input
+            type="number"
+            min={0}
+            placeholder="min"
+            value={rankMin}
+            onChange={(e) => setRankMin(e.target.value)}
+            className={`${inputClass} w-24`}
+          />
+          and
+          <input
+            type="number"
+            min={0}
+            placeholder="max"
+            value={rankMax}
+            onChange={(e) => setRankMax(e.target.value)}
+            className={`${inputClass} w-24`}
+          />
+        </label>
+        <label className="flex items-center gap-1.5 text-sm text-slate-600">
           <input type="checkbox" checked={recentlyUpdatedOnly} onChange={(e) => setRecentlyUpdatedOnly(e.target.checked)} />
           Recently updated only (last 7 days)
         </label>
@@ -444,7 +498,7 @@ export default function Students() {
                     {s.rollNo} — {s.name}
                   </p>
                   <p className="text-sm text-slate-500">
-                    {s.department} · Batch {s.batchYear} · CGPA {s.cgpa}
+                    {s.department} · Batch {s.batchYear} · CGPA {s.cgpa} · Backlogs {s.activeBacklogs}
                     {s.entranceRank && ` · ${s.entranceType ? `${s.entranceType}: ` : ""}${s.entranceRank}`}
                   </p>
                   {(s.skills ?? []).length > 0 && (
