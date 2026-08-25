@@ -229,6 +229,7 @@ export default function Students() {
   const [batchFilter, setBatchFilter] = useState<number | "">("");
   const [trainingFilter, setTrainingFilter] = useState("");
   const [entranceTypeFilter, setEntranceTypeFilter] = useState<EntranceExamType | "">("");
+  const [placementFilter, setPlacementFilter] = useState<PlacementStatus | "">("");
   const [rankMin, setRankMin] = useState("");
   const [rankMax, setRankMax] = useState("");
   const [backlogFilter, setBacklogFilter] = useState<"" | "0" | "1" | "2" | "3" | "4+">("");
@@ -282,6 +283,7 @@ export default function Students() {
         if (deptFilter && s.department !== deptFilter) return false;
         if (batchFilter && s.batchYear !== batchFilter) return false;
         if (entranceTypeFilter && s.entranceType !== entranceTypeFilter) return false;
+        if (placementFilter && s.placementStatus !== placementFilter) return false;
         if (backlogFilter && !(backlogFilter === "4+" ? s.activeBacklogs >= 4 : s.activeBacklogs === Number(backlogFilter))) return false;
         if (rankMinNum != null || rankMaxNum != null) {
           const rank = numericRank(s.entranceRank);
@@ -323,6 +325,7 @@ export default function Students() {
     deptFilter,
     batchFilter,
     entranceTypeFilter,
+    placementFilter,
     backlogFilter,
     rankMinNum,
     rankMaxNum,
@@ -333,14 +336,20 @@ export default function Students() {
     sortBy,
   ]);
 
+  const placementStats = useMemo(() => {
+    if (!filtered) return null;
+    const placed = filtered.filter((s) => s.placementStatus === "placed" || s.placementStatus === "multiple_offers").length;
+    const notPlaced = filtered.filter((s) => s.placementStatus === "not_placed").length;
+    return { total: filtered.length, placed, notPlaced };
+  }, [filtered]);
+
   return (
     <div>
       <PageHeader
         title="Students"
         subtitle={
-          appUser && "department" in appUser && appUser.department
-            ? `Department: ${appUser.department}`
-            : "All departments"
+          (appUser && "department" in appUser && appUser.department ? `Department: ${appUser.department}` : "All departments") +
+          (placementStats ? ` — ${placementStats.total} students · ${placementStats.placed} placed · ${placementStats.notPlaced} not placed` : "")
         }
         icon={Users}
         gradient="from-emerald-500 to-teal-600"
@@ -420,6 +429,18 @@ export default function Students() {
               {t}
             </option>
           ))}
+        </select>
+        <select
+          value={placementFilter}
+          onChange={(e) => setPlacementFilter(e.target.value as PlacementStatus | "")}
+          className={`${inputClass} sm:w-44`}
+        >
+          <option value="">All placement statuses</option>
+          <option value="not_placed">Not placed</option>
+          <option value="placed">Placed</option>
+          <option value="multiple_offers">Multiple offers</option>
+          <option value="opted_higher_studies">Opted higher studies</option>
+          <option value="opted_out">Opted out</option>
         </select>
         <select
           value={backlogFilter}
