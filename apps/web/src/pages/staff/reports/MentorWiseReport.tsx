@@ -59,6 +59,9 @@ export default function MentorWiseReport() {
         const total = menteeStudents.length;
         const maxCgpa = total > 0 ? Math.max(...menteeStudents.map((s) => s.cgpa)) : 0;
         const backlogCount = menteeStudents.filter((s) => s.activeBacklogs > 0).length;
+        const placedCount = menteeStudents.filter(
+          (s) => s.placementStatus === "placed" || s.placementStatus === "multiple_offers"
+        ).length;
         const atRiskCount = menteeStudents.filter(
           (s) => computeAtRiskReasons(s, lastFollowUpByStudent[s.uid] ?? null).length > 0
         ).length;
@@ -71,6 +74,7 @@ export default function MentorWiseReport() {
           menteeCount: total,
           maxCgpa,
           backlogCount,
+          placedCount,
           atRiskCount,
           followUpCount: mentorFollowUps.length,
           lastActivityAt,
@@ -85,12 +89,13 @@ export default function MentorWiseReport() {
     if (!rows) return;
     downloadCsv(
       "mentor-wise-report.csv",
-      ["Mentor", "Mentees", "Max CGPA", "No. with Backlogs", "At-risk", "Follow-ups Logged", "Last Activity"],
+      ["Mentor", "Mentees", "Max CGPA", "No. with Backlogs", "Placed", "At-risk", "Follow-ups Logged", "Last Activity"],
       rows.map((r) => [
         r.mentorName,
         r.menteeCount,
         r.maxCgpa,
         r.backlogCount,
+        r.placedCount,
         r.atRiskCount,
         r.followUpCount,
         r.lastActivityAt ? new Date(r.lastActivityAt).toLocaleDateString() : "",
@@ -147,6 +152,7 @@ export default function MentorWiseReport() {
                   <th className="py-2 pr-4">Mentees</th>
                   <th className="py-2 pr-4">Max CGPA</th>
                   <th className="py-2 pr-4">No. with Backlogs</th>
+                  <th className="py-2 pr-4">Placed</th>
                   <th className="py-2 pr-4">At-risk</th>
                   <th className="py-2 pr-4">Follow-ups</th>
                   <th className="py-2 pr-4">Last activity</th>
@@ -159,6 +165,7 @@ export default function MentorWiseReport() {
                     <td className="py-2 pr-4 text-slate-600">{r.menteeCount}</td>
                     <td className="py-2 pr-4 text-slate-600">{r.maxCgpa}</td>
                     <td className="py-2 pr-4 text-slate-600">{r.backlogCount}</td>
+                    <td className="py-2 pr-4 font-medium text-emerald-700">{r.placedCount}</td>
                     <td className="py-2 pr-4 text-slate-600">{r.atRiskCount}</td>
                     <td className="py-2 pr-4 text-slate-600">{r.followUpCount}</td>
                     <td className="py-2 pr-4 text-slate-600">
@@ -168,7 +175,7 @@ export default function MentorWiseReport() {
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-sm text-slate-400">
+                    <td colSpan={8} className="py-6 text-center text-sm text-slate-400">
                       No mentor assignments yet.
                     </td>
                   </tr>
