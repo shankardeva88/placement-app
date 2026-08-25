@@ -38,6 +38,7 @@ export default function PlacementReport() {
   const [deptFilter, setDeptFilter] = useState<Department | "">("");
   const [statusFilter, setStatusFilter] = useState<OfferStatus | "">("");
   const [batchFilter, setBatchFilter] = useState<number | "">("");
+  const [driveFilter, setDriveFilter] = useState("");
 
   useEffect(() => {
     return onValue(ref(db, DB_NODES.drives), (snap) => {
@@ -63,6 +64,16 @@ export default function PlacementReport() {
     return Array.from(new Set(years)).sort((a, b) => b - a);
   }, [students]);
 
+  // Companies actually present among recorded offers — same "built from
+  // loaded data" convention as batchYears above, not a hardcoded list.
+  const driveOptions = useMemo(() => {
+    if (!offers) return [];
+    const ids = Array.from(new Set(offers.map((o) => o.driveId)));
+    return ids
+      .map((id) => ({ id, name: drives[id]?.companyName ?? id }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [offers, drives]);
+
   const rows = useMemo(() => {
     if (!offers) return null;
     return offers
@@ -70,8 +81,9 @@ export default function PlacementReport() {
       .filter((r) => !deptFilter || r.student?.department === deptFilter)
       .filter((r) => !statusFilter || r.offer.status === statusFilter)
       .filter((r) => !batchFilter || r.student?.batchYear === batchFilter)
+      .filter((r) => !driveFilter || r.offer.driveId === driveFilter)
       .sort((a, b) => b.offer.ctc - a.offer.ctc);
-  }, [offers, students, drives, joiningReports, deptFilter, statusFilter, batchFilter]);
+  }, [offers, students, drives, joiningReports, deptFilter, statusFilter, batchFilter, driveFilter]);
 
   const stats = useMemo(() => {
     if (!rows) return null;
@@ -123,7 +135,7 @@ export default function PlacementReport() {
       />
 
       <Card className="mb-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label className={labelClass}>Department</label>
             <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value as Department | "")} className={inputClass}>
@@ -146,6 +158,17 @@ export default function PlacementReport() {
               {batchYears.map((y) => (
                 <option key={y} value={y}>
                   {y}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Company</label>
+            <select value={driveFilter} onChange={(e) => setDriveFilter(e.target.value)} className={inputClass}>
+              <option value="">All companies</option>
+              {driveOptions.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
                 </option>
               ))}
             </select>
