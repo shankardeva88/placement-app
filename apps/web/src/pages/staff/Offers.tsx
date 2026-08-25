@@ -7,6 +7,7 @@ import { DB_NODES } from "@placement-app/types";
 import type { Drive, OfferStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
+import { useAllApplications } from "../../lib/applicantsLib";
 import { useAllOffers, useAllJoiningReports, recordOffer, setJoiningReportStatus } from "../../lib/offersManagementLib";
 import { driveRoleSummary } from "../../lib/driveRolesLib";
 import { useToast } from "../../components/ui/Toast";
@@ -86,13 +87,9 @@ function RecordOfferForm({ onDone }: { onDone: () => void }) {
   const { appUser } = useAuth();
   const { showToast } = useToast();
   const students = useStudentsDirectory(appUser);
-  // Plain string compare, not numeric — roll numbers are fixed-width per
-  // segment, same reasoning as the Students list sort (see Students.tsx).
-  const sortedStudents = useMemo(
-    () => (students ?? []).slice().sort((a, b) => a.rollNo.localeCompare(b.rollNo)),
-    [students]
-  );
+  const applications = useAllApplications(appUser);
   const [drives, setDrives] = useState<Drive[]>([]);
+  const [batchFilter, setBatchFilter] = useState<number | "">("");
   const [studentUid, setStudentUid] = useState("");
   const [driveId, setDriveId] = useState("");
   const [ctc, setCtc] = useState(0);
@@ -107,6 +104,41 @@ function RecordOfferForm({ onDone }: { onDone: () => void }) {
       setDrives(val ? Object.values(val) : []);
     });
   }, []);
+
+  const batchYearOptions = useMemo(
+    () => Array.from(new Set((students ?? []).map((s) => s.batchYear))).sort((a, b) => a - b),
+    [students]
+  );
+
+  // Narrows the drive list to whichever ones could actually involve this
+  // batch — a hand-picked drive counts if any of its picked students are in
+  // that batch; an ordinary criteria-based drive counts if it's open to
+  // every batch (empty batchYears, same "no restriction" convention as
+  // isDriveVisibleToStudent) or explicitly includes this one.
+  const drivesForBatch = useMemo(() => {
+    if (!batchFilter) return drives;
+    return drives.filter((d) => {
+      if (d.selectedStudentIds && d.selectedStudentIds.length > 0) {
+        return d.selectedStudentIds.some((uid) => students?.find((s) => s.uid === uid)?.batchYear === batchFilter);
+      }
+      const years = d.eligibility?.batchYears ?? [];
+      return years.length === 0 || years.includes(batchFilter);
+    });
+  }, [drives, batchFilter, students]);
+
+  // The actual point of this reshuffle: an offer only ever makes sense for
+  // a student the drive's own process marked "selected" — searching the
+  // whole roster to record an offer was easy to mis-click a student who
+  // never even reached that stage. Scoped to the chosen batch too, once set.
+  const selectedApplicants = useMemo(() => {
+    if (!driveId || !applications || !students) return [];
+    const selectedIds = new Set(
+      applications.filter((a) => a.driveId === driveId && a.status === "selected").map((a) => a.studentId)
+    );
+    return students
+      .filter((s) => selectedIds.has(s.uid) && (!batchFilter || s.batchYear === batchFilter))
+      .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
+  }, [driveId, applications, students, batchFilter]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -136,24 +168,59 @@ function RecordOfferForm({ onDone }: { onDone: () => void }) {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className={labelClass}>Student</label>
-          {students === null ? (
-            <p className="text-sm text-slate-400">Loading…</p>
-          ) : (
-            <StudentSearchPicker students={sortedStudents} value={studentUid} onChange={setStudentUid} />
-          )}
+          <label className={labelClass}>Batch (optional, narrows Drive below)</label>
+          <select
+            value={batchFilter}
+            onChange={(e) => {
+              const y = e.target.value ? Number(e.target.value) : "";
+              setBatchFilter(y);
+              setDriveId("");
+              setStudentUid("");
+            }}
+            className={inputClass}
+          >
+            <option value="">All batches</option>
+            {batchYearOptions.map((y) => (
+              <option key={y} value={y}>
+                Batch {y}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className={labelClass}>Drive</label>
-          <select required value={driveId} onChange={(e) => setDriveId(e.target.value)} className={inputClass}>
+          <select
+            required
+            value={driveId}
+            onChange={(e) => {
+              setDriveId(e.target.value);
+              setStudentUid("");
+            }}
+            className={inputClass}
+          >
             <option value="">Select a drive</option>
-            {drives.map((d) => (
+            {drivesForBatch.map((d) => (
               <option key={d.driveId} value={d.driveId}>
                 {d.companyName} — {driveRoleSummary(d)}
               </option>
             ))}
           </select>
         </div>
+      </div>
+      <div>
+        <label className={labelClass}>Student — selected for this drive</label>
+        {!driveId ? (
+          <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-400">Pick a drive above first.</p>
+        ) : students === null || applications === null ? (
+          <p className="text-sm text-slate-400">Loading…</p>
+        ) : selectedApplicants.length === 0 ? (
+          <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-400">
+            No student is marked "selected" for this drive{batchFilter ? ` in batch ${batchFilter}` : ""} yet — update
+            their application status on the drive's Applicants page first.
+          </p>
+        ) : (
+          <StudentSearchPicker students={selectedApplicants} value={studentUid} onChange={setStudentUid} />
+        )}
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
