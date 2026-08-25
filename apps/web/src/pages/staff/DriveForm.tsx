@@ -15,6 +15,12 @@ const GENDER_OPTIONS: { value: Gender | "any"; label: string }[] = [
   { value: "female", label: "Female only" },
 ];
 
+// A student's actual recorded gender (male/female/other/prefer_not_to_say),
+// not the eligibility criteria's narrower any/male/female — used for the
+// hand-picked-students filter, not for what gets saved as this drive's
+// eligibility.
+const GENDER_FILTER_OPTIONS: Gender[] = ["male", "female", "other", "prefer_not_to_say"];
+
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
 const labelClass = "mb-1 block text-sm font-medium text-slate-700";
@@ -51,6 +57,10 @@ function SelectedStudentsPicker({
   const [deptFilter, setDeptFilter] = useState<Department | "">("");
   const [batchFilter, setBatchFilter] = useState<number | "">("");
   const [minCgpaFilter, setMinCgpaFilter] = useState<number | "">("");
+  const [maxBacklogsFilter, setMaxBacklogsFilter] = useState<number | "">("");
+  const [genderFilter, setGenderFilter] = useState<Gender | "">("");
+  const [skillFilter, setSkillFilter] = useState("");
+  const [trainingFilter, setTrainingFilter] = useState("");
   const [query, setQuery] = useState("");
 
   const batchYears = useMemo(
@@ -60,13 +70,19 @@ function SelectedStudentsPicker({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const skill = skillFilter.trim().toLowerCase();
+    const training = trainingFilter.trim().toLowerCase();
     return students
       .filter((s) => !deptFilter || s.department === deptFilter)
       .filter((s) => !batchFilter || s.batchYear === batchFilter)
       .filter((s) => minCgpaFilter === "" || s.cgpa >= minCgpaFilter)
+      .filter((s) => maxBacklogsFilter === "" || s.activeBacklogs <= maxBacklogsFilter)
+      .filter((s) => !genderFilter || s.gender === genderFilter)
+      .filter((s) => !skill || (s.skills ?? []).some((sk) => sk.toLowerCase().includes(skill)))
+      .filter((s) => !training || Object.keys(s.trainings ?? {}).some((t) => t.toLowerCase().includes(training)))
       .filter((s) => !q || s.rollNo.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
       .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
-  }, [students, deptFilter, batchFilter, minCgpaFilter, query]);
+  }, [students, deptFilter, batchFilter, minCgpaFilter, maxBacklogsFilter, genderFilter, skillFilter, trainingFilter, query]);
 
   function toggle(uid: string) {
     onChange(selectedIds.includes(uid) ? selectedIds.filter((x) => x !== uid) : [...selectedIds, uid]);
@@ -119,6 +135,39 @@ function SelectedStudentsPicker({
           placeholder="Search roll no or name"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+          className={inputClass}
+        />
+        <input
+          type="number"
+          min={0}
+          placeholder="Max backlogs"
+          value={maxBacklogsFilter}
+          onChange={(e) => setMaxBacklogsFilter(e.target.value ? Number(e.target.value) : "")}
+          onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+          className={inputClass}
+        />
+        <select value={genderFilter} onChange={(e) => setGenderFilter(e.target.value as Gender | "")} className={inputClass}>
+          <option value="">Any gender</option>
+          {GENDER_FILTER_OPTIONS.map((g) => (
+            <option key={g} value={g}>
+              {g.replace("_", " ")}
+            </option>
+          ))}
+        </select>
+        <input
+          type="text"
+          placeholder="Skill (e.g. Python)"
+          value={skillFilter}
+          onChange={(e) => setSkillFilter(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+          className={inputClass}
+        />
+        <input
+          type="text"
+          placeholder="Training (e.g. Infosys)"
+          value={trainingFilter}
+          onChange={(e) => setTrainingFilter(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
           className={inputClass}
         />
