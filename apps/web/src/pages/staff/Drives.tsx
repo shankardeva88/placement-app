@@ -190,6 +190,7 @@ export default function StaffDrives() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<DriveStatus | "">("");
   const [roundFilter, setRoundFilter] = useState("");
+  const [batchFilter, setBatchFilter] = useState<number | "">("");
   const applications = useAllApplications(appUser);
 
   // Every distinct round name in use across drives, for the filter dropdown
@@ -202,16 +203,35 @@ export default function StaffDrives() {
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [drives]);
 
+  // Same for batch years actually used in eligibility.batchYears — added
+  // ahead of upcoming drives that will target next year's graduating batch
+  // (2029, 2030, ...), so the dropdown grows with new drives rather than
+  // needing a hardcoded year list maintained here.
+  const batchYearOptions = useMemo(() => {
+    if (!drives) return [];
+    const years = new Set<number>();
+    for (const d of drives) for (const y of d.eligibility?.batchYears ?? []) years.add(y);
+    return Array.from(years).sort((a, b) => a - b);
+  }, [drives]);
+
   const filteredDrives = useMemo(() => {
     if (!drives) return drives;
     const term = search.trim().toLowerCase();
     return drives.filter((d) => {
       if (statusFilter && d.status !== statusFilter) return false;
       if (roundFilter && currentRoundName(d) !== roundFilter) return false;
+      // Empty batchYears means "no batch restriction" everywhere else in the
+      // app (see isDriveVisibleToStudent in driveActions.ts) — a drive open
+      // to every batch should still show up under any specific batch filter,
+      // not just when batchYears happens to be empty.
+      if (batchFilter) {
+        const batchYears = d.eligibility?.batchYears ?? [];
+        if (batchYears.length > 0 && !batchYears.includes(batchFilter)) return false;
+      }
       if (!term) return true;
       return d.companyName.toLowerCase().includes(term) || driveRoleSummary(d).toLowerCase().includes(term);
     });
-  }, [drives, search, statusFilter, roundFilter]);
+  }, [drives, search, statusFilter, roundFilter, batchFilter]);
 
   // Only counts applicants within the coordinator/hod's own department scope
   // (applicationsDeptIndex, see the doc comment on useDriveApplicants in
@@ -327,6 +347,20 @@ export default function StaffDrives() {
               {roundNameOptions.map((name) => (
                 <option key={name} value={name}>
                   Currently at {name}
+                </option>
+              ))}
+            </select>
+          )}
+          {batchYearOptions.length > 0 && (
+            <select
+              value={batchFilter}
+              onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 sm:w-40"
+            >
+              <option value="">All batches</option>
+              {batchYearOptions.map((y) => (
+                <option key={y} value={y}>
+                  Batch {y}
                 </option>
               ))}
             </select>
