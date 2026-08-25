@@ -387,130 +387,156 @@ export default function Students() {
 
       {adding && <AddStudentForm onDone={() => setAdding(false)} />}
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+      <Card className="mb-4 space-y-4">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
           <input
             type="text"
             placeholder="Search by name, roll number, rank, skill, or training"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className={`${inputClass} pl-9`}
+            className={`${inputClass} py-2.5 pl-9`}
           />
         </div>
-        <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value as Department | "")} className={`${inputClass} sm:w-48`}>
-          <option value="">All departments</option>
-          {DEPARTMENTS.map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-        </select>
-        <select
-          value={batchFilter}
-          onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
-          className={`${inputClass} sm:w-40`}
-        >
-          <option value="">All batches</option>
-          {batchYears.map((y) => (
-            <option key={y} value={y}>
-              Batch {y}
-            </option>
-          ))}
-        </select>
-        <select
-          value={entranceTypeFilter}
-          onChange={(e) => setEntranceTypeFilter(e.target.value as EntranceExamType | "")}
-          className={`${inputClass} sm:w-40`}
-        >
-          <option value="">All entrance types</option>
-          {ENTRANCE_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-        <select
-          value={placementFilter}
-          onChange={(e) => setPlacementFilter(e.target.value as PlacementStatus | "")}
-          className={`${inputClass} sm:w-44`}
-        >
-          <option value="">All placement statuses</option>
-          <option value="not_placed">Not placed</option>
-          <option value="placed">Placed</option>
-          <option value="multiple_offers">Multiple offers</option>
-          <option value="opted_higher_studies">Opted higher studies</option>
-          <option value="opted_out">Opted out</option>
-        </select>
-        <select
-          value={backlogFilter}
-          onChange={(e) => setBacklogFilter(e.target.value as typeof backlogFilter)}
-          className={`${inputClass} sm:w-40`}
-        >
-          <option value="">All backlog counts</option>
-          <option value="0">0 backlogs</option>
-          <option value="1">1 backlog</option>
-          <option value="2">2 backlogs</option>
-          <option value="3">3 backlogs</option>
-          <option value="4+">4+ backlogs</option>
-        </select>
-        <select value={trainingFilter} onChange={(e) => setTrainingFilter(e.target.value)} className={`${inputClass} sm:w-48`}>
-          <option value="">All trainings</option>
-          {trainingBatchOptions.length > 0 && (
-            <optgroup label="Scheduled batches">
-              {trainingBatchOptions.map((t) => (
-                <option key={`batch:${t}`} value={`batch:${t}`}>
-                  {t}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {trainingNames.length > 0 && (
-            <optgroup label="Imported trainings">
-              {trainingNames.map((t) => (
-                <option key={`import:${t}`} value={`import:${t}`}>
-                  {t}
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
-      </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-1.5 text-sm text-slate-600">
-          Rank between
-          <input
-            type="number"
-            min={0}
-            placeholder="min"
-            value={rankMin}
-            onChange={(e) => setRankMin(e.target.value)}
-            className={`${inputClass} w-24`}
-          />
-          and
-          <input
-            type="number"
-            min={0}
-            placeholder="max"
-            value={rankMax}
-            onChange={(e) => setRankMax(e.target.value)}
-            className={`${inputClass} w-24`}
-          />
-        </label>
-        <label className="flex items-center gap-1.5 text-sm text-slate-600">
-          <input type="checkbox" checked={recentlyUpdatedOnly} onChange={(e) => setRecentlyUpdatedOnly(e.target.checked)} />
-          Recently updated only (last 7 days)
-        </label>
-        <label className="flex items-center gap-1.5 text-sm text-slate-600">
-          <input type="checkbox" checked={showAlumni} onChange={(e) => setShowAlumni(e.target.checked)} />
-          Show graduated (alumni)
-        </label>
-        <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className={`${inputClass} sm:w-56`}>
-          <option value="rollNo">Sort: Roll No</option>
-          <option value="recentlyUpdated">Sort: Recently updated first</option>
-        </select>
-      </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div>
+            <label className={labelClass}>Department</label>
+            <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value as Department | "")} className={inputClass}>
+              <option value="">All departments</option>
+              {DEPARTMENTS.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Batch</label>
+            <select
+              value={batchFilter}
+              onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
+              className={inputClass}
+            >
+              <option value="">All batches</option>
+              {batchYears.map((y) => (
+                <option key={y} value={y}>
+                  Batch {y}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Entrance type</label>
+            <select
+              value={entranceTypeFilter}
+              onChange={(e) => setEntranceTypeFilter(e.target.value as EntranceExamType | "")}
+              className={inputClass}
+            >
+              <option value="">All entrance types</option>
+              {ENTRANCE_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Placement status</label>
+            <select
+              value={placementFilter}
+              onChange={(e) => setPlacementFilter(e.target.value as PlacementStatus | "")}
+              className={inputClass}
+            >
+              <option value="">All placement statuses</option>
+              <option value="not_placed">Not placed</option>
+              <option value="placed">Placed</option>
+              <option value="multiple_offers">Multiple offers</option>
+              <option value="opted_higher_studies">Opted higher studies</option>
+              <option value="opted_out">Opted out</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Backlogs</label>
+            <select
+              value={backlogFilter}
+              onChange={(e) => setBacklogFilter(e.target.value as typeof backlogFilter)}
+              className={inputClass}
+            >
+              <option value="">All backlog counts</option>
+              <option value="0">0 backlogs</option>
+              <option value="1">1 backlog</option>
+              <option value="2">2 backlogs</option>
+              <option value="3">3 backlogs</option>
+              <option value="4+">4+ backlogs</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Training</label>
+            <select value={trainingFilter} onChange={(e) => setTrainingFilter(e.target.value)} className={inputClass}>
+              <option value="">All trainings</option>
+              {trainingBatchOptions.length > 0 && (
+                <optgroup label="Scheduled batches">
+                  {trainingBatchOptions.map((t) => (
+                    <option key={`batch:${t}`} value={`batch:${t}`}>
+                      {t}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {trainingNames.length > 0 && (
+                <optgroup label="Imported trainings">
+                  {trainingNames.map((t) => (
+                    <option key={`import:${t}`} value={`import:${t}`}>
+                      {t}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Rank between</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                placeholder="min"
+                value={rankMin}
+                onChange={(e) => setRankMin(e.target.value)}
+                className={inputClass}
+              />
+              <span className="shrink-0 text-sm text-slate-400">and</span>
+              <input
+                type="number"
+                min={0}
+                placeholder="max"
+                value={rankMax}
+                onChange={(e) => setRankMax(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>Sort</label>
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className={inputClass}>
+              <option value="rollNo">Roll No</option>
+              <option value="recentlyUpdated">Recently updated first</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 border-t border-slate-100 pt-3">
+          <label className="flex items-center gap-1.5 text-sm text-slate-600">
+            <input type="checkbox" checked={recentlyUpdatedOnly} onChange={(e) => setRecentlyUpdatedOnly(e.target.checked)} />
+            Recently updated only (last 7 days)
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-slate-600">
+            <input type="checkbox" checked={showAlumni} onChange={(e) => setShowAlumni(e.target.checked)} />
+            Show graduated (alumni)
+          </label>
+        </div>
+      </Card>
 
       {filtered === null && (
         <div className="space-y-3">
