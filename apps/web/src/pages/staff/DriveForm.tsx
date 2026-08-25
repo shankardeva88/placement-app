@@ -101,11 +101,37 @@ function SelectedStudentsPicker({
   function clearAll() {
     onChange([]);
   }
+  // These filters are just for narrowing which students are shown to pick
+  // from — they don't touch who's already selected. Without this, a
+  // coordinator who filters to "batch 2027" to review the list has no way
+  // to actually drop already-selected students from OTHER batches short of
+  // unchecking each one by hand; this prunes the selection down to exactly
+  // whoever currently matches every filter above.
+  function removeSelectedNotMatchingFilters() {
+    const matchingIds = new Set(filtered.map((s) => s.uid));
+    onChange(selectedIds.filter((id) => matchingIds.has(id)));
+  }
+  const filteredIdSet = useMemo(() => new Set(filtered.map((s) => s.uid)), [filtered]);
+  const selectedNotMatchingCount = selectedIds.filter((id) => !filteredIdSet.has(id)).length;
+  const filtersActive =
+    deptFilters.length > 0 ||
+    batchFilters.length > 0 ||
+    minCgpaFilter !== "" ||
+    maxBacklogsFilter !== "" ||
+    !!genderFilter ||
+    !!skillFilter.trim() ||
+    !!trainingFilter.trim() ||
+    !!query.trim();
 
   return (
     <div>
+      <p className="mb-2 text-xs text-slate-400">
+        Everything below just narrows which students are <em>shown</em> to pick from — it doesn't set this drive's
+        batch/department, and doesn't remove anyone already checked. Use "Remove … not matching filters" below to
+        actually drop already-selected students that fall outside your current filters.
+      </p>
       <div className="mb-2">
-        <p className="mb-1 text-xs font-medium text-slate-500">Departments (blank = all)</p>
+        <p className="mb-1 text-xs font-medium text-slate-500">Filter by department (blank = all)</p>
         <div className="flex flex-wrap gap-x-3 gap-y-1">
           {DEPARTMENTS.map((d) => (
             <label key={d} className="flex items-center gap-1 text-xs text-slate-600">
@@ -116,7 +142,7 @@ function SelectedStudentsPicker({
         </div>
       </div>
       <div className="mb-2">
-        <p className="mb-1 text-xs font-medium text-slate-500">Batch years (blank = all)</p>
+        <p className="mb-1 text-xs font-medium text-slate-500">Filter by batch year (blank = all)</p>
         <div className="flex flex-wrap gap-x-3 gap-y-1">
           {batchYears.map((y) => (
             <label key={y} className="flex items-center gap-1 text-xs text-slate-600">
@@ -187,6 +213,11 @@ function SelectedStudentsPicker({
           <button type="button" onClick={selectAllFiltered} className="font-medium text-brand-700 hover:underline">
             Select all {filtered.length} filtered
           </button>
+          {filtersActive && selectedNotMatchingCount > 0 && (
+            <button type="button" onClick={removeSelectedNotMatchingFilters} className="font-medium text-red-600 hover:underline">
+              Remove {selectedNotMatchingCount} selected not matching filters
+            </button>
+          )}
           {selectedIds.length > 0 && (
             <button type="button" onClick={clearAll} className="font-medium text-slate-500 hover:underline">
               Clear
