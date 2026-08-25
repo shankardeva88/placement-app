@@ -30,6 +30,7 @@ export default function DriveSummaryReport() {
   const { appUser } = useAuth();
   const [drives, setDrives] = useState<Drive[] | null>(null);
   const applications = useAllApplications(appUser);
+  const [batchFilter, setBatchFilter] = useState<number | "">("");
 
   useEffect(() => {
     return onValue(ref(db, DB_NODES.drives), (snap) => {
@@ -38,9 +39,26 @@ export default function DriveSummaryReport() {
     });
   }, []);
 
+  // Same convention as the Drives list page: built from eligibility.batchYears
+  // actually in use, so the dropdown grows with new drives on its own.
+  const batchYearOptions = useMemo(() => {
+    if (!drives) return [];
+    const years = new Set<number>();
+    for (const d of drives) for (const y of d.eligibility?.batchYears ?? []) years.add(y);
+    return Array.from(years).sort((a, b) => a - b);
+  }, [drives]);
+
   const rows = useMemo(() => {
     if (!drives || !applications) return null;
     return drives
+      .filter((drive) => {
+        if (!batchFilter) return true;
+        // Empty batchYears means "no batch restriction" everywhere else in
+        // the app (see isDriveVisibleToStudent in driveActions.ts) — a drive
+        // open to every batch should still show up under any specific filter.
+        const batchYears = drive.eligibility?.batchYears ?? [];
+        return batchYears.length === 0 || batchYears.includes(batchFilter);
+      })
       .map((drive) => {
         const apps = applications.filter((a) => a.driveId === drive.driveId);
         const counts = Object.fromEntries(STATUS_KEYS.map((k) => [k, apps.filter((a) => a.status === k).length])) as Record<
@@ -50,7 +68,7 @@ export default function DriveSummaryReport() {
         return { drive, total: apps.length, counts };
       })
       .sort((a, b) => b.drive.createdAt - a.drive.createdAt);
-  }, [drives, applications]);
+  }, [drives, applications, batchFilter]);
 
   function handleDownload() {
     if (!rows) return;
@@ -93,8 +111,30 @@ export default function DriveSummaryReport() {
         }
       />
 
+      {batchYearOptions.length > 0 && (
+        <Card className="mb-4">
+          <div className="sm:w-48">
+            <label className="mb-1 block text-sm font-medium text-slate-700">Batch</label>
+            <select
+              value={batchFilter}
+              onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
+              <option value="">All batches</option>
+              {batchYearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+        </Card>
+      )}
+
       {rows === null && <Skeleton className="h-40" />}
-      {rows !== null && rows.length === 0 && <EmptyState icon={GraduationCap} title="No drives yet" />}
+      {rows !== null && rows.length === 0 && (
+        <EmptyState icon={GraduationCap} title={batchFilter ? "No drives match this batch" : "No drives yet"} />
+      )}
 
       {rows !== null && rows.length > 0 && (
         <Card>
