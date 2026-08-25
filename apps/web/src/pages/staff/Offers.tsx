@@ -88,6 +88,7 @@ function RecordOfferForm({ onDone }: { onDone: () => void }) {
   const { showToast } = useToast();
   const students = useStudentsDirectory(appUser);
   const applications = useAllApplications(appUser);
+  const offers = useAllOffers(appUser);
   const [drives, setDrives] = useState<Drive[]>([]);
   const [batchFilter, setBatchFilter] = useState<number | "">("");
   const [studentUid, setStudentUid] = useState("");
@@ -139,6 +140,26 @@ function RecordOfferForm({ onDone }: { onDone: () => void }) {
       .filter((s) => selectedIds.has(s.uid) && (!batchFilter || s.batchYear === batchFilter))
       .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
   }, [driveId, applications, students, batchFilter]);
+
+  // A student picked here may already have an offer on record for this
+  // drive (offerId is deterministic — studentUid_driveId) — prefill the
+  // form from it instead of showing blanks the coordinator would overwrite.
+  const existingOffer = useMemo(() => {
+    if (!studentUid || !driveId || !offers) return null;
+    return offers.find((o) => o.studentId === studentUid && o.driveId === driveId) ?? null;
+  }, [studentUid, driveId, offers]);
+
+  useEffect(() => {
+    if (existingOffer) {
+      setCtc(existingOffer.ctc);
+      setDesignation(existingOffer.designation);
+      setOfferLetterUrl(existingOffer.offerLetterUrl ?? "");
+    } else {
+      setCtc(0);
+      setDesignation("");
+      setOfferLetterUrl("");
+    }
+  }, [existingOffer]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -220,6 +241,12 @@ function RecordOfferForm({ onDone }: { onDone: () => void }) {
           </p>
         ) : (
           <StudentSearchPicker students={selectedApplicants} value={studentUid} onChange={setStudentUid} />
+        )}
+        {existingOffer && (
+          <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            This student already has an offer recorded for this drive — the fields below are prefilled from it.
+            Submitting will update that offer.
+          </p>
         )}
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
