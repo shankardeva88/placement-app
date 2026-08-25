@@ -53,6 +53,7 @@ export default function DriveApplicants() {
   const [sortBy, setSortBy] = useState<"default" | "rollNo" | "cgpa">("default");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "">("");
+  const [roundFilter, setRoundFilter] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkStatusValue, setBulkStatusValue] = useState<ApplicationStatus>("shortlisted");
   const [bulkRoundValue, setBulkRoundValue] = useState("");
@@ -69,11 +70,12 @@ export default function DriveApplicants() {
     const term = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (statusFilter && r.application.status !== statusFilter) return false;
+      if (roundFilter && r.application.currentRoundId !== roundFilter) return false;
       if (!term) return true;
       if (!r.student) return false;
       return r.student.rollNo.toLowerCase().includes(term) || r.student.name.toLowerCase().includes(term);
     });
-  }, [rows, search, statusFilter]);
+  }, [rows, search, statusFilter, roundFilter]);
 
   // "Details restricted" rows have no student record to sort by — pinned to
   // the end rather than left in whatever position the unsorted default
@@ -295,6 +297,26 @@ export default function DriveApplicants() {
                 </option>
               ))}
             </select>
+            {drive && (drive.rounds ?? []).length > 0 && (
+              <>
+                <label htmlFor="applicants-round-filter" className="text-xs font-medium text-slate-500">
+                  Round
+                </label>
+                <select
+                  id="applicants-round-filter"
+                  value={roundFilter}
+                  onChange={(e) => setRoundFilter(e.target.value)}
+                  className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                >
+                  <option value="">All rounds</option>
+                  {drive.rounds.map((r) => (
+                    <option key={r.roundId} value={r.roundId}>
+                      At {r.name}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
             <label htmlFor="applicants-sort" className="text-xs font-medium text-slate-500">
               Sort by
             </label>
