@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Briefcase, ListChecks, Plus, Trash2, Users } from "lucide-react";
+import { Briefcase, ListChecks, Plus, Search, Trash2, Users } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -179,7 +179,19 @@ export default function StaffDrives() {
   const { showToast } = useToast();
   const [drives, setDrives] = useState<Drive[] | null>(null);
   const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<DriveStatus | "">("");
   const applications = useAllApplications(appUser);
+
+  const filteredDrives = useMemo(() => {
+    if (!drives) return drives;
+    const term = search.trim().toLowerCase();
+    return drives.filter((d) => {
+      if (statusFilter && d.status !== statusFilter) return false;
+      if (!term) return true;
+      return d.companyName.toLowerCase().includes(term) || driveRoleSummary(d).toLowerCase().includes(term);
+    });
+  }, [drives, search, statusFilter]);
 
   // Only counts applicants within the coordinator/hod's own department scope
   // (applicationsDeptIndex, see the doc comment on useDriveApplicants in
@@ -227,7 +239,11 @@ export default function StaffDrives() {
     <div>
       <PageHeader
         title="Drives"
-        subtitle="Create and manage placement drives."
+        subtitle={
+          drives && filteredDrives && filteredDrives.length !== drives.length
+            ? `${filteredDrives.length} of ${drives.length} drive(s)`
+            : "Create and manage placement drives."
+        }
         icon={Briefcase}
         gradient="from-blue-500 to-indigo-600"
         action={
@@ -257,8 +273,39 @@ export default function StaffDrives() {
         <EmptyState icon={Briefcase} title="No drives yet" subtitle="Create your first placement drive." />
       )}
 
+      {drives !== null && drives.length > 0 && (
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by company or role"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as DriveStatus | "")}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 sm:w-48"
+          >
+            <option value="">All statuses</option>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {drives !== null && drives.length > 0 && filteredDrives?.length === 0 && (
+        <EmptyState icon={Search} title="No drives match this search/filter" />
+      )}
+
       <div className="space-y-4">
-        {drives?.map((drive) => (
+        {filteredDrives?.map((drive) => (
           <DriveCard
             key={drive.driveId}
             drive={drive}
