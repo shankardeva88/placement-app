@@ -29,6 +29,14 @@ const DRIVE_BADGE: Record<DriveStatus, BadgeVariant> = {
 
 const STATUS_OPTIONS: DriveStatus[] = ["upcoming", "ongoing", "completed", "cancelled"];
 
+// Round names are free text per drive (see the DriveRound.name doc comment
+// — "Aptitude", "GD", "Technical Interview", "HR", or whatever a coordinator
+// types), not a fixed enum, so "current round" means whichever one is
+// actually marked in_progress right now, not a position in a numbered list.
+function currentRoundName(drive: Drive): string | null {
+  return drive.rounds?.find((r) => r.status === "in_progress")?.name ?? null;
+}
+
 function toEligibility(values: DriveFormValues) {
   return {
     minCgpa: values.minCgpa,
@@ -181,17 +189,29 @@ export default function StaffDrives() {
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<DriveStatus | "">("");
+  const [roundFilter, setRoundFilter] = useState("");
   const applications = useAllApplications(appUser);
+
+  // Every distinct round name in use across drives, for the filter dropdown
+  // — built from actual data since round names are free text per drive, not
+  // a fixed set.
+  const roundNameOptions = useMemo(() => {
+    if (!drives) return [];
+    const names = new Set<string>();
+    for (const d of drives) for (const r of d.rounds ?? []) names.add(r.name);
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [drives]);
 
   const filteredDrives = useMemo(() => {
     if (!drives) return drives;
     const term = search.trim().toLowerCase();
     return drives.filter((d) => {
       if (statusFilter && d.status !== statusFilter) return false;
+      if (roundFilter && currentRoundName(d) !== roundFilter) return false;
       if (!term) return true;
       return d.companyName.toLowerCase().includes(term) || driveRoleSummary(d).toLowerCase().includes(term);
     });
-  }, [drives, search, statusFilter]);
+  }, [drives, search, statusFilter, roundFilter]);
 
   // Only counts applicants within the coordinator/hod's own department scope
   // (applicationsDeptIndex, see the doc comment on useDriveApplicants in
@@ -297,6 +317,20 @@ export default function StaffDrives() {
               </option>
             ))}
           </select>
+          {roundNameOptions.length > 0 && (
+            <select
+              value={roundFilter}
+              onChange={(e) => setRoundFilter(e.target.value)}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 sm:w-48"
+            >
+              <option value="">Currently at any round</option>
+              {roundNameOptions.map((name) => (
+                <option key={name} value={name}>
+                  Currently at {name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
 
