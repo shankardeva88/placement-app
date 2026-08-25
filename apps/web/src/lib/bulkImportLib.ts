@@ -136,7 +136,7 @@ export interface ParsedStudentRow {
   twelfthPercentage?: number;
   twelfthYearOfPassing?: number;
   entranceType?: EntranceExamType;
-  entranceRank?: number;
+  entranceRank?: string; // usually numeric, but can be a category like "SPOT" or "BCAT" — see the Student.entranceRank doc comment
   email: string; // college email — becomes the login
   personalEmail: string;
   resumeUrl: string;
@@ -210,7 +210,9 @@ export function parseStudentRows(headers: string[], rawRows: string[][]): ParseR
 
     const { value: entranceType, warning: entranceTypeWarning } = parseEntranceType(get(row, "entranceType"));
     if (entranceTypeWarning) warnings.push(entranceTypeWarning);
-    const entranceRank = parseNumber(get(row, "entranceRank"));
+    // Free text — usually a number, but "SPOT"/"BCAT" for category-admitted
+    // students who were never assigned an entrance exam rank at all.
+    const entranceRank = get(row, "entranceRank") || undefined;
 
     const resumeUrl = get(row, "resumeUrl");
     if (!resumeUrl) warnings.push("No resume link");
@@ -328,7 +330,7 @@ async function writeStudentRecords(uid: string, row: ParsedStudentRow) {
     if (row.twelfthPercentage != null) studentRecord.twelfthPercentage = row.twelfthPercentage;
     if (row.twelfthYearOfPassing != null) studentRecord.twelfthYearOfPassing = row.twelfthYearOfPassing;
     if (row.entranceType) studentRecord.entranceType = row.entranceType;
-    if (row.entranceRank != null) studentRecord.entranceRank = row.entranceRank;
+    if (row.entranceRank) studentRecord.entranceRank = row.entranceRank;
     if (row.resumeUrl) studentRecord.resumeUrl = row.resumeUrl;
 
     await update(ref(db), {

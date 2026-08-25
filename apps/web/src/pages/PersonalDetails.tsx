@@ -157,7 +157,7 @@ export default function PersonalDetails() {
   );
 
   const [entranceType, setEntranceType] = useState<EntranceExamType | "">(student?.entranceType ?? "");
-  const [entranceRank, setEntranceRank] = useState(student?.entranceRank?.toString() ?? "");
+  const [entranceRank, setEntranceRank] = useState(student?.entranceRank ?? "");
 
   const [linkedinUrl, setLinkedinUrl] = useState(student?.linkedinUrl ?? "");
   const [githubUrl, setGithubUrl] = useState(student?.githubUrl ?? "");
@@ -213,7 +213,7 @@ export default function PersonalDetails() {
     setDiplomaBoard(student.diplomaBoard ?? "");
     setDiplomaYearOfPassing(student.diplomaYearOfPassing?.toString() ?? "");
     setEntranceType(student.entranceType ?? "");
-    setEntranceRank(student.entranceRank?.toString() ?? "");
+    setEntranceRank(student.entranceRank ?? "");
     setLinkedinUrl(student.linkedinUrl ?? "");
     setGithubUrl(student.githubUrl ?? "");
     setPortfolioUrl(student.portfolioUrl ?? "");
@@ -261,7 +261,7 @@ export default function PersonalDetails() {
         diplomaBoard,
         diplomaYearOfPassing: diplomaYearOfPassing ? Number(diplomaYearOfPassing) : null,
         entranceType: entranceType || null,
-        entranceRank: entranceRank ? Number(entranceRank) : null,
+        entranceRank: entranceRank.trim() || null,
         linkedinUrl,
         githubUrl,
         portfolioUrl,
@@ -546,8 +546,8 @@ export default function PersonalDetails() {
             <Field label="Rank">
               <ViewOrEdit editing={editing} display={entranceRank}>
                 <input
-                  type="number"
-                  min={1}
+                  type="text"
+                  placeholder="e.g. 12345, SPOT, or BCAT"
                   value={entranceRank}
                   onChange={(e) => setEntranceRank(e.target.value)}
                   className={inputClass}

@@ -100,7 +100,7 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
         twelfthPercentage: form.twelfthPercentage === "" ? null : Number(form.twelfthPercentage),
         twelfthYearOfPassing: form.twelfthYearOfPassing === "" ? null : Number(form.twelfthYearOfPassing),
         entranceType: (form.entranceType || null) as EntranceExamType | null,
-        entranceRank: form.entranceRank === "" ? null : Number(form.entranceRank),
+        entranceRank: form.entranceRank.trim() || null,
         resumeUrl: form.resumeUrl || null,
       };
       await updateStudentProfile(uid, updates);
@@ -200,7 +200,13 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
           </div>
           <div>
             <label className={labelClass}>Entrance rank</label>
-            <input type="number" min={1} value={form.entranceRank} onChange={(e) => set("entranceRank", e.target.value)} className={inputClass} />
+            <input
+              type="text"
+              placeholder="e.g. 12345, SPOT, or BCAT"
+              value={form.entranceRank}
+              onChange={(e) => set("entranceRank", e.target.value)}
+              className={inputClass}
+            />
           </div>
           <div className="sm:col-span-2">
             <label className={labelClass}>Resume link</label>

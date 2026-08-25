@@ -188,10 +188,7 @@ export function parseStudentUpdateRows(headers: string[], rawRows: string[][]): 
       const { value, warning } = parseEntranceType(raw);
       return { value, warning };
     });
-    setIfPresent("entranceRank", (raw) => {
-      const n = parseNumber(raw);
-      return n == null ? { value: undefined, warning: `Entrance rank "${raw}" isn't a number — skipped` } : { value: n };
-    });
+    setIfPresent("entranceRank"); // free text — usually numeric, but "SPOT"/"BCAT" for category admissions
     setIfPresent("studentPhone");
     setIfPresent("personalEmail");
     setIfPresent("parentName");

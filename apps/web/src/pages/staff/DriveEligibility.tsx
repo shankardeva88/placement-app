@@ -28,6 +28,15 @@ import { PageHeader } from "../../components/ui/PageHeader";
 const inputClass =
   "rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
 
+// entranceRank is free text ("SPOT"/"BCAT" for category admissions, not a
+// number) — this is only for the rank SORT, so non-numeric text is treated
+// the same as no rank at all (sorted last), not an error.
+function numericRank(rank?: string): number {
+  if (!rank) return Infinity;
+  const n = Number(rank);
+  return Number.isFinite(n) ? n : Infinity;
+}
+
 function toCsv(
   rows: {
     rollNo: string;
@@ -36,7 +45,7 @@ function toCsv(
     cgpa: number;
     activeBacklogs: number;
     entranceType: string;
-    entranceRank: number | "";
+    entranceRank: string;
     skills: string;
     gender: string;
     email: string;
@@ -85,10 +94,11 @@ export default function DriveEligibility() {
     if (!drive || !students) return null;
     return students.filter((s) => checkEligibility(s, drive).eligible).sort((a, b) => {
       if (sortBy === "rollNo") return a.rollNo.localeCompare(b.rollNo);
-      // Rank: lower number = better — no-rank students sorted to the end
-      // rather than first (a naive undefined-as-0 comparison would put them
-      // ahead of every ranked student, backwards from the intent here).
-      if (sortBy === "rank") return (a.entranceRank ?? Infinity) - (b.entranceRank ?? Infinity);
+      // Rank: lower number = better — no-rank AND category admissions
+      // ("SPOT"/"BCAT", not numeric) sort to the end rather than first (a
+      // naive undefined-as-0 comparison would put them ahead of every
+      // ranked student, backwards from the intent here).
+      if (sortBy === "rank") return numericRank(a.entranceRank) - numericRank(b.entranceRank);
       return b.cgpa - a.cgpa;
     });
   }, [drive, students, sortBy]);
@@ -131,7 +141,7 @@ export default function DriveEligibility() {
       cgpa: s.cgpa,
       activeBacklogs: s.activeBacklogs,
       entranceType: s.entranceType ?? "",
-      entranceRank: s.entranceRank ?? ("" as const),
+      entranceRank: s.entranceRank ?? "",
       skills: (s.skills ?? []).join("; "),
       gender: s.gender ?? "",
       email: s.personalEmail || "",

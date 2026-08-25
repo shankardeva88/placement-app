@@ -81,7 +81,7 @@ export interface StudentProfileUpdate {
   twelfthPercentage?: number | null;
   twelfthYearOfPassing?: number | null;
   entranceType?: EntranceExamType | null;
-  entranceRank?: number | null;
+  entranceRank?: string | null;
   resumeUrl?: string | null;
 }
 

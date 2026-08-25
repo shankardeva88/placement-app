@@ -35,7 +35,7 @@ export interface PersonalDetailsInput {
   diplomaYearOfPassing: number | null;
 
   entranceType: EntranceExamType | null;
-  entranceRank: number | null;
+  entranceRank: string | null;
 
   linkedinUrl: string;
   githubUrl: string;

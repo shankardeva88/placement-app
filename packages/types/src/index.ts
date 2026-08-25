@@ -137,8 +137,15 @@ export interface Student {
   // (lower rank = stronger). Not part of checkEligibility's pass/fail
   // criteria (driveActions.ts) — purely a sort key on the Eligibility List,
   // same tier as CGPA there.
+  //
+  // Free text, not a number — some students were admitted via a category
+  // (SPOT admission, B-category/management quota) rather than ranked entrance
+  // exam merit, and their "rank" column is literally "SPOT" or "BCAT" instead
+  // of a number. The Eligibility List sort parses this as a number when it
+  // can and falls back to "no rank" (sorted last) otherwise, so a numeric
+  // rank still sorts correctly even though the field itself is a string.
   entranceType?: EntranceExamType;
-  entranceRank?: number;
+  entranceRank?: string;
 
   // Contact — separate from the login email/uid, since a student's placement
   // record needs a way to reach them (and a parent) beyond their college inbox.
