@@ -449,10 +449,21 @@ export default function StaffOffers() {
                 <Badge variant={OFFER_STATUS_BADGE[o.status]}>{o.status}</Badge>
               </div>
               {report && (
-                <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
-                  <span className="text-slate-600">
-                    Joining proof: <Badge variant={report.status === "verified" ? "success" : "warning"}>{report.status}</Badge>
-                  </span>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-2 text-slate-600">
+                    <span>
+                      Joining: {new Date(report.joiningDate).toLocaleDateString()}
+                    </span>
+                    <Badge variant={report.status === "verified" ? "success" : "warning"}>{report.status}</Badge>
+                    <a
+                      href={report.proofUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium text-brand-600 hover:underline"
+                    >
+                      View joining letter / ID card
+                    </a>
+                  </div>
                   {report.status === "submitted" && (
                     <Button variant="secondary" onClick={() => handleVerifyJoining(o.offerId)}>
                       Verify joining
