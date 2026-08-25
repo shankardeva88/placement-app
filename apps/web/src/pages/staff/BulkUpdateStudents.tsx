@@ -120,8 +120,9 @@ export default function BulkUpdateStudents() {
         <p className="mb-3 text-xs text-slate-500">
           Include a "Roll No" column to match against, plus any subset of: name, email, department, batchYear,
           currentSemester, tenthPercentage, tenthSchool, tenthYearOfPassing, twelfthPercentage, twelfthSchool,
-          twelfthYearOfPassing, studentPhone, personalEmail, parentName, parentPhone, address, state, dateOfBirth,
-          gender, photoUrl. Leave a cell blank to leave that field untouched for that student.
+          twelfthYearOfPassing, entranceType (EAMCET/ECET), entranceRank, studentPhone, personalEmail, parentName,
+          parentPhone, address, state, dateOfBirth, gender, photoUrl. Leave a cell blank to leave that field untouched
+          for that student.
         </p>
         <textarea
           rows={8}

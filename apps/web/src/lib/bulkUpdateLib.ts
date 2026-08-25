@@ -2,7 +2,7 @@ import { ref, update, serverTimestamp } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
 import type { Department, Student } from "@placement-app/types";
-import { normalizeHeader, parseDepartment, parseGender, parseIndianDate, parseNumber } from "./bulkImportLib";
+import { normalizeHeader, parseDepartment, parseEntranceType, parseGender, parseIndianDate, parseNumber } from "./bulkImportLib";
 
 const INSTITUTION_ROLES = new Set(["dean", "principal", "cpo", "admin"]);
 
@@ -25,6 +25,8 @@ export const UPDATABLE_FIELDS = [
   "twelfthPercentage",
   "twelfthSchool",
   "twelfthYearOfPassing",
+  "entranceType",
+  "entranceRank",
   "studentPhone",
   "personalEmail",
   "parentName",
@@ -61,6 +63,10 @@ const HEADER_MAP: Record<string, UpdatableField> = {
   [normalizeHeader("12th School")]: "twelfthSchool",
   [normalizeHeader("Twelfth School")]: "twelfthSchool",
   [normalizeHeader("12th Year Of Passing")]: "twelfthYearOfPassing",
+  [normalizeHeader("Entrance Type")]: "entranceType",
+  [normalizeHeader("EAMCET/ECET")]: "entranceType",
+  [normalizeHeader("Rank")]: "entranceRank",
+  [normalizeHeader("Entrance Rank")]: "entranceRank",
   [normalizeHeader("Student Phone")]: "studentPhone",
   [normalizeHeader("Phone")]: "studentPhone",
   [normalizeHeader("Phone Number")]: "studentPhone",
@@ -177,6 +183,14 @@ export function parseStudentUpdateRows(headers: string[], rawRows: string[][]): 
     setIfPresent("twelfthYearOfPassing", (raw) => {
       const n = parseNumber(raw);
       return n == null ? { value: undefined, warning: `12th year of passing "${raw}" isn't a number — skipped` } : { value: n };
+    });
+    setIfPresent("entranceType", (raw) => {
+      const { value, warning } = parseEntranceType(raw);
+      return { value, warning };
+    });
+    setIfPresent("entranceRank", (raw) => {
+      const n = parseNumber(raw);
+      return n == null ? { value: undefined, warning: `Entrance rank "${raw}" isn't a number — skipped` } : { value: n };
     });
     setIfPresent("studentPhone");
     setIfPresent("personalEmail");

@@ -99,6 +99,7 @@ export type PlacementStatus =
 
 export type Gender = "male" | "female" | "other" | "prefer_not_to_say";
 export type BloodGroup = "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-";
+export type EntranceExamType = "EAMCET" | "ECET"; // EAMCET: direct 1st-year admission; ECET: lateral entry (diploma → degree)
 
 export interface Student {
   studentId: string; // RTDB key under /students
@@ -130,6 +131,14 @@ export interface Student {
   diplomaSchool?: string;
   diplomaBoard?: string;
   diplomaYearOfPassing?: number;
+
+  // State entrance exam admission rank — used informally by coordinators to
+  // prioritize who to put forward for a competitive/limited-seat drive
+  // (lower rank = stronger). Not part of checkEligibility's pass/fail
+  // criteria (driveActions.ts) — purely a sort key on the Eligibility List,
+  // same tier as CGPA there.
+  entranceType?: EntranceExamType;
+  entranceRank?: number;
 
   // Contact — separate from the login email/uid, since a student's placement
   // record needs a way to reach them (and a parent) beyond their college inbox.

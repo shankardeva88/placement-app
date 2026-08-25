@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ref, onValue, update, get, remove } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { AppUser, Department, Gender, Student } from "@placement-app/types";
+import type { AppUser, Department, EntranceExamType, Gender, Student } from "@placement-app/types";
 
 const INSTITUTION_ROLES = new Set(["dean", "principal", "cpo", "admin"]);
 
@@ -80,6 +80,8 @@ export interface StudentProfileUpdate {
   tenthYearOfPassing?: number | null;
   twelfthPercentage?: number | null;
   twelfthYearOfPassing?: number | null;
+  entranceType?: EntranceExamType | null;
+  entranceRank?: number | null;
   resumeUrl?: string | null;
 }
 

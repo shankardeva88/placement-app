@@ -28,10 +28,23 @@ import { PageHeader } from "../../components/ui/PageHeader";
 const inputClass =
   "rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
 
-function toCsv(rows: { rollNo: string; name: string; department: string; cgpa: number; activeBacklogs: number; skills: string; gender: string; email: string }[]) {
-  const header = ["Roll No", "Name", "Department", "CGPA", "Backlogs", "Skills", "Gender", "Email"];
+function toCsv(
+  rows: {
+    rollNo: string;
+    name: string;
+    department: string;
+    cgpa: number;
+    activeBacklogs: number;
+    entranceType: string;
+    entranceRank: number | "";
+    skills: string;
+    gender: string;
+    email: string;
+  }[]
+) {
+  const header = ["Roll No", "Name", "Department", "CGPA", "Backlogs", "Entrance Type", "Entrance Rank", "Skills", "Gender", "Email"];
   const lines = rows.map((r) =>
-    [r.rollNo, r.name, r.department, r.cgpa, r.activeBacklogs, r.skills, r.gender, r.email]
+    [r.rollNo, r.name, r.department, r.cgpa, r.activeBacklogs, r.entranceType, r.entranceRank, r.skills, r.gender, r.email]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`)
       .join(",")
   );
@@ -52,7 +65,7 @@ export default function DriveEligibility() {
 
   const [pending, setPending] = useState<Record<string, string>>({}); // studentId -> mentorId (unsaved edits)
   const [saving, setSaving] = useState(false);
-  const [sortBy, setSortBy] = useState<"cgpa" | "rollNo">("cgpa");
+  const [sortBy, setSortBy] = useState<"cgpa" | "rollNo" | "rank">("cgpa");
 
   // MockEvaluation (Mock Interview Modules, e.g. "Infosys Mock") has no
   // driveId, unlike the older one-off MockInterview — a module isn't tied to
@@ -70,9 +83,14 @@ export default function DriveEligibility() {
 
   const eligible = useMemo(() => {
     if (!drive || !students) return null;
-    return students
-      .filter((s) => checkEligibility(s, drive).eligible)
-      .sort((a, b) => (sortBy === "rollNo" ? a.rollNo.localeCompare(b.rollNo) : b.cgpa - a.cgpa));
+    return students.filter((s) => checkEligibility(s, drive).eligible).sort((a, b) => {
+      if (sortBy === "rollNo") return a.rollNo.localeCompare(b.rollNo);
+      // Rank: lower number = better — no-rank students sorted to the end
+      // rather than first (a naive undefined-as-0 comparison would put them
+      // ahead of every ranked student, backwards from the intent here).
+      if (sortBy === "rank") return (a.entranceRank ?? Infinity) - (b.entranceRank ?? Infinity);
+      return b.cgpa - a.cgpa;
+    });
   }, [drive, students, sortBy]);
 
   // "Students in scope" for the header count below — narrowed to the
@@ -112,6 +130,8 @@ export default function DriveEligibility() {
       department: s.department,
       cgpa: s.cgpa,
       activeBacklogs: s.activeBacklogs,
+      entranceType: s.entranceType ?? "",
+      entranceRank: s.entranceRank ?? ("" as const),
       skills: (s.skills ?? []).join("; "),
       gender: s.gender ?? "",
       email: s.personalEmail || "",
@@ -131,7 +151,11 @@ export default function DriveEligibility() {
 
   async function handleCopyText() {
     if (!eligible) return;
-    const lines = eligible.map((s, i) => `${i + 1}. ${s.rollNo} — ${s.name} — ${s.department}, CGPA ${s.cgpa}`);
+    const lines = eligible.map(
+      (s, i) =>
+        `${i + 1}. ${s.rollNo} — ${s.name} — ${s.department}, CGPA ${s.cgpa}` +
+        (s.entranceRank ? `, Rank ${s.entranceRank}${s.entranceType ? ` (${s.entranceType})` : ""}` : "")
+    );
     const text = `Eligible students for ${drive?.companyName} (${eligible.length}):\n\n${lines.join("\n")}`;
     await navigator.clipboard.writeText(text);
     showToast("Copied to clipboard");
@@ -238,10 +262,11 @@ export default function DriveEligibility() {
             <select
               id="eligibility-sort"
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as "cgpa" | "rollNo")}
+              onChange={(e) => setSortBy(e.target.value as "cgpa" | "rollNo" | "rank")}
               className={inputClass}
             >
               <option value="cgpa">CGPA (high to low)</option>
+              <option value="rank">Entrance rank (best first)</option>
               <option value="rollNo">Roll No</option>
             </select>
           </div>
@@ -254,6 +279,7 @@ export default function DriveEligibility() {
                   <th className="py-2 pr-4">Dept</th>
                   <th className="py-2 pr-4">CGPA</th>
                   <th className="py-2 pr-4">Backlogs</th>
+                  <th className="py-2 pr-4">Entrance rank</th>
                   <th className="py-2 pr-4">Skills</th>
                 </tr>
               </thead>
@@ -265,12 +291,15 @@ export default function DriveEligibility() {
                     <td className="py-2 pr-4 text-slate-600">{s.department}</td>
                     <td className="py-2 pr-4 text-slate-600">{s.cgpa}</td>
                     <td className="py-2 pr-4 text-slate-600">{s.activeBacklogs}</td>
+                    <td className="py-2 pr-4 text-slate-600">
+                      {s.entranceRank ? `${s.entranceRank}${s.entranceType ? ` (${s.entranceType})` : ""}` : "—"}
+                    </td>
                     <td className="py-2 pr-4 text-slate-600">{(s.skills ?? []).join(", ")}</td>
                   </tr>
                 ))}
                 {eligible.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-sm text-slate-400">
+                    <td colSpan={7} className="py-6 text-center text-sm text-slate-400">
                       No students in scope currently meet this drive's criteria.
                     </td>
                   </tr>

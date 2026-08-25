@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { IdCard, Plus, X, Pencil, BadgeCheck } from "lucide-react";
-import type { BloodGroup, Gender } from "@placement-app/types";
+import type { BloodGroup, EntranceExamType, Gender } from "@placement-app/types";
 import { useAuth } from "../auth/AuthContext";
 import { updatePersonalDetails } from "../lib/personalDetailsActions";
 import { useToast } from "../components/ui/Toast";
@@ -26,6 +26,7 @@ const GENDER_LABEL: Record<Gender, string> = Object.fromEntries(GENDERS.map((g) 
 >;
 
 const BLOOD_GROUPS: BloodGroup[] = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+const ENTRANCE_TYPES: EntranceExamType[] = ["EAMCET", "ECET"];
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -155,6 +156,9 @@ export default function PersonalDetails() {
     student?.diplomaYearOfPassing?.toString() ?? ""
   );
 
+  const [entranceType, setEntranceType] = useState<EntranceExamType | "">(student?.entranceType ?? "");
+  const [entranceRank, setEntranceRank] = useState(student?.entranceRank?.toString() ?? "");
+
   const [linkedinUrl, setLinkedinUrl] = useState(student?.linkedinUrl ?? "");
   const [githubUrl, setGithubUrl] = useState(student?.githubUrl ?? "");
   const [portfolioUrl, setPortfolioUrl] = useState(student?.portfolioUrl ?? "");
@@ -208,6 +212,8 @@ export default function PersonalDetails() {
     setDiplomaSchool(student.diplomaSchool ?? "");
     setDiplomaBoard(student.diplomaBoard ?? "");
     setDiplomaYearOfPassing(student.diplomaYearOfPassing?.toString() ?? "");
+    setEntranceType(student.entranceType ?? "");
+    setEntranceRank(student.entranceRank?.toString() ?? "");
     setLinkedinUrl(student.linkedinUrl ?? "");
     setGithubUrl(student.githubUrl ?? "");
     setPortfolioUrl(student.portfolioUrl ?? "");
@@ -254,6 +260,8 @@ export default function PersonalDetails() {
         diplomaSchool,
         diplomaBoard,
         diplomaYearOfPassing: diplomaYearOfPassing ? Number(diplomaYearOfPassing) : null,
+        entranceType: entranceType || null,
+        entranceRank: entranceRank ? Number(entranceRank) : null,
         linkedinUrl,
         githubUrl,
         portfolioUrl,
@@ -516,6 +524,32 @@ export default function PersonalDetails() {
                   type="number"
                   value={diplomaYearOfPassing}
                   onChange={(e) => setDiplomaYearOfPassing(e.target.value)}
+                  className={inputClass}
+                />
+              </ViewOrEdit>
+            </Field>
+          </Section>
+
+          <Section title="Entrance exam">
+            <Field label="Entrance type">
+              <ViewOrEdit editing={editing} display={entranceType}>
+                <select value={entranceType} onChange={(e) => setEntranceType(e.target.value as EntranceExamType | "")} className={inputClass}>
+                  <option value="">Select</option>
+                  {ENTRANCE_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </ViewOrEdit>
+            </Field>
+            <Field label="Rank">
+              <ViewOrEdit editing={editing} display={entranceRank}>
+                <input
+                  type="number"
+                  min={1}
+                  value={entranceRank}
+                  onChange={(e) => setEntranceRank(e.target.value)}
                   className={inputClass}
                 />
               </ViewOrEdit>

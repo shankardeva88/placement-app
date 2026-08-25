@@ -168,6 +168,8 @@
         "diplomaSchool": { ".write": "auth != null && $studentId === auth.uid" },
         "diplomaBoard": { ".write": "auth != null && $studentId === auth.uid" },
         "diplomaYearOfPassing": { ".write": "auth != null && $studentId === auth.uid" },
+        "entranceType": { ".write": "auth != null && $studentId === auth.uid" },
+        "entranceRank": { ".write": "auth != null && $studentId === auth.uid" },
         "linkedinUrl": { ".write": "auth != null && $studentId === auth.uid" },
         "githubUrl": { ".write": "auth != null && $studentId === auth.uid" },
         "portfolioUrl": { ".write": "auth != null && $studentId === auth.uid" },

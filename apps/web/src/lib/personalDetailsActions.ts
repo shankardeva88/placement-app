@@ -1,7 +1,7 @@
 import { ref, update, serverTimestamp } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { BloodGroup, Gender } from "@placement-app/types";
+import type { BloodGroup, EntranceExamType, Gender } from "@placement-app/types";
 
 export interface PersonalDetailsInput {
   studentPhone: string;
@@ -33,6 +33,9 @@ export interface PersonalDetailsInput {
   diplomaSchool: string;
   diplomaBoard: string;
   diplomaYearOfPassing: number | null;
+
+  entranceType: EntranceExamType | null;
+  entranceRank: number | null;
 
   linkedinUrl: string;
   githubUrl: string;

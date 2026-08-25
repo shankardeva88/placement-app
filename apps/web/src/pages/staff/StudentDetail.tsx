@@ -5,7 +5,7 @@ import { ArrowLeft, BadgeCheck, ExternalLink, Pencil, Power, Trash2, User } from
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { ApplicationStatus, Department, Drive, Gender, MockEvaluation, Student } from "@placement-app/types";
+import type { ApplicationStatus, Department, Drive, EntranceExamType, Gender, MockEvaluation, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { setStudentVerified, updateStudentProfile, setStudentActive, removeStudent } from "../../lib/studentsDirectoryLib";
 import type { StudentProfileUpdate } from "../../lib/studentsDirectoryLib";
@@ -27,6 +27,7 @@ import { Avatar } from "../../components/ui/Avatar";
 const CAN_MANAGE_ROLES = ["coordinator", "hod", "dean", "principal", "cpo", "admin"];
 const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
 const GENDERS: Gender[] = ["male", "female", "other", "prefer_not_to_say"];
+const ENTRANCE_TYPES: EntranceExamType[] = ["EAMCET", "ECET"];
 
 const APPLICATION_STATUS_BADGE: Record<ApplicationStatus, BadgeVariant> = {
   applied: "brand",
@@ -62,6 +63,8 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
     tenthYearOfPassing: student.tenthYearOfPassing ?? "",
     twelfthPercentage: student.twelfthPercentage ?? "",
     twelfthYearOfPassing: student.twelfthYearOfPassing ?? "",
+    entranceType: student.entranceType ?? "",
+    entranceRank: student.entranceRank ?? "",
     resumeUrl: student.resumeUrl ?? "",
   });
   const [submitting, setSubmitting] = useState(false);
@@ -96,6 +99,8 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
         tenthYearOfPassing: form.tenthYearOfPassing === "" ? null : Number(form.tenthYearOfPassing),
         twelfthPercentage: form.twelfthPercentage === "" ? null : Number(form.twelfthPercentage),
         twelfthYearOfPassing: form.twelfthYearOfPassing === "" ? null : Number(form.twelfthYearOfPassing),
+        entranceType: (form.entranceType || null) as EntranceExamType | null,
+        entranceRank: form.entranceRank === "" ? null : Number(form.entranceRank),
         resumeUrl: form.resumeUrl || null,
       };
       await updateStudentProfile(uid, updates);
@@ -181,6 +186,21 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
           <div>
             <label className={labelClass}>12th year</label>
             <input type="number" value={form.twelfthYearOfPassing} onChange={(e) => set("twelfthYearOfPassing", e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Entrance type</label>
+            <select value={form.entranceType} onChange={(e) => set("entranceType", e.target.value as EntranceExamType | "")} className={inputClass}>
+              <option value="">Select</option>
+              {ENTRANCE_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Entrance rank</label>
+            <input type="number" min={1} value={form.entranceRank} onChange={(e) => set("entranceRank", e.target.value)} className={inputClass} />
           </div>
           <div className="sm:col-span-2">
             <label className={labelClass}>Resume link</label>

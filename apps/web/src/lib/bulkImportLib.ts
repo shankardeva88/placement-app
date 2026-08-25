@@ -3,7 +3,7 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, si
 import { ref, update, get, serverTimestamp } from "firebase/database";
 import { db, firebaseConfig } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { Department, Gender } from "@placement-app/types";
+import type { Department, EntranceExamType, Gender } from "@placement-app/types";
 
 /** Column headers this expects, normalized (lowercased, punctuation/spaces
  * stripped) so minor formatting differences in a pasted sheet still match.
@@ -34,6 +34,10 @@ const HEADER_MAP: Record<string, string> = {
   [normalizeHeader("Email Address (College Domain Mail ID)")]: "email",
   [normalizeHeader("Email")]: "email",
   [normalizeHeader("Personal Email")]: "personalEmail",
+  [normalizeHeader("Entrance Type")]: "entranceType",
+  [normalizeHeader("EAMCET/ECET")]: "entranceType",
+  [normalizeHeader("Rank")]: "entranceRank",
+  [normalizeHeader("Entrance Rank")]: "entranceRank",
   [normalizeHeader("Resume Link (It should be accessible by everyone)")]: "resumeUrl",
   // Password is always the roll number (see createBulkStudent) — mapped here
   // only so a "Password" column in the sheet doesn't show up as unmapped;
@@ -82,6 +86,14 @@ export function parseGender(raw: string): { value: Gender; warning?: string } {
   return { value: "prefer_not_to_say", warning: `Gender "${raw}" not recognized` };
 }
 
+export function parseEntranceType(raw: string): { value: EntranceExamType | undefined; warning?: string } {
+  const key = normalizeHeader(raw);
+  if (!key) return { value: undefined };
+  if (key === "eamcet") return { value: "EAMCET" };
+  if (key === "ecet") return { value: "ECET" };
+  return { value: undefined, warning: `Entrance type "${raw}" not recognized — expected EAMCET or ECET, left blank` };
+}
+
 /** Indian sheets are almost always DD/MM/YYYY, not the US MM/DD/YYYY that
  * Date.parse assumes — parsing that ambiguity wrong silently swaps day and
  * month, so this parses DD/MM/YYYY explicitly first. */
@@ -123,6 +135,8 @@ export interface ParsedStudentRow {
   tenthYearOfPassing?: number;
   twelfthPercentage?: number;
   twelfthYearOfPassing?: number;
+  entranceType?: EntranceExamType;
+  entranceRank?: number;
   email: string; // college email — becomes the login
   personalEmail: string;
   resumeUrl: string;
@@ -194,6 +208,10 @@ export function parseStudentRows(headers: string[], rawRows: string[][]): ParseR
     const twelfthPercentage = parseNumber(get(row, "twelfthPercentage"));
     const twelfthYearOfPassing = parseNumber(get(row, "twelfthYearOfPassing"));
 
+    const { value: entranceType, warning: entranceTypeWarning } = parseEntranceType(get(row, "entranceType"));
+    if (entranceTypeWarning) warnings.push(entranceTypeWarning);
+    const entranceRank = parseNumber(get(row, "entranceRank"));
+
     const resumeUrl = get(row, "resumeUrl");
     if (!resumeUrl) warnings.push("No resume link");
 
@@ -212,6 +230,8 @@ export function parseStudentRows(headers: string[], rawRows: string[][]): ParseR
       tenthYearOfPassing,
       twelfthPercentage,
       twelfthYearOfPassing,
+      entranceType,
+      entranceRank,
       email,
       personalEmail: get(row, "personalEmail"),
       resumeUrl,
@@ -307,6 +327,8 @@ async function writeStudentRecords(uid: string, row: ParsedStudentRow) {
     if (row.tenthYearOfPassing != null) studentRecord.tenthYearOfPassing = row.tenthYearOfPassing;
     if (row.twelfthPercentage != null) studentRecord.twelfthPercentage = row.twelfthPercentage;
     if (row.twelfthYearOfPassing != null) studentRecord.twelfthYearOfPassing = row.twelfthYearOfPassing;
+    if (row.entranceType) studentRecord.entranceType = row.entranceType;
+    if (row.entranceRank != null) studentRecord.entranceRank = row.entranceRank;
     if (row.resumeUrl) studentRecord.resumeUrl = row.resumeUrl;
 
     await update(ref(db), {
