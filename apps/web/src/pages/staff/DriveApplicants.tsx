@@ -53,6 +53,11 @@ export default function DriveApplicants() {
   const [sortBy, setSortBy] = useState<"default" | "rollNo" | "cgpa">("default");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "">("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatusValue, setBulkStatusValue] = useState<ApplicationStatus>("shortlisted");
+  const [bulkRoundValue, setBulkRoundValue] = useState("");
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [bulkUpdateProgress, setBulkUpdateProgress] = useState(0);
 
   // A "details restricted" row (different department, see the empty-state
   // branch below) has no student record to search/filter on — search and
@@ -95,9 +100,68 @@ export default function DriveApplicants() {
     try {
       await updateApplicationStatus(applicationId, status, currentRoundId || undefined);
       showToast("Status updated");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not update status");
     } finally {
       setUpdatingId(null);
     }
+  }
+
+  function toggleSelect(applicationId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(applicationId)) next.delete(applicationId);
+      else next.add(applicationId);
+      return next;
+    });
+  }
+
+  const visibleIds = useMemo(() => new Set((sortedRows ?? []).map((r) => r.application.applicationId)), [sortedRows]);
+  const allVisibleSelected = visibleIds.size > 0 && [...visibleIds].every((id) => selectedIds.has(id));
+
+  function toggleSelectAllVisible() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        for (const id of visibleIds) next.delete(id);
+      } else {
+        for (const id of visibleIds) next.add(id);
+      }
+      return next;
+    });
+  }
+
+  // Same chunked-concurrency approach as handleBulkApply below — sequential
+  // one-at-a-time updates for 229 selected applicants would take minutes;
+  // chunking bounds it to roughly (selection size / CONCURRENCY) round trips.
+  async function handleBulkStatusUpdate() {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    setBulkUpdating(true);
+    setBulkUpdateProgress(0);
+    const CONCURRENCY = 20;
+    let failed = 0;
+    for (let i = 0; i < ids.length; i += CONCURRENCY) {
+      const chunk = ids.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(
+        chunk.map((id) =>
+          Promise.race([
+            updateApplicationStatus(id, bulkStatusValue, bulkRoundValue || undefined),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("timed out")), 10000)),
+          ])
+        )
+      );
+      failed += results.filter((r) => r.status === "rejected").length;
+      setBulkUpdateProgress((p) => p + chunk.length);
+    }
+    setBulkUpdating(false);
+    const updated = ids.length - failed;
+    showToast(
+      failed > 0
+        ? `${updated} updated, ${failed} didn't finish in time — click again to retry (still selected)`
+        : `${updated} applicant(s) updated to ${bulkStatusValue.replace("_", " ")}`
+    );
+    if (failed === 0) setSelectedIds(new Set());
   }
 
   // Eligible students the coordinator picked (hand-picked list, or criteria
@@ -252,10 +316,61 @@ export default function DriveApplicants() {
         <EmptyState icon={Search} title="No applicants match this search/filter" />
       )}
 
+      {sortedRows && sortedRows.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+            <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
+            {selectedIds.size > 0 ? `${selectedIds.size} selected` : `Select all ${sortedRows.length} shown`}
+          </label>
+          {selectedIds.size > 0 && (
+            <>
+              <span className="text-xs text-slate-400">Set status to</span>
+              <select
+                value={bulkStatusValue}
+                onChange={(e) => setBulkStatusValue(e.target.value as ApplicationStatus)}
+                className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              >
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s.replace("_", " ")}
+                  </option>
+                ))}
+              </select>
+              {drive && (drive.rounds ?? []).length > 0 && (
+                <select
+                  value={bulkRoundValue}
+                  onChange={(e) => setBulkRoundValue(e.target.value)}
+                  className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                >
+                  <option value="">No round</option>
+                  {drive.rounds.map((r) => (
+                    <option key={r.roundId} value={r.roundId}>
+                      At {r.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <Button onClick={handleBulkStatusUpdate} loading={bulkUpdating}>
+                {bulkUpdating ? `Updating ${bulkUpdateProgress}/${selectedIds.size}…` : `Apply to ${selectedIds.size}`}
+              </Button>
+              <Button variant="secondary" onClick={() => setSelectedIds(new Set())} disabled={bulkUpdating}>
+                Clear
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="space-y-3">
         {sortedRows?.map(({ application, student }) => (
           <Card key={application.applicationId} className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
+              <input
+                type="checkbox"
+                checked={selectedIds.has(application.applicationId)}
+                onChange={() => toggleSelect(application.applicationId)}
+                className="shrink-0"
+              />
               {student && <Avatar photoUrl={student.photoUrl} name={student.name} />}
               <div className="min-w-0">
                 {student ? (
