@@ -418,6 +418,8 @@ export default function StudentDetail() {
             </Field>
             <Field label="Verified">{student.verifiedByFaculty ? "Yes" : "No"}</Field>
             <Field label="Alumni">{student.isAlumni ? "Yes" : "No"}</Field>
+            <Field label="Entrance type">{student.entranceType}</Field>
+            <Field label="Entrance rank">{student.entranceRank}</Field>
           </SectionCard>
 
           {semesterEntries.length > 0 && (
