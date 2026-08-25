@@ -196,6 +196,7 @@ export default function StaffOffers() {
   const [search, setSearch] = useState("");
   const [driveFilter, setDriveFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<OfferStatus | "">("");
+  const [batchFilter, setBatchFilter] = useState<number | "">("");
 
   useEffect(() => {
     return onValue(ref(db, DB_NODES.drives), (snap) => {
@@ -224,19 +225,29 @@ export default function StaffOffers() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [offers, drives]);
 
+  // Batch years actually present among students an offer was recorded for
+  // — built from loaded data, same as driveOptions above, rather than a
+  // hardcoded year list.
+  const batchYearOptions = useMemo(() => {
+    const years = new Set<number>();
+    for (const s of Object.values(students)) if (s) years.add(s.batchYear);
+    return Array.from(years).sort((a, b) => a - b);
+  }, [students]);
+
   const filteredOffers = useMemo(() => {
     if (!offers) return null;
     const term = search.trim().toLowerCase();
     return offers
       .filter((o) => !driveFilter || o.driveId === driveFilter)
       .filter((o) => !statusFilter || o.status === statusFilter)
+      .filter((o) => !batchFilter || students[o.studentId]?.batchYear === batchFilter)
       .filter((o) => {
         if (!term) return true;
         const student = students[o.studentId];
         return !!student && (student.rollNo.toLowerCase().includes(term) || student.name.toLowerCase().includes(term));
       })
       .sort((a, b) => (students[a.studentId]?.rollNo ?? "").localeCompare(students[b.studentId]?.rollNo ?? ""));
-  }, [offers, driveFilter, statusFilter, search, students]);
+  }, [offers, driveFilter, statusFilter, batchFilter, search, students]);
 
   async function handleVerifyJoining(offerId: string) {
     await setJoiningReportStatus(offerId, "verified");
@@ -247,7 +258,15 @@ export default function StaffOffers() {
     <div>
       <PageHeader
         title="Offers"
-        subtitle={offers ? `${offers.length} offer(s) recorded — record offers and verify joining reports.` : "Record offers and verify joining reports."}
+        subtitle={
+          offers
+            ? `${
+                filteredOffers && filteredOffers.length !== offers.length
+                  ? `${filteredOffers.length} of ${offers.length} offer(s)`
+                  : `${offers.length} offer(s) recorded`
+              } — record offers and verify joining reports.`
+            : "Record offers and verify joining reports."
+        }
         icon={FileText}
         gradient="from-emerald-500 to-teal-600"
         action={
@@ -295,6 +314,20 @@ export default function StaffOffers() {
               </option>
             ))}
           </select>
+          {batchYearOptions.length > 0 && (
+            <select
+              value={batchFilter}
+              onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
+              className={`${inputClass} sm:w-40`}
+            >
+              <option value="">All batches</option>
+              {batchYearOptions.map((y) => (
+                <option key={y} value={y}>
+                  Batch {y}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
 
