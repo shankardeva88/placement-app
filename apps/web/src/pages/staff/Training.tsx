@@ -956,7 +956,7 @@ export default function StaffTraining() {
         </Card>
       )}
 
-      {batches !== null && batches.length > 0 && batchYearOptions.length > 1 && (
+      {batches !== null && batches.length > 0 && batchYearOptions.length > 0 && (
         <div className="mb-4">
           <select
             value={batchYearFilter}
