@@ -289,7 +289,6 @@ function CompanyOffersGroup({
   students,
   joiningReports,
   onVerifyJoining,
-  defaultExpanded,
 }: {
   companyName: string;
   roleSummary: string;
@@ -297,9 +296,8 @@ function CompanyOffersGroup({
   students: Record<string, Student | null>;
   joiningReports: Record<string, JoiningReport>;
   onVerifyJoining: (offerId: string) => void;
-  defaultExpanded: boolean;
 }) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
+  const [expanded, setExpanded] = useState(false);
   const acceptedCount = offers.filter((o) => o.status === "accepted").length;
 
   return (
@@ -544,7 +542,6 @@ export default function StaffOffers() {
             students={students}
             joiningReports={joiningReports}
             onVerifyJoining={handleVerifyJoining}
-            defaultExpanded={groupedByDrive.length === 1}
           />
         ))}
       </div>
