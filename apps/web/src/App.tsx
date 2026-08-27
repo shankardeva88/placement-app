@@ -31,6 +31,7 @@ import BulkUpdateStudents from "./pages/staff/BulkUpdateStudents";
 import ImportTrainings from "./pages/staff/ImportTrainings";
 import StudentDetail from "./pages/staff/StudentDetail";
 import StaffOffers from "./pages/staff/Offers";
+import StaffInternships from "./pages/staff/Internships";
 import StaffNotifications from "./pages/staff/Notifications";
 import StaffTraining from "./pages/staff/Training";
 import FacultyMentorTraining from "./pages/staff/FacultyMentorTraining";
@@ -249,6 +250,14 @@ export default function App() {
             element={
               <StaffLayoutRoute>
                 <StaffOffers />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/internships"
+            element={
+              <StaffLayoutRoute>
+                <StaffInternships />
               </StaffLayoutRoute>
             }
           />

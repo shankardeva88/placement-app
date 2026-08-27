@@ -15,6 +15,7 @@ import {
   CalendarClock,
   ClipboardCheck,
   Award,
+  Building2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ref, onValue } from "firebase/database";
@@ -60,6 +61,7 @@ const QUICK_LINKS: { to: string; label: string; icon: LucideIcon; description: s
   { to: "/staff/students", label: "Students", icon: Users, description: "Directory & verification", gradient: "from-emerald-500 to-teal-600" },
   { to: "/staff/alumni", label: "Alumni", icon: Users2, description: "Passed-out batches archive", gradient: "from-slate-500 to-slate-700" },
   { to: "/staff/offers", label: "Offers", icon: FileText, description: "Record & track offers", gradient: "from-emerald-500 to-teal-600" },
+  { to: "/staff/internships", label: "Internships", icon: Building2, description: "3/6/12-month internships", gradient: "from-cyan-500 to-blue-600" },
   { to: "/staff/training", label: "Training", icon: BookOpen, description: "Batches & attendance", gradient: "from-amber-500 to-orange-600" },
   { to: "/staff/mentor-tools", label: "Mentor Tools", icon: GraduationCap, description: "Mock interviews & reviews", gradient: "from-pink-500 to-rose-600" },
   { to: "/staff/reports", label: "Reports", icon: FileBarChart, description: "Master, placement & drive reports", gradient: "from-amber-500 to-orange-600" },

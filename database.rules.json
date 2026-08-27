@@ -479,6 +479,28 @@
       }
     },
 
+    // A standalone internship engagement, separate from offers/drives — see
+    // the Internship doc comment in packages/types for why. Coordinator/hod-
+    // tier write, same as offers (not faculty_mentor — this is drive-
+    // operations-adjacent, not mentor tooling), student self-read of their
+    // own record, same department-scoping pattern as the rest via
+    // internshipsDeptIndex.
+    "internships": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$internshipId": {
+        ".read": "auth != null && ( data.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || data.child('department').val() === root.child('users').child(auth.uid).child('department').val() )",
+        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && (data.exists() ? data.child('department') : newData.child('department')).val() === root.child('users').child(auth.uid).child('department').val() ) )"
+      }
+    },
+    "internshipsDeptIndex": {
+      "$department": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === $department )",
+        "$internshipId": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
+        }
+      }
+    },
+
     // Computed client-side for now (see comment in types file). Not wired up
     // anywhere in the app yet (no read or write site exists) — left staff-wide
     // and unscoped rather than building out department-scoping for a feature

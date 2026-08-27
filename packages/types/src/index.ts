@@ -335,6 +335,33 @@ export interface JoiningReport {
   submittedAt?: Timestamp;
 }
 
+// A standalone internship engagement (3/6/12 months, often student-sourced),
+// deliberately separate from Drive/Offer — a Drive is a recruitment funnel
+// (rounds, eligibility, a single CTC-as-LPA outcome); an internship has no
+// rounds and different fields entirely (duration, stipend, completion
+// certificate). Many-per-student with no natural composite key, so it
+// follows the mockInterviews/resumeReviews/skillAssessments pattern (push id
+// + studentIndex entry), not the offers/applications composite-id pattern.
+export type InternshipMode = "remote" | "in_office" | "hybrid";
+export type InternshipStatus = "ongoing" | "completed";
+
+export interface Internship {
+  internshipId: string;
+  studentId: string;
+  department: Department; // denormalized from the student, for department-scoped rules — see DB_NODES doc comment
+  companyName: string;
+  role: string;
+  durationMonths: number; // typically 3, 6, or 12 — free entry, not a fixed enum
+  startDate: Timestamp;
+  stipend?: number; // per month
+  mode?: InternshipMode;
+  status: InternshipStatus;
+  offerLetterUrl?: string;
+  completionCertificateUrl?: string;
+  createdBy: string; // coordinator uid
+  createdAt: Timestamp;
+}
+
 // ----------------------------------------------------------------------------
 // 6. Notifications
 // ----------------------------------------------------------------------------
@@ -702,6 +729,11 @@ export interface AlumniRecord {
  * resumeReviews/skillAssessments, which are written *for* the student) —
  * these are a mentor's own working notes, including parent-communication
  * summaries, not feedback meant to be shown back to the student.
+ *
+ * `internships` is many-per-student like mockInterviews/resumeReviews (push
+ * id + studentIndex entry), department-scoped the same way, and student-
+ * readable (it's their own placement record) — see the Internship doc
+ * comment above for why this is a separate collection from offers.
  */
 export const DB_NODES = {
   users: "users",
@@ -739,4 +771,6 @@ export const DB_NODES = {
   drivePrepAssignmentsDeptIndex: "drivePrepAssignmentsDeptIndex",
   menteeFollowUps: "menteeFollowUps",
   menteeFollowUpsDeptIndex: "menteeFollowUpsDeptIndex",
+  internships: "internships",
+  internshipsDeptIndex: "internshipsDeptIndex",
 } as const;
