@@ -8,7 +8,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { useMyMentees } from "../../lib/menteeFollowUpLib";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useAllApplications } from "../../lib/applicantsLib";
-import { driveCtcSummary, driveRoleSummary } from "../../lib/driveRolesLib";
+import { driveCtcSummary, driveRoleSummary, DRIVE_TYPE_LABEL } from "../../lib/driveRolesLib";
 import { RoundProgress } from "../../components/RoundProgress";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -31,12 +31,6 @@ const APPLICATION_BADGE: Record<ApplicationStatus, BadgeVariant> = {
   selected: "success",
   rejected: "danger",
   withdrawn: "neutral",
-};
-
-const DRIVE_TYPE_LABEL: Record<Drive["type"], string> = {
-  full_time: "Full-time",
-  internship: "Internship",
-  internship_plus_full_time: "Internship + Full-time",
 };
 
 const STATUS_FILTERS: { value: DriveStatus | ""; label: string }[] = [
@@ -75,9 +69,7 @@ function DriveDetailCard({
       <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-start justify-between gap-4 text-left">
         <div>
           <h3 className="text-base font-semibold text-slate-900">{drive.companyName}</h3>
-          <p className="text-sm text-slate-500">
-            {driveRoleSummary(drive)} · {DRIVE_TYPE_LABEL[drive.type]}
-          </p>
+          <p className="text-sm text-slate-500">{driveRoleSummary(drive)}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {menteeApplications.length > 0 && (
@@ -90,7 +82,11 @@ function DriveDetailCard({
         </div>
       </button>
 
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+        <div>
+          <dt className="text-slate-500">Type</dt>
+          <dd className="font-medium text-slate-900">{DRIVE_TYPE_LABEL[drive.type]}</dd>
+        </div>
         <div>
           <dt className="text-slate-500">CTC</dt>
           <dd className="font-medium text-slate-900">{driveCtcSummary(drive)}</dd>

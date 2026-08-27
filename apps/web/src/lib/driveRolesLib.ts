@@ -1,4 +1,10 @@
-import type { Application, Drive, DriveRole } from "@placement-app/types";
+import type { Application, Drive, DriveRole, DriveType } from "@placement-app/types";
+
+export const DRIVE_TYPE_LABEL: Record<DriveType, string> = {
+  full_time: "Full time",
+  internship: "Internship",
+  internship_plus_full_time: "Internship + Full time",
+};
 
 /** Every drive has a primary role (jobRole/ctc on the Drive itself);
  * Drive.roles holds any additional named roles beyond that one. This

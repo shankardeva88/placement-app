@@ -4,7 +4,7 @@ import { Briefcase, ExternalLink } from "lucide-react";
 import type { Application, Drive } from "@placement-app/types";
 import { useAuth } from "../auth/AuthContext";
 import { applyToDrive, checkEligibility, isDriveVisibleToStudent } from "../lib/driveActions";
-import { allDriveRoles, applicationRoleLabel, driveCtcSummary, driveRoleSummary, isMultiRole } from "../lib/driveRolesLib";
+import { allDriveRoles, applicationRoleLabel, driveCtcSummary, driveRoleSummary, isMultiRole, DRIVE_TYPE_LABEL } from "../lib/driveRolesLib";
 import { useMyApplications } from "../lib/useMyApplications";
 import { useToast } from "../components/ui/Toast";
 import { Card } from "../components/ui/Card";
@@ -81,12 +81,12 @@ function DriveCard({ drive, application }: { drive: Drive; application: Applicat
 
       <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
         <div>
-          <dt className="text-slate-500">CTC</dt>
-          <dd className="font-medium text-slate-900">{driveCtcSummary(drive)}</dd>
+          <dt className="text-slate-500">Type</dt>
+          <dd className="font-medium text-slate-900">{DRIVE_TYPE_LABEL[drive.type]}</dd>
         </div>
         <div>
-          <dt className="text-slate-500">Type</dt>
-          <dd className="font-medium capitalize text-slate-900">{drive.type.replace("_", " ")}</dd>
+          <dt className="text-slate-500">CTC</dt>
+          <dd className="font-medium text-slate-900">{driveCtcSummary(drive)}</dd>
         </div>
         <div>
           <dt className="text-slate-500">Drive date</dt>

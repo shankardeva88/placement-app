@@ -4,11 +4,11 @@ import { Briefcase, ListChecks, Plus, Search, Trash2, Users } from "lucide-react
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { Drive, DriveStatus } from "@placement-app/types";
+import type { Drive, DriveStatus, DriveType } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { createDrive, updateDrive, updateDriveStatus, deleteDrive } from "../../lib/staffDriveActions";
 import { useAllApplications } from "../../lib/applicantsLib";
-import { driveRoleSummary, driveCtcSummary } from "../../lib/driveRolesLib";
+import { driveRoleSummary, driveCtcSummary, DRIVE_TYPE_LABEL } from "../../lib/driveRolesLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -28,6 +28,7 @@ const DRIVE_BADGE: Record<DriveStatus, BadgeVariant> = {
 };
 
 const STATUS_OPTIONS: DriveStatus[] = ["upcoming", "ongoing", "completed", "cancelled"];
+const DRIVE_TYPE_OPTIONS: DriveType[] = ["full_time", "internship", "internship_plus_full_time"];
 
 // Round names are free text per drive (see the DriveRound.name doc comment
 // — "Aptitude", "GD", "Technical Interview", "HR", or whatever a coordinator
@@ -118,7 +119,11 @@ function DriveCard({ drive, applicantCount }: { drive: Drive; applicantCount: nu
         <Badge variant={DRIVE_BADGE[drive.status]}>{drive.status}</Badge>
       </div>
 
-      <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+        <div>
+          <dt className="text-slate-500">Type</dt>
+          <dd className="font-medium text-slate-900">{DRIVE_TYPE_LABEL[drive.type]}</dd>
+        </div>
         <div>
           <dt className="text-slate-500">CTC</dt>
           <dd className="font-medium text-slate-900">{driveCtcSummary(drive)}</dd>
@@ -188,6 +193,7 @@ export default function StaffDrives() {
   const [drives, setDrives] = useState<Drive[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<DriveType | "">("");
   const [statusFilter, setStatusFilter] = useState<DriveStatus | "">("");
   const [roundFilter, setRoundFilter] = useState("");
   const [batchFilter, setBatchFilter] = useState<number | "">("");
@@ -218,6 +224,7 @@ export default function StaffDrives() {
     if (!drives) return drives;
     const term = search.trim().toLowerCase();
     return drives.filter((d) => {
+      if (typeFilter && d.type !== typeFilter) return false;
       if (statusFilter && d.status !== statusFilter) return false;
       if (roundFilter && currentRoundName(d) !== roundFilter) return false;
       // Empty batchYears means "no batch restriction" everywhere else in the
@@ -231,7 +238,7 @@ export default function StaffDrives() {
       if (!term) return true;
       return d.companyName.toLowerCase().includes(term) || driveRoleSummary(d).toLowerCase().includes(term);
     });
-  }, [drives, search, statusFilter, roundFilter, batchFilter]);
+  }, [drives, search, typeFilter, statusFilter, roundFilter, batchFilter]);
 
   // Only counts applicants within the coordinator/hod's own department scope
   // (applicationsDeptIndex, see the doc comment on useDriveApplicants in
@@ -325,6 +332,18 @@ export default function StaffDrives() {
               className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
           </div>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as DriveType | "")}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 sm:w-48"
+          >
+            <option value="">All types</option>
+            {DRIVE_TYPE_OPTIONS.map((t) => (
+              <option key={t} value={t}>
+                {DRIVE_TYPE_LABEL[t]}
+              </option>
+            ))}
+          </select>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as DriveStatus | "")}
