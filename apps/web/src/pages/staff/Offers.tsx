@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { Check, FileText, Plus, Search } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, FileText, Plus, Search } from "lucide-react";
 import { ref, onValue, get } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { Drive, OfferStatus, Student } from "@placement-app/types";
+import type { Drive, JoiningReport, Offer, OfferStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useAllApplications } from "../../lib/applicantsLib";
@@ -278,6 +278,94 @@ function RecordOfferForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+// Company-first, click-to-expand — a flat list of every offer got unwieldy
+// once a company had 5+ students on it; this groups by drive so the default
+// view is "which companies", and the student-by-student detail (including
+// joining proof) only renders once a coordinator actually opens one.
+function CompanyOffersGroup({
+  companyName,
+  roleSummary,
+  offers,
+  students,
+  joiningReports,
+  onVerifyJoining,
+  defaultExpanded,
+}: {
+  companyName: string;
+  roleSummary: string;
+  offers: Offer[];
+  students: Record<string, Student | null>;
+  joiningReports: Record<string, JoiningReport>;
+  onVerifyJoining: (offerId: string) => void;
+  defaultExpanded: boolean;
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const acceptedCount = offers.filter((o) => o.status === "accepted").length;
+
+  return (
+    <Card>
+      <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-start justify-between gap-4 text-left">
+        <div>
+          <h3 className="text-base font-semibold text-slate-900">{companyName}</h3>
+          <p className="text-sm text-slate-500">{roleSummary}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge variant="brand">
+            {offers.length} student{offers.length === 1 ? "" : "s"}
+          </Badge>
+          {acceptedCount > 0 && <Badge variant="success">{acceptedCount} accepted</Badge>}
+          {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+          {offers.map((o) => {
+            const student = students[o.studentId];
+            const report = joiningReports[o.offerId];
+            return (
+              <div key={o.offerId} className="rounded-lg border border-slate-200 p-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-medium text-slate-900">
+                      {student ? `${student.rollNo} — ${student.name}` : o.studentId}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {o.designation} · {o.ctc} LPA
+                    </p>
+                  </div>
+                  <Badge variant={OFFER_STATUS_BADGE[o.status]}>{o.status}</Badge>
+                </div>
+                {report && (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
+                    <div className="flex flex-wrap items-center gap-2 text-slate-600">
+                      <span>Joining: {new Date(report.joiningDate).toLocaleDateString()}</span>
+                      <Badge variant={report.status === "verified" ? "success" : "warning"}>{report.status}</Badge>
+                      <a
+                        href={report.proofUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium text-brand-600 hover:underline"
+                      >
+                        View joining letter / ID card
+                      </a>
+                    </div>
+                    {report.status === "submitted" && (
+                      <Button variant="secondary" onClick={() => onVerifyJoining(o.offerId)}>
+                        Verify joining
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function StaffOffers() {
   const { appUser } = useAuth();
   const offers = useAllOffers(appUser);
@@ -342,6 +430,21 @@ export default function StaffOffers() {
       })
       .sort((a, b) => (students[a.studentId]?.rollNo ?? "").localeCompare(students[b.studentId]?.rollNo ?? ""));
   }, [offers, driveFilter, statusFilter, batchFilter, search, students]);
+
+  const groupedByDrive = useMemo(() => {
+    if (!filteredOffers) return null;
+    const map = new Map<string, Offer[]>();
+    for (const o of filteredOffers) {
+      if (!map.has(o.driveId)) map.set(o.driveId, []);
+      map.get(o.driveId)!.push(o);
+    }
+    return Array.from(map.entries())
+      .map(([driveId, offersForDrive]) => ({
+        driveId,
+        offers: offersForDrive.sort((a, b) => (students[a.studentId]?.rollNo ?? "").localeCompare(students[b.studentId]?.rollNo ?? "")),
+      }))
+      .sort((a, b) => (drives[a.driveId]?.companyName ?? a.driveId).localeCompare(drives[b.driveId]?.companyName ?? b.driveId));
+  }, [filteredOffers, drives, students]);
 
   async function handleVerifyJoining(offerId: string) {
     await setJoiningReportStatus(offerId, "verified");
@@ -431,49 +534,19 @@ export default function StaffOffers() {
         <EmptyState icon={Search} title="No offers match your filters" />
       )}
 
-      <div className="space-y-3">
-        {filteredOffers?.map((o) => {
-          const student = students[o.studentId];
-          const report = joiningReports[o.offerId];
-          return (
-            <Card key={o.offerId}>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-medium text-slate-900">
-                    {student ? `${student.rollNo} — ${student.name}` : o.studentId}
-                  </p>
-                  <p className="text-sm text-slate-500">
-                    {drives[o.driveId]?.companyName ?? o.driveId} — {o.designation} · {o.ctc} LPA
-                  </p>
-                </div>
-                <Badge variant={OFFER_STATUS_BADGE[o.status]}>{o.status}</Badge>
-              </div>
-              {report && (
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
-                  <div className="flex flex-wrap items-center gap-2 text-slate-600">
-                    <span>
-                      Joining: {new Date(report.joiningDate).toLocaleDateString()}
-                    </span>
-                    <Badge variant={report.status === "verified" ? "success" : "warning"}>{report.status}</Badge>
-                    <a
-                      href={report.proofUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-medium text-brand-600 hover:underline"
-                    >
-                      View joining letter / ID card
-                    </a>
-                  </div>
-                  {report.status === "submitted" && (
-                    <Button variant="secondary" onClick={() => handleVerifyJoining(o.offerId)}>
-                      Verify joining
-                    </Button>
-                  )}
-                </div>
-              )}
-            </Card>
-          );
-        })}
+      <div className="space-y-4">
+        {groupedByDrive?.map((g) => (
+          <CompanyOffersGroup
+            key={g.driveId}
+            companyName={drives[g.driveId]?.companyName ?? g.driveId}
+            roleSummary={drives[g.driveId] ? driveRoleSummary(drives[g.driveId]) : ""}
+            offers={g.offers}
+            students={students}
+            joiningReports={joiningReports}
+            onVerifyJoining={handleVerifyJoining}
+            defaultExpanded={groupedByDrive.length === 1}
+          />
+        ))}
       </div>
     </div>
   );
