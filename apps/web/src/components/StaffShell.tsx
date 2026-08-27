@@ -60,6 +60,9 @@ const ADMIN_NAV_ITEMS = [...STAFF_NAV_ITEMS, MANAGE_STAFF_ITEM];
 //     the full details a coordinator entered — FacultyMentorDrives.tsx, a
 //     separate page from /staff/drives (which has create/edit/status
 //     actions with no role gate — deliberately not linked here).
+//   - Internships: read-only, scoped to this mentor's own mentees —
+//     FacultyMentorInternships.tsx, same split as Drives above (create/
+//     edit/delete stays on /staff/internships, coordinator/hod-tier).
 //   - Training: read-only — FacultyMentorTraining.tsx, NOT the same page as
 //     coordinator/hod (/staff/training, which has batch/session creation and
 //     attendance-marking/QR-check-in actions). A mentor isn't the one
@@ -77,6 +80,7 @@ const FACULTY_MENTOR_NAV_ITEMS = [
   { to: "/staff/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/staff/mentee-info", label: "Mentee Info", icon: Users },
   { to: "/staff/mentor-drives", label: "Drives", icon: Briefcase },
+  { to: "/staff/mentor-internships", label: "Internships", icon: Building2 },
   { to: "/staff/mentor-training", label: "Training", icon: BookOpen },
   { to: "/staff/mentor-tools", label: "Mentor Tools", icon: GraduationCap },
   { to: "/staff/mock-evaluations", label: "Mock Interview Modules", icon: ClipboardCheck },

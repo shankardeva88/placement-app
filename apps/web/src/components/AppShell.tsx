@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   LogOut,
+  Building2,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { logout } from "../lib/authActions";
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { to: "/academic-record", label: "Academic Record", icon: GraduationCap },
   { to: "/drives", label: "Drives", icon: Briefcase },
   { to: "/offers", label: "Offers", icon: FileText },
+  { to: "/internships", label: "Internships", icon: Building2 },
   { to: "/training", label: "Training", icon: BookOpen },
   { to: "/mentor-progress", label: "Mentor Progress", icon: Users },
   { to: "/mock-performance", label: "Mock Performance", icon: ClipboardCheck },

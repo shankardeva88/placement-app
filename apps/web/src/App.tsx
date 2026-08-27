@@ -15,6 +15,7 @@ import Drives from "./pages/Drives";
 import AcademicRecord from "./pages/AcademicRecord";
 import PersonalDetails from "./pages/PersonalDetails";
 import Offers from "./pages/Offers";
+import Internships from "./pages/Internships";
 import Notifications from "./pages/Notifications";
 import Training from "./pages/Training";
 import MentorProgress from "./pages/MentorProgress";
@@ -23,6 +24,7 @@ import CheckIn from "./pages/CheckIn";
 import StaffDashboard from "./pages/staff/StaffDashboard";
 import StaffDrives from "./pages/staff/Drives";
 import FacultyMentorDrives from "./pages/staff/FacultyMentorDrives";
+import FacultyMentorInternships from "./pages/staff/FacultyMentorInternships";
 import DriveApplicants from "./pages/staff/DriveApplicants";
 import DriveEligibility from "./pages/staff/DriveEligibility";
 import Students from "./pages/staff/Students";
@@ -125,6 +127,14 @@ export default function App() {
             }
           />
           <Route
+            path="/internships"
+            element={
+              <AppLayoutRoute>
+                <Internships />
+              </AppLayoutRoute>
+            }
+          />
+          <Route
             path="/notifications"
             element={
               <AppLayoutRoute>
@@ -186,6 +196,14 @@ export default function App() {
             element={
               <StaffLayoutRoute>
                 <FacultyMentorDrives />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/mentor-internships"
+            element={
+              <StaffLayoutRoute>
+                <FacultyMentorInternships />
               </StaffLayoutRoute>
             }
           />
