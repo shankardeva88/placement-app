@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowUpRight, Building2, Download } from "lucide-react";
+import { ArrowLeft, Building2, Download } from "lucide-react";
 import { ref, onValue, get } from "firebase/database";
 import { db } from "../../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -51,7 +51,7 @@ interface CombinedRow {
   roleLabel: string;
   amountLabel: string;
   status: string;
-  driveId?: string;
+  linkUrl?: string;
   sortDate: number;
 }
 
@@ -101,7 +101,7 @@ export default function OffersInternshipsReport() {
       roleLabel: o.designation,
       amountLabel: `${o.ctc} LPA`,
       status: o.status,
-      driveId: o.driveId,
+      linkUrl: o.offerLetterUrl || undefined,
       sortDate: o.createdAt,
     }));
     const internshipRows: CombinedRow[] = internships.map((i: Internship) => ({
@@ -112,6 +112,7 @@ export default function OffersInternshipsReport() {
       roleLabel: i.role,
       amountLabel: i.stipend != null ? `₹${i.stipend}/mo · ${durationLabel(i.durationMonths)}` : durationLabel(i.durationMonths),
       status: i.status,
+      linkUrl: i.offerLetterUrl || i.completionCertificateUrl || undefined,
       sortDate: i.createdAt,
     }));
     return [...offerRows, ...internshipRows];
@@ -154,7 +155,7 @@ export default function OffersInternshipsReport() {
     if (!filteredRows) return;
     downloadCsv(
       "offers-internships-report.csv",
-      ["Roll No", "Name", "Department", "Batch", "Type", "Company", "Role", "Amount", "Status", "Drive Link"],
+      ["Roll No", "Name", "Department", "Batch", "Type", "Company", "Role", "Amount", "Status", "Offer Letter Link"],
       filteredRows.map((r) => {
         const student = students[r.studentId];
         return [
@@ -167,7 +168,7 @@ export default function OffersInternshipsReport() {
           r.roleLabel,
           r.amountLabel,
           r.status,
-          r.driveId ? `${window.location.origin}/staff/drives/${r.driveId}` : "",
+          r.linkUrl ?? "",
         ];
       })
     );
@@ -262,6 +263,7 @@ export default function OffersInternshipsReport() {
                   <th className="py-2 pr-4">Role</th>
                   <th className="py-2 pr-4">Amount</th>
                   <th className="py-2 pr-4">Status</th>
+                  <th className="py-2 pr-4">Offer Letter</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -275,23 +277,25 @@ export default function OffersInternshipsReport() {
                       <td className="py-2 pr-4">
                         <Badge variant={TYPE_BADGE[r.type]}>{r.type}</Badge>
                       </td>
-                      <td className="py-2 pr-4 text-slate-600">
-                        {r.driveId ? (
-                          <Link
-                            to={`/staff/drives/${r.driveId}`}
-                            className="inline-flex items-center gap-1 font-medium text-brand-600 hover:underline"
-                          >
-                            {r.companyName}
-                            <ArrowUpRight className="h-3 w-3" />
-                          </Link>
-                        ) : (
-                          r.companyName
-                        )}
-                      </td>
+                      <td className="py-2 pr-4 text-slate-600">{r.companyName}</td>
                       <td className="py-2 pr-4 text-slate-600">{r.roleLabel}</td>
                       <td className="py-2 pr-4 text-slate-600">{r.amountLabel}</td>
                       <td className="py-2 pr-4">
                         <Badge variant={STATUS_BADGE[r.status] ?? "neutral"}>{r.status}</Badge>
+                      </td>
+                      <td className="py-2 pr-4">
+                        {r.linkUrl ? (
+                          <a
+                            href={r.linkUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium text-brand-600 hover:underline"
+                          >
+                            View
+                          </a>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
                       </td>
                     </tr>
                   );
