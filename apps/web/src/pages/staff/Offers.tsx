@@ -334,6 +334,16 @@ function CompanyOffersGroup({
                   </div>
                   <Badge variant={OFFER_STATUS_BADGE[o.status]}>{o.status}</Badge>
                 </div>
+                {o.offerLetterUrl && (
+                  <a
+                    href={o.offerLetterUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-block text-sm font-medium text-brand-600 hover:underline"
+                  >
+                    View offer letter
+                  </a>
+                )}
                 {report && (
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
                     <div className="flex flex-wrap items-center gap-2 text-slate-600">
