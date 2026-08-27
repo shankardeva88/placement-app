@@ -70,7 +70,12 @@ export function toCsv(headers: string[], rows: (string | number)[][]): string {
 }
 
 export function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
-  const blob = new Blob([toCsv(headers, rows)], { type: "text/csv;charset=utf-8;" });
+  // Excel ignores the Blob's charset=utf-8 hint for local file downloads and
+  // falls back to the system codepage unless a UTF-8 byte-order-mark is
+  // present, which mangles any non-ASCII character (₹, ·, —, etc.) into
+  // mojibake (e.g. "â‚¹"). The BOM fixes that everywhere this is used.
+  const BOM = "﻿";
+  const blob = new Blob([BOM, toCsv(headers, rows)], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
