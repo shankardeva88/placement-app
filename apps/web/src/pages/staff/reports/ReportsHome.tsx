@@ -5,6 +5,7 @@ import {
   BadgeCheck,
   BarChart3,
   BookOpen,
+  Building2,
   ClipboardCheck,
   FileBarChart,
   FileCheck,
@@ -40,6 +41,13 @@ const REPORTS: { to: string; label: string; description: string; icon: LucideIco
     description: "Who's placed, where, CTC, offer and joining status.",
     icon: Briefcase,
     gradient: "from-blue-500 to-indigo-600",
+  },
+  {
+    to: "/staff/reports/offers-internships",
+    label: "Offers & Internships Report",
+    description: "Both placement tracks in one table — offers link straight through to their drive.",
+    icon: Building2,
+    gradient: "from-cyan-500 to-blue-600",
   },
   {
     to: "/staff/reports/drives",
