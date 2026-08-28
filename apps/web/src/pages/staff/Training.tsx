@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { BarChart3, BookOpen, CalendarPlus, ChevronDown, ChevronUp, Pencil, Plus, QrCode, Trash2 } from "lucide-react";
+import { BarChart3, BookOpen, CalendarPlus, ChevronDown, ChevronUp, ClipboardCopy, Pencil, Plus, QrCode, Trash2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import type { AttendanceStatus, Department, SkillTrack, TrainingBatch, TrainingSession } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
@@ -709,6 +709,7 @@ function CheckInPanel({ session }: { session: TrainingSession }) {
 
 function AttendanceRoster({ session, batch }: { session: TrainingSession; batch: TrainingBatch }) {
   const { firebaseUser, appUser } = useAuth();
+  const { showToast } = useToast();
   const attendance = useSessionAttendance(session.sessionId, batch.studentIds);
   const students = useStudentsDirectory(appUser);
   const nameFor = (uid: string) => {
@@ -718,6 +719,39 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
   const [bulkBusy, setBulkBusy] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<AttendanceStatus>("present");
+
+  // A coordinator's actual workflow after finishing attendance is "paste
+  // this into the faculty group" — a ready-to-share text summary right
+  // where they just finished marking, rather than making them go find this
+  // same session again on a separate report page.
+  async function handleCopySummary() {
+    const present = batch.studentIds.filter((uid) => attendance[uid] === "present");
+    const late = batch.studentIds.filter((uid) => attendance[uid] === "late");
+    const absent = batch.studentIds.filter((uid) => attendance[uid] === "absent");
+    const unmarked = batch.studentIds.filter((uid) => !attendance[uid]);
+    const total = batch.studentIds.length;
+    const pct = total > 0 ? Math.round(((present.length + late.length) / total) * 100) : 0;
+
+    const lines = [
+      `${batch.name} — ${session.topic}`,
+      `${new Date(session.date).toLocaleDateString()} · ${session.startTime}-${session.endTime}`,
+      "",
+      `Total: ${total} | Present: ${present.length} | Late: ${late.length} | Absent: ${absent.length}` +
+        (unmarked.length > 0 ? ` | Not marked: ${unmarked.length}` : "") +
+        ` (${pct}% attendance)`,
+    ];
+    if (absent.length > 0) {
+      lines.push("", "Absent:");
+      absent.forEach((uid, i) => lines.push(`${i + 1}. ${nameFor(uid)}`));
+    }
+    if (unmarked.length > 0) {
+      lines.push("", "Not marked:");
+      unmarked.forEach((uid, i) => lines.push(`${i + 1}. ${nameFor(uid)}`));
+    }
+
+    await navigator.clipboard.writeText(lines.join("\n"));
+    showToast("Summary copied to clipboard");
+  }
 
   async function setStatus(uid: string, status: AttendanceStatus) {
     if (!firebaseUser) return;
@@ -784,6 +818,10 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
         </Button>
         <Button variant="secondary" onClick={handleMarkRemainingAbsent} loading={bulkBusy} className="!px-2 !py-1 text-xs">
           Mark remaining absent
+        </Button>
+        <Button variant="secondary" onClick={handleCopySummary} className="!px-2 !py-1 text-xs">
+          <ClipboardCopy className="h-3.5 w-3.5" />
+          Copy summary
         </Button>
       </div>
 
