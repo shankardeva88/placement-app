@@ -69,6 +69,14 @@ function CreateBatchForm({ onDone }: { onDone: () => void }) {
     setSelectedIds((prev) => (prev.includes(uid) ? prev.filter((x) => x !== uid) : [...prev, uid]));
   }
 
+  function selectAllEligible() {
+    setSelectedIds(eligibleStudents.map((s) => s.uid));
+  }
+
+  function clearAllSelected() {
+    setSelectedIds([]);
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!firebaseUser) return;
@@ -130,7 +138,21 @@ function CreateBatchForm({ onDone }: { onDone: () => void }) {
       </div>
 
       <div>
-        <label className={labelClass}>Students ({selectedIds.length} selected)</label>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <label className={`${labelClass} mb-0`}>Students ({selectedIds.length} selected)</label>
+          {eligibleStudents.length > 0 && (
+            <div className="flex gap-3 text-xs">
+              <button type="button" onClick={selectAllEligible} className="font-medium text-brand-700 hover:underline">
+                Select all {eligibleStudents.length}
+              </button>
+              {selectedIds.length > 0 && (
+                <button type="button" onClick={clearAllSelected} className="font-medium text-slate-500 hover:underline">
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 p-2">
           {students === null && <p className="p-2 text-sm text-slate-400">Loading…</p>}
           {students !== null && eligibleStudents.length === 0 && (
@@ -181,6 +203,14 @@ function EditBatchForm({ batch, onDone }: { batch: TrainingBatch; onDone: () => 
 
   function toggleStudent(uid: string) {
     setSelectedIds((prev) => (prev.includes(uid) ? prev.filter((x) => x !== uid) : [...prev, uid]));
+  }
+
+  function selectAllEligible() {
+    setSelectedIds(eligibleStudents.map((s) => s.uid));
+  }
+
+  function clearAllSelected() {
+    setSelectedIds([]);
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -236,7 +266,21 @@ function EditBatchForm({ batch, onDone }: { batch: TrainingBatch; onDone: () => 
       </div>
 
       <div>
-        <label className={labelClass}>Students ({selectedIds.length} selected)</label>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <label className={`${labelClass} mb-0`}>Students ({selectedIds.length} selected)</label>
+          {eligibleStudents.length > 0 && (
+            <div className="flex gap-3 text-xs">
+              <button type="button" onClick={selectAllEligible} className="font-medium text-brand-700 hover:underline">
+                Select all {eligibleStudents.length}
+              </button>
+              {selectedIds.length > 0 && (
+                <button type="button" onClick={clearAllSelected} className="font-medium text-slate-500 hover:underline">
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
           {students === null && <p className="p-2 text-sm text-slate-400">Loading…</p>}
           {students !== null && eligibleStudents.length === 0 && (
