@@ -788,6 +788,7 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
     () => (allSessions ?? []).filter((s) => s.batchId === batch.batchId).sort((a, b) => a.date - b.date),
     [allSessions, batch.batchId]
   );
+  const status = useMemo(() => getBatchStatus(batch.batchId, allSessions ?? []), [batch.batchId, allSessions]);
   const [addingSession, setAddingSession] = useState(false);
   const [addingRecurring, setAddingRecurring] = useState(false);
   const [openSessionId, setOpenSessionId] = useState<string | null>(null);
@@ -827,7 +828,10 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
       <div className="flex flex-wrap items-start justify-between gap-3">
         <button type="button" onClick={() => setExpanded((v) => !v)} className="flex flex-1 items-start gap-2 text-left">
           <div>
-            <h3 className="text-base font-semibold text-slate-900">{batch.name}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-semibold text-slate-900">{batch.name}</h3>
+              <Badge variant={BATCH_STATUS_BADGE[status]}>{status}</Badge>
+            </div>
             <p className="text-sm capitalize text-slate-500">
               {batch.skillTrack.replace("_", " ")} · {batch.department} · {batch.batchYear} · {batch.studentIds.length} students
               {" · "}
@@ -986,21 +990,62 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
 
 const SCHEDULE_MANAGER_ROLES = ["coordinator", "hod", "dean", "principal", "cpo", "admin"];
 
+type BatchStatus = "ongoing" | "completed";
+
+const BATCH_STATUS_BADGE: Record<BatchStatus, BadgeVariant> = {
+  ongoing: "warning",
+  completed: "success",
+};
+
+/** Derived, not stored — a batch has no status field of its own. A batch
+ * with no sessions yet counts as "ongoing" (about to start, not finished);
+ * otherwise it's "completed" once every session's date has passed, judged
+ * against the start of today so a session scheduled for later today still
+ * counts as ongoing. */
+function getBatchStatus(batchId: string, sessions: TrainingSession[]): BatchStatus {
+  const batchSessions = sessions.filter((s) => s.batchId === batchId);
+  if (batchSessions.length === 0) return "ongoing";
+  const latest = Math.max(...batchSessions.map((s) => s.date));
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  return latest < todayStart.getTime() ? "completed" : "ongoing";
+}
+
 export default function StaffTraining() {
   const { appUser } = useAuth();
   const canManageSchedule = !!appUser && SCHEDULE_MANAGER_ROLES.includes(appUser.role);
   const batches = useAllTrainingBatches();
+  const sessions = useAllTrainingSessions();
   const [creating, setCreating] = useState(false);
   const [batchYearFilter, setBatchYearFilter] = useState<number | "">("");
+  const [skillTrackFilter, setSkillTrackFilter] = useState<SkillTrack | "">("");
+  const [statusFilter, setStatusFilter] = useState<BatchStatus | "">("");
 
   const batchYearOptions = useMemo(
     () => Array.from(new Set((batches ?? []).map((b) => b.batchYear))).sort((a, b) => a - b),
     [batches]
   );
+  const skillTrackOptions = useMemo(
+    () => Array.from(new Set((batches ?? []).map((b) => b.skillTrack))).sort((a, b) => a.localeCompare(b)),
+    [batches]
+  );
+  const statusByBatchId = useMemo(() => {
+    if (!batches || !sessions) return null;
+    return Object.fromEntries(batches.map((b) => [b.batchId, getBatchStatus(b.batchId, sessions)]));
+  }, [batches, sessions]);
   const filteredBatches = useMemo(() => {
-    if (!batches) return batches;
-    return batchYearFilter ? batches.filter((b) => b.batchYear === batchYearFilter) : batches;
-  }, [batches, batchYearFilter]);
+    if (!batches || !statusByBatchId) return null;
+    return batches
+      .filter((b) => !batchYearFilter || b.batchYear === batchYearFilter)
+      .filter((b) => !skillTrackFilter || b.skillTrack === skillTrackFilter)
+      .filter((b) => !statusFilter || statusByBatchId[b.batchId] === statusFilter)
+      // Ongoing first, then completed — a coordinator cares about what's
+      // currently running before what's already wrapped up.
+      .sort((a, b) => {
+        const rank = (id: string) => (statusByBatchId[id] === "ongoing" ? 0 : 1);
+        return rank(a.batchId) - rank(b.batchId);
+      });
+  }, [batches, statusByBatchId, batchYearFilter, skillTrackFilter, statusFilter]);
 
   return (
     <div>
@@ -1038,19 +1083,44 @@ export default function StaffTraining() {
         </Card>
       )}
 
-      {batches !== null && batches.length > 0 && batchYearOptions.length > 0 && (
-        <div className="mb-4">
+      {batches !== null && batches.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {batchYearOptions.length > 0 && (
+            <select
+              value={batchYearFilter}
+              onChange={(e) => setBatchYearFilter(e.target.value ? Number(e.target.value) : "")}
+              className={`${inputClass} sm:w-44`}
+            >
+              <option value="">All batches</option>
+              {batchYearOptions.map((y) => (
+                <option key={y} value={y}>
+                  Batch {y}
+                </option>
+              ))}
+            </select>
+          )}
+          {skillTrackOptions.length > 0 && (
+            <select
+              value={skillTrackFilter}
+              onChange={(e) => setSkillTrackFilter(e.target.value as SkillTrack | "")}
+              className={`${inputClass} sm:w-44`}
+            >
+              <option value="">All trainings</option>
+              {skillTrackOptions.map((t) => (
+                <option key={t} value={t} className="capitalize">
+                  {t.replace("_", " ")}
+                </option>
+              ))}
+            </select>
+          )}
           <select
-            value={batchYearFilter}
-            onChange={(e) => setBatchYearFilter(e.target.value ? Number(e.target.value) : "")}
-            className={`${inputClass} sm:w-48`}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as BatchStatus | "")}
+            className={`${inputClass} sm:w-44`}
           >
-            <option value="">All batches</option>
-            {batchYearOptions.map((y) => (
-              <option key={y} value={y}>
-                Batch {y}
-              </option>
-            ))}
+            <option value="">All statuses</option>
+            <option value="ongoing">Ongoing</option>
+            <option value="completed">Completed</option>
           </select>
         </div>
       )}
@@ -1059,8 +1129,8 @@ export default function StaffTraining() {
       {batches !== null && batches.length === 0 && !creating && (
         <EmptyState icon={BookOpen} title="No training batches yet" />
       )}
-      {batches !== null && batches.length > 0 && filteredBatches?.length === 0 && (
-        <EmptyState icon={BookOpen} title="No training batches in this batch year" />
+      {batches !== null && batches.length > 0 && filteredBatches !== null && filteredBatches.length === 0 && (
+        <EmptyState icon={BookOpen} title="No training batches match your filters" />
       )}
 
       <div className="space-y-4">
