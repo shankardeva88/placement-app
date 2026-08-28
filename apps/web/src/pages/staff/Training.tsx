@@ -503,13 +503,15 @@ function RecurringSessionForm({ batchId, onDone }: { batchId: string; onDone: ()
   const [endDate, setEndDate] = useState("");
   const [skipSundays, setSkipSundays] = useState(true);
   const [morningEnabled, setMorningEnabled] = useState(true);
-  const [morningTopic, setMorningTopic] = useState("Morning session");
+  const [morningTopic, setMorningTopic] = useState("");
   const [morningStart, setMorningStart] = useState("08:00");
   const [morningEnd, setMorningEnd] = useState("09:30");
+  const [morningMode, setMorningMode] = useState<"offline" | "online">("offline");
   const [eveningEnabled, setEveningEnabled] = useState(true);
-  const [eveningTopic, setEveningTopic] = useState("Evening session");
+  const [eveningTopic, setEveningTopic] = useState("");
   const [eveningStart, setEveningStart] = useState("17:00");
   const [eveningEnd, setEveningEnd] = useState("18:30");
+  const [eveningMode, setEveningMode] = useState<"offline" | "online">("offline");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -523,6 +525,10 @@ function RecurringSessionForm({ batchId, onDone }: { batchId: string; onDone: ()
       setError("Enable at least one slot.");
       return;
     }
+    if ((morningEnabled && !morningTopic.trim()) || (eveningEnabled && !eveningTopic.trim())) {
+      setError("Enter a topic for each enabled slot.");
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
@@ -531,8 +537,8 @@ function RecurringSessionForm({ batchId, onDone }: { batchId: string; onDone: ()
         startDate: new Date(startDate).getTime(),
         endDate: new Date(endDate).getTime(),
         skipSundays,
-        morning: { enabled: morningEnabled, topic: morningTopic, startTime: morningStart, endTime: morningEnd, mode: "offline" },
-        evening: { enabled: eveningEnabled, topic: eveningTopic, startTime: eveningStart, endTime: eveningEnd, mode: "offline" },
+        morning: { enabled: morningEnabled, topic: morningTopic, startTime: morningStart, endTime: morningEnd, mode: morningMode },
+        evening: { enabled: eveningEnabled, topic: eveningTopic, startTime: eveningStart, endTime: eveningEnd, mode: eveningMode },
       });
       showToast(`${count} session(s) created`);
       onDone();
@@ -564,10 +570,26 @@ function RecurringSessionForm({ batchId, onDone }: { batchId: string; onDone: ()
           Morning slot
         </label>
         {morningEnabled && (
-          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <input type="text" placeholder="Topic" value={morningTopic} onChange={(e) => setMorningTopic(e.target.value)} className={inputClass} />
-            <input type="time" value={morningStart} onChange={(e) => setMorningStart(e.target.value)} className={inputClass} />
-            <input type="time" value={morningEnd} onChange={(e) => setMorningEnd(e.target.value)} className={inputClass} />
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="col-span-2 sm:col-span-1">
+              <label className="mb-1 block text-xs text-slate-500">Topic</label>
+              <input type="text" required placeholder="e.g. Aptitude" value={morningTopic} onChange={(e) => setMorningTopic(e.target.value)} className={inputClass} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500">Mode</label>
+              <select value={morningMode} onChange={(e) => setMorningMode(e.target.value as "offline" | "online")} className={inputClass}>
+                <option value="offline">Offline</option>
+                <option value="online">Online</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500">Start</label>
+              <input type="time" value={morningStart} onChange={(e) => setMorningStart(e.target.value)} className={inputClass} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500">End</label>
+              <input type="time" value={morningEnd} onChange={(e) => setMorningEnd(e.target.value)} className={inputClass} />
+            </div>
           </div>
         )}
       </div>
@@ -578,10 +600,26 @@ function RecurringSessionForm({ batchId, onDone }: { batchId: string; onDone: ()
           Evening slot
         </label>
         {eveningEnabled && (
-          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <input type="text" placeholder="Topic" value={eveningTopic} onChange={(e) => setEveningTopic(e.target.value)} className={inputClass} />
-            <input type="time" value={eveningStart} onChange={(e) => setEveningStart(e.target.value)} className={inputClass} />
-            <input type="time" value={eveningEnd} onChange={(e) => setEveningEnd(e.target.value)} className={inputClass} />
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="col-span-2 sm:col-span-1">
+              <label className="mb-1 block text-xs text-slate-500">Topic</label>
+              <input type="text" required placeholder="e.g. Group Discussion" value={eveningTopic} onChange={(e) => setEveningTopic(e.target.value)} className={inputClass} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500">Mode</label>
+              <select value={eveningMode} onChange={(e) => setEveningMode(e.target.value as "offline" | "online")} className={inputClass}>
+                <option value="offline">Offline</option>
+                <option value="online">Online</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500">Start</label>
+              <input type="time" value={eveningStart} onChange={(e) => setEveningStart(e.target.value)} className={inputClass} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500">End</label>
+              <input type="time" value={eveningEnd} onChange={(e) => setEveningEnd(e.target.value)} className={inputClass} />
+            </div>
           </div>
         )}
       </div>
