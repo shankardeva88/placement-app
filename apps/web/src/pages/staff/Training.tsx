@@ -716,10 +716,25 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
     return s ? `${s.rollNo} — ${s.name}` : uid;
   };
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState<AttendanceStatus>("present");
 
   async function setStatus(uid: string, status: AttendanceStatus) {
     if (!firebaseUser) return;
     await markAttendance(session.sessionId, uid, batch.department, status, firebaseUser.uid);
+  }
+
+  function toggleSelected(uid: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => (prev.size === batch.studentIds.length ? new Set() : new Set(batch.studentIds)));
   }
 
   async function handleMarkAllPresent() {
@@ -743,11 +758,27 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
     }
   }
 
+  // Marks only the checked-off students — the two buttons above cover "all"
+  // and "whoever's left", but picking out a specific handful (e.g. a few
+  // latecomers) still meant clicking each one's dropdown individually.
+  async function handleApplyToSelected() {
+    if (!firebaseUser || selectedIds.size === 0) return;
+    setBulkBusy(true);
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map((uid) => markAttendance(session.sessionId, uid, batch.department, bulkStatus, firebaseUser.uid))
+      );
+      setSelectedIds(new Set());
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   return (
     <div className="mt-2 space-y-3 rounded-lg bg-slate-50 p-3">
       <CheckInPanel session={session} />
 
-      <div className="flex gap-2 border-t border-slate-200 pt-3">
+      <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
         <Button variant="secondary" onClick={handleMarkAllPresent} loading={bulkBusy} className="!px-2 !py-1 text-xs">
           Mark all present
         </Button>
@@ -756,10 +787,43 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
         </Button>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3">
+        <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+          <input
+            type="checkbox"
+            checked={selectedIds.size > 0 && selectedIds.size === batch.studentIds.length}
+            ref={(el) => {
+              if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < batch.studentIds.length;
+            }}
+            onChange={toggleSelectAll}
+          />
+          Select all ({selectedIds.size} selected)
+        </label>
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2">
+            <select
+              value={bulkStatus}
+              onChange={(e) => setBulkStatus(e.target.value as AttendanceStatus)}
+              className="rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none"
+            >
+              <option value="present">Present</option>
+              <option value="absent">Absent</option>
+              <option value="late">Late</option>
+            </select>
+            <Button variant="secondary" onClick={handleApplyToSelected} loading={bulkBusy} className="!px-2 !py-1 text-xs">
+              Apply to selected
+            </Button>
+          </div>
+        )}
+      </div>
+
       <div className="space-y-1">
         {batch.studentIds.map((uid) => (
           <div key={uid} className="flex items-center justify-between gap-3 py-1 text-sm">
-            <span className="text-slate-700">{nameFor(uid)}</span>
+            <label className="flex items-center gap-2 text-slate-700">
+              <input type="checkbox" checked={selectedIds.has(uid)} onChange={() => toggleSelected(uid)} />
+              {nameFor(uid)}
+            </label>
             <div className="flex items-center gap-2">
               {attendance[uid] && <Badge variant={ATTENDANCE_BADGE[attendance[uid] as AttendanceStatus]}>{attendance[uid]}</Badge>}
               <select
