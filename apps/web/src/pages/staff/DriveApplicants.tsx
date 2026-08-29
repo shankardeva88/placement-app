@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Search, UserPlus, Users } from "lucide-react";
+import { ArrowLeft, Download, Search, UserPlus, Users } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { ApplicationStatus, Drive } from "@placement-app/types";
+import type { Application, ApplicationStatus, Drive, Gender, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useDriveApplicants, updateApplicationStatus } from "../../lib/applicantsLib";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { applyToDrive, checkEligibility } from "../../lib/driveActions";
 import { applicationRoleLabel, driveRoleSummary, isMultiRole } from "../../lib/driveRolesLib";
+import { downloadCsv } from "../../lib/csv";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -39,6 +40,62 @@ const STATUS_BADGE: Record<ApplicationStatus, BadgeVariant> = {
   withdrawn: "neutral",
 };
 
+// Every column a company placement team's spreadsheet format asks for is
+// already on the Student/Application record — this just lays it out in
+// their exact order instead of retyping it by hand for every drive.
+const COLLEGE_NAME = "Vishnu Institute of Technology";
+const GENDER_LABEL: Record<Gender, string> = {
+  male: "Male",
+  female: "Female",
+  other: "Other",
+  prefer_not_to_say: "Prefer not to say",
+};
+const COMPANY_FORMAT_HEADERS = [
+  "S.No",
+  "Roll Number",
+  "Full Name",
+  "Gender",
+  "Branch",
+  "B.Tech CGPA",
+  "Backlogs",
+  "Year of Passedout",
+  "Phone Number",
+  "Date of Birth",
+  "X Class Percentage %",
+  "X Class Year of Passing",
+  "XII Percentage %",
+  "XII/Diploma Year of Passing",
+  "Email Address (College Domain Mail ID)",
+  "Personal Email",
+  "Applied Role",
+  "Resume Link",
+  "College Name",
+];
+
+function companyFormatRow(index: number, student: Student, roleLabel: string): (string | number)[] {
+  return [
+    index + 1,
+    student.rollNo,
+    student.name,
+    student.gender ? (GENDER_LABEL[student.gender] ?? student.gender) : "",
+    student.department,
+    student.cgpa,
+    student.activeBacklogs,
+    student.batchYear,
+    student.studentPhone ?? "",
+    student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString() : "",
+    student.tenthPercentage ?? "",
+    student.tenthYearOfPassing ?? "",
+    student.twelfthPercentage ?? "",
+    student.twelfthYearOfPassing ?? "",
+    student.email ?? "",
+    student.personalEmail ?? "",
+    roleLabel,
+    student.resumeUrl ?? "",
+    COLLEGE_NAME,
+  ];
+}
+
 export default function DriveApplicants() {
   const { driveId } = useParams<{ driveId: string }>();
   const { appUser } = useAuth();
@@ -59,6 +116,7 @@ export default function DriveApplicants() {
   const [bulkRoundValue, setBulkRoundValue] = useState("");
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const [bulkUpdateProgress, setBulkUpdateProgress] = useState(0);
+  const [extraColumns, setExtraColumns] = useState("");
 
   // A "details restricted" row (different department, see the empty-state
   // branch below) has no student record to search/filter on — search and
@@ -164,6 +222,32 @@ export default function DriveApplicants() {
         : `${updated} applicant(s) updated to ${bulkStatusValue.replace("_", " ")}`
     );
     if (failed === 0) setSelectedIds(new Set());
+  }
+
+  // Exports whatever's selected, or every currently-shown row if nothing is
+  // checked — same selection Set the bulk status update above already uses.
+  // Rows with no student record ("details restricted", a different
+  // department) are skipped since there's nothing to export for them.
+  function handleExportCompanyFormat() {
+    if (!sortedRows) return;
+    const targetRows = selectedIds.size > 0 ? sortedRows.filter((r) => selectedIds.has(r.application.applicationId)) : sortedRows;
+    const withStudent = targetRows.filter(
+      (r): r is { application: Application; student: Student } => r.student !== null
+    );
+    if (withStudent.length === 0) {
+      showToast("No exportable students in this selection");
+      return;
+    }
+    const extraCols = extraColumns
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
+    const headers = [...COMPANY_FORMAT_HEADERS, ...extraCols];
+    const rows = withStudent.map((r, i) => [
+      ...companyFormatRow(i, r.student, drive ? applicationRoleLabel(drive, r.application) : ""),
+      ...extraCols.map(() => ""),
+    ]);
+    downloadCsv(`${drive?.companyName ?? "drive"}-applicants.csv`.replace(/\s+/g, "-"), headers, rows);
   }
 
   // Eligible students the coordinator picked (hand-picked list, or criteria
@@ -380,6 +464,22 @@ export default function DriveApplicants() {
               </Button>
             </>
           )}
+        </div>
+      )}
+
+      {sortedRows && sortedRows.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <input
+            type="text"
+            placeholder="Extra columns this company wants (comma-separated, optional)"
+            value={extraColumns}
+            onChange={(e) => setExtraColumns(e.target.value)}
+            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          />
+          <Button variant="secondary" onClick={handleExportCompanyFormat} className="shrink-0">
+            <Download className="h-4 w-4" />
+            Export {selectedIds.size > 0 ? `${selectedIds.size} selected` : `all ${sortedRows.length} shown`} — Company Format
+          </Button>
         </div>
       )}
 
