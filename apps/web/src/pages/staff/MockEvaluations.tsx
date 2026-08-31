@@ -1,10 +1,10 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { ClipboardCheck, Download, ChevronDown, ChevronRight } from "lucide-react";
+import { ClipboardCheck, Download, ChevronDown, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { ApplicationStatus, Department, Drive, MockEvalRating, Student } from "@placement-app/types";
+import type { ApplicationStatus, Department, Drive, MockEvalRating, MockInterviewModule, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useMyMentees } from "../../lib/menteeFollowUpLib";
@@ -14,6 +14,8 @@ import {
   useMockModules,
   useMockEvaluations,
   createMockModule,
+  updateMockModule,
+  deleteMockModule,
   recordMockEvaluation,
   startOfDay,
   RATING_OPTIONS,
@@ -333,6 +335,146 @@ function MenteeEvalRow({
         </div>
       )}
     </li>
+  );
+}
+
+function EditModuleForm({
+  module,
+  onDone,
+  onCancel,
+}: {
+  module: MockInterviewModule;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const { showToast } = useToast();
+  const [name, setName] = useState(module.name);
+  const [startDate, setStartDate] = useState(toDateInputValue(module.startDate));
+  const [endDate, setEndDate] = useState(toDateInputValue(module.endDate));
+  const [driveId, setDriveId] = useState(module.driveId ?? "");
+  const [drives, setDrives] = useState<Drive[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    return onValue(ref(db, DB_NODES.drives), (snap) => {
+      const val = snap.val() as Record<string, Drive> | null;
+      setDrives(val ? Object.values(val) : []);
+    });
+  }, []);
+
+  const sortedDrives = useMemo(() => drives.slice().sort((a, b) => b.driveDate - a.driveDate), [drives]);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) {
+      setError("Give the module a name.");
+      return;
+    }
+    if (new Date(startDate).getTime() > new Date(endDate).getTime()) {
+      setError("Start date must be on or before the end date.");
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    try {
+      await updateMockModule(module.moduleId, {
+        name: name.trim(),
+        startDate: new Date(startDate).getTime(),
+        endDate: new Date(endDate).getTime(),
+        driveId: driveId || undefined,
+      });
+      showToast("Module updated");
+      onDone();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Card className="mb-4">
+      <h3 className="mb-4 text-base font-semibold text-slate-900">Edit module</h3>
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Module name</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>Start date</label>
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>End date</label>
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputClass} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Link to drive (optional)</label>
+          <select value={driveId} onChange={(e) => setDriveId(e.target.value)} className={inputClass}>
+            <option value="">Not linked — show every mentee</option>
+            {sortedDrives.map((d) => (
+              <option key={d.driveId} value={d.driveId}>
+                {d.companyName} — {new Date(d.driveDate).toLocaleDateString()}
+              </option>
+            ))}
+          </select>
+        </div>
+        {error && <p className="text-sm text-red-600 sm:col-span-4">{error}</p>}
+        <div className="flex gap-2 sm:col-span-4">
+          <Button type="submit" loading={submitting}>
+            Save changes
+          </Button>
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+function DeleteModuleConfirm({
+  module,
+  onDone,
+  onCancel,
+}: {
+  module: MockInterviewModule;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const { appUser } = useAuth();
+  const { showToast } = useToast();
+  const evaluations = useMockEvaluations(appUser);
+  const [deleting, setDeleting] = useState(false);
+
+  const moduleEvals = useMemo(() => (evaluations ?? []).filter((e) => e.moduleId === module.moduleId), [evaluations, module.moduleId]);
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await deleteMockModule(module.moduleId, module.department, moduleEvals);
+      showToast("Module deleted");
+      onDone();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not delete module");
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <Card className="mb-4 border border-red-200 bg-red-50">
+      <p className="text-sm text-red-800">
+        Delete "{module.name}"? This also removes all {moduleEvals.length} evaluation{moduleEvals.length === 1 ? "" : "s"} logged
+        against it — this can't be undone.
+      </p>
+      <div className="mt-3 flex gap-2">
+        <Button variant="danger" onClick={handleDelete} loading={deleting}>
+          Delete module
+        </Button>
+        <Button variant="secondary" onClick={onCancel} disabled={deleting}>
+          Cancel
+        </Button>
+      </div>
+    </Card>
   );
 }
 
@@ -746,6 +888,8 @@ export default function MockEvaluations() {
   const modules = useMockModules(appUser);
   const [selectedModuleId, setSelectedModuleId] = useState<string>("");
   const [drives, setDrives] = useState<Record<string, Drive>>({});
+  const [editingModule, setEditingModule] = useState(false);
+  const [deletingModule, setDeletingModule] = useState(false);
 
   useEffect(() => {
     return onValue(ref(db, DB_NODES.drives), (snap) => {
@@ -778,21 +922,53 @@ export default function MockEvaluations() {
         <>
           <Card className="mb-4">
             <label className={labelClass}>Module</label>
-            <select
-              value={selectedModule?.moduleId ?? ""}
-              onChange={(e) => setSelectedModuleId(e.target.value)}
-              className={`${inputClass} sm:w-96`}
-            >
-              {sortedModules.map((m) => (
-                <option key={m.moduleId} value={m.moduleId}>
-                  {m.name} ({formatDay(m.startDate)} – {formatDay(m.endDate)})
-                  {m.driveId && drives[m.driveId] ? ` — linked to ${drives[m.driveId].companyName}` : ""}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={selectedModule?.moduleId ?? ""}
+                onChange={(e) => {
+                  setSelectedModuleId(e.target.value);
+                  setEditingModule(false);
+                  setDeletingModule(false);
+                }}
+                className={`${inputClass} sm:w-96`}
+              >
+                {sortedModules.map((m) => (
+                  <option key={m.moduleId} value={m.moduleId}>
+                    {m.name} ({formatDay(m.startDate)} – {formatDay(m.endDate)})
+                    {m.driveId && drives[m.driveId] ? ` — linked to ${drives[m.driveId].companyName}` : ""}
+                  </option>
+                ))}
+              </select>
+              {canCreateModule && selectedModule && !editingModule && !deletingModule && (
+                <>
+                  <Button variant="secondary" onClick={() => setEditingModule(true)} className="shrink-0">
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </Button>
+                  <Button variant="danger" onClick={() => setDeletingModule(true)} className="shrink-0">
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
+                </>
+              )}
+            </div>
           </Card>
 
-          {selectedModule && (
+          {selectedModule && editingModule && (
+            <EditModuleForm module={selectedModule} onDone={() => setEditingModule(false)} onCancel={() => setEditingModule(false)} />
+          )}
+          {selectedModule && deletingModule && (
+            <DeleteModuleConfirm
+              module={selectedModule}
+              onDone={() => {
+                setDeletingModule(false);
+                setSelectedModuleId("");
+              }}
+              onCancel={() => setDeletingModule(false)}
+            />
+          )}
+
+          {selectedModule && !editingModule && !deletingModule && (
             <>
               {canLogEval && (
                 <LogEvaluationsSection

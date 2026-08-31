@@ -145,6 +145,46 @@ export async function createMockModule(input: CreateMockModuleInput) {
   return moduleId;
 }
 
+export interface UpdateMockModuleInput {
+  name: string;
+  startDate: number;
+  endDate: number;
+  driveId?: string;
+}
+
+// Department isn't editable here — it's the deptIndex key, so changing it
+// would mean moving the index entry rather than a plain field update; not
+// worth the complexity for something that's set once at creation and rarely
+// wrong afterward.
+export async function updateMockModule(moduleId: string, input: UpdateMockModuleInput) {
+  await update(ref(db, `${DB_NODES.mockInterviewModules}/${moduleId}`), {
+    name: input.name,
+    startDate: startOfDay(input.startDate),
+    endDate: startOfDay(input.endDate),
+    driveId: input.driveId ?? null,
+  });
+}
+
+/** Cascades to every evaluation logged under the module (and each of those
+ * evaluations' deptIndex/studentIndex entries) — same reasoning as
+ * deleteTrainingBatch in trainingManagementLib.ts: leaving them behind would
+ * orphan records pointing at a moduleId that no longer exists. `evaluations`
+ * comes from the caller, which already has them loaded (useMockEvaluations
+ * filtered by moduleId), so this doesn't re-fetch and filter the whole
+ * collection itself. */
+export async function deleteMockModule(moduleId: string, department: Department, evaluations: MockEvaluation[]) {
+  const updates: Record<string, unknown> = {
+    [`${DB_NODES.mockInterviewModules}/${moduleId}`]: null,
+    [`${DB_NODES.mockInterviewModulesDeptIndex}/${department}/${moduleId}`]: null,
+  };
+  for (const e of evaluations) {
+    updates[`${DB_NODES.mockEvaluations}/${e.evaluationId}`] = null;
+    updates[`${DB_NODES.mockEvaluationsDeptIndex}/${e.department}/${e.evaluationId}`] = null;
+    updates[`${DB_NODES.studentIndex}/${e.studentId}/${DB_NODES.mockEvaluations}/${e.evaluationId}`] = null;
+  }
+  await update(ref(db), updates);
+}
+
 export interface RecordMockEvaluationInput extends EvalRatingFields {
   moduleId: string;
   studentId: string;
