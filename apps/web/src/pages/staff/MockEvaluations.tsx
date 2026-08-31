@@ -496,6 +496,7 @@ function LogEvaluationsSection({
   const students = useStudentsDirectory(appUser);
   const evaluations = useMockEvaluations(appUser);
   const applications = useAllApplications(appUser);
+  const [batchFilter, setBatchFilter] = useState<number | "">("");
 
   const studentsByUid = useMemo(() => Object.fromEntries((students ?? []).map((s) => [s.uid, s])), [students]);
 
@@ -528,14 +529,25 @@ function LogEvaluationsSection({
       .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
   }, [mentees, studentsByUid]);
 
+  // A mentor can carry mentees from more than one batch year (e.g. a
+  // lateral-entry mentee alongside a regular one) — every mentee showed up
+  // together with no way to narrow to just one batch.
+  const batchYearOptions = useMemo(
+    () => Array.from(new Set(menteeStudents.map((s) => s.batchYear))).sort((a, b) => a - b),
+    [menteeStudents]
+  );
+
   // Narrowed to mentees who cleared at least the first round of the linked
-  // drive, when one's linked — see advancedIds above. Kept separate from
-  // menteeStudents so the "you have no mentees at all" case (below) stays
-  // distinct from "you have mentees, none have advanced in this drive yet".
+  // drive, when one's linked — see advancedIds above — and to the selected
+  // batch, when one's picked. Kept separate from menteeStudents so the "you
+  // have no mentees at all" case (below) stays distinct from "you have
+  // mentees, none match the current filters".
   const filteredMenteeStudents = useMemo(() => {
-    if (!driveId || !advancedIds) return menteeStudents;
-    return menteeStudents.filter((s) => advancedIds.has(s.uid));
-  }, [menteeStudents, driveId, advancedIds]);
+    let result = menteeStudents;
+    if (driveId && advancedIds) result = result.filter((s) => advancedIds.has(s.uid));
+    if (batchFilter) result = result.filter((s) => s.batchYear === batchFilter);
+    return result;
+  }, [menteeStudents, driveId, advancedIds, batchFilter]);
 
   if (!firebaseUser) return null;
   // Coordinator/hod/dean/cpo/admin can technically log evaluations too (same
@@ -550,7 +562,23 @@ function LogEvaluationsSection({
 
   return (
     <Card className="mb-4">
-      <h3 className="mb-1 text-base font-semibold text-slate-900">Log today's evaluations</h3>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-base font-semibold text-slate-900">Log today's evaluations</h3>
+        {batchYearOptions.length > 1 && (
+          <select
+            value={batchFilter}
+            onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
+            className={`${inputClass} sm:w-40`}
+          >
+            <option value="">All batches</option>
+            {batchYearOptions.map((y) => (
+              <option key={y} value={y}>
+                Batch {y}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
       <p className="mb-3 text-sm text-slate-500">
         {driveId
           ? `Mentees who've cleared at least the first round of ${driveName ?? "the linked drive"} — click one to log or update an evaluation.`
@@ -560,7 +588,11 @@ function LogEvaluationsSection({
         <Skeleton className="h-24" />
       ) : filteredMenteeStudents.length === 0 ? (
         <p className="text-sm text-slate-400">
-          None of your mentees have advanced in {driveName ?? "this drive"} yet.
+          {driveId && batchFilter
+            ? `None of your Batch ${batchFilter} mentees have advanced in ${driveName ?? "this drive"} yet.`
+            : driveId
+              ? `None of your mentees have advanced in ${driveName ?? "this drive"} yet.`
+              : `No mentees in Batch ${batchFilter}.`}
         </p>
       ) : (
         <ul className="divide-y divide-slate-100">
