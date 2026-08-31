@@ -4,12 +4,13 @@ import { ClipboardCheck, Download, ChevronDown, ChevronRight, Pencil, Trash2 } f
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { ApplicationStatus, Department, Drive, MockEvalRating, MockInterviewModule, Student } from "@placement-app/types";
+import type { ApplicationStatus, Department, Drive, MentorMapping, MockEvalRating, MockInterviewModule, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useMyMentees } from "../../lib/menteeFollowUpLib";
 import { useAllApplications } from "../../lib/applicantsLib";
 import { useMentorDirectory } from "../../lib/drivePrepLib";
+import { useDeptScopedCollection } from "../../lib/useDeptScopedCollection";
 import {
   useMockModules,
   useMockEvaluations,
@@ -667,11 +668,23 @@ function StudentProgressPanel({
   );
 }
 
-function ConsolidationSection({ moduleId, moduleName }: { moduleId: string; moduleName: string }) {
+function ConsolidationSection({
+  moduleId,
+  moduleName,
+  driveId,
+  driveName,
+}: {
+  moduleId: string;
+  moduleName: string;
+  driveId?: string;
+  driveName?: string;
+}) {
   const { appUser, firebaseUser } = useAuth();
   const students = useStudentsDirectory(appUser);
   const evaluations = useMockEvaluations(appUser);
   const mentors = useMentorDirectory(appUser);
+  const applications = useAllApplications(appUser);
+  const mentorMappings = useDeptScopedCollection<MentorMapping>(appUser, DB_NODES.mentorMapping, DB_NODES.mentorMappingDeptIndex);
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
   const [dayFilter, setDayFilter] = useState<number | "">("");
   const [mentorFilter, setMentorFilter] = useState("");
@@ -693,12 +706,35 @@ function ConsolidationSection({ moduleId, moduleName }: { moduleId: string; modu
     return isMentorScoped ? all.filter((e) => e.mentorId === myUid) : all;
   }, [evaluations, moduleId, isMentorScoped, myUid]);
 
-  // Who's actually logged something for this module vs. every faculty
-  // mentor in the department — the gap between the two is "who hasn't
-  // conducted a mock interview yet," which a coordinator can't see just by
-  // scrolling the evaluations themselves (no entry means no row).
+  // Cleared at least the first round of the linked drive — same as
+  // LogEvaluationsSection's advancedIds, computed independently here since
+  // this section covers the whole department, not just one mentor.
+  const advancedIds = useMemo(() => {
+    if (!driveId || !applications) return null;
+    return new Set(
+      applications.filter((a) => a.driveId === driveId && ADVANCED_STATUSES.includes(a.status)).map((a) => a.studentId)
+    );
+  }, [driveId, applications]);
+
+  // Which mentors actually have a mentee relevant to this module — every
+  // faculty mentor in the department when unlinked, or only the ones with a
+  // mentee who's advanced in the linked drive. Without this, a mentor whose
+  // mentees haven't even cleared round 1 got flagged as "hasn't logged" for
+  // a module they have nobody to evaluate yet — noise, not signal.
+  const relevantMentorUids = useMemo(() => {
+    if (!driveId || !advancedIds || !mentorMappings) return null;
+    return new Set(mentorMappings.filter((m) => advancedIds.has(m.studentId)).map((m) => m.facultyId));
+  }, [driveId, advancedIds, mentorMappings]);
+
+  // Who's actually logged something for this module vs. every relevant
+  // faculty mentor in the department — the gap between the two is "who
+  // hasn't conducted a mock interview yet," which a coordinator can't see
+  // just by scrolling the evaluations themselves (no entry means no row).
   const mentorsWithEvals = useMemo(() => new Set(moduleEvals.map((e) => e.mentorId)), [moduleEvals]);
-  const deptMentors = useMemo(() => (mentors ?? []).filter((m) => m.role === "faculty_mentor"), [mentors]);
+  const deptMentors = useMemo(() => {
+    const all = (mentors ?? []).filter((m) => m.role === "faculty_mentor");
+    return relevantMentorUids ? all.filter((m) => relevantMentorUids.has(m.uid)) : all;
+  }, [mentors, relevantMentorUids]);
   const mentorsWithoutEvals = useMemo(
     () => deptMentors.filter((m) => !mentorsWithEvals.has(m.uid)).sort((a, b) => a.name.localeCompare(b.name)),
     [deptMentors, mentorsWithEvals]
@@ -755,7 +791,13 @@ function ConsolidationSection({ moduleId, moduleName }: { moduleId: string; modu
     downloadCsv(`${moduleName.replace(/\s+/g, "-").toLowerCase()}-evaluations.csv`, headers, rows);
   }
 
-  if (evaluations === null || students === null) return <Skeleton className="h-40" />;
+  if (
+    evaluations === null ||
+    students === null ||
+    (!!driveId && (applications === null || mentorMappings === null))
+  ) {
+    return <Skeleton className="h-40" />;
+  }
 
   return (
     <Card>
@@ -810,7 +852,10 @@ function ConsolidationSection({ moduleId, moduleName }: { moduleId: string; modu
 
       {!isMentorScoped && mentorsWithoutEvals.length > 0 && (
         <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Haven't logged any evaluations for this module yet: {mentorsWithoutEvals.map((m) => m.name).join(", ")}
+          {driveId
+            ? `Have a mentee who cleared ${driveName ?? "this drive"} but haven't logged an evaluation yet: `
+            : "Haven't logged any evaluations for this module yet: "}
+          {mentorsWithoutEvals.map((m) => m.name).join(", ")}
         </p>
       )}
 
@@ -1011,7 +1056,12 @@ export default function MockEvaluations() {
                   driveName={selectedModule.driveId ? drives[selectedModule.driveId]?.companyName : undefined}
                 />
               )}
-              <ConsolidationSection moduleId={selectedModule.moduleId} moduleName={selectedModule.name} />
+              <ConsolidationSection
+                moduleId={selectedModule.moduleId}
+                moduleName={selectedModule.name}
+                driveId={selectedModule.driveId}
+                driveName={selectedModule.driveId ? drives[selectedModule.driveId]?.companyName : undefined}
+              />
             </>
           )}
         </>
