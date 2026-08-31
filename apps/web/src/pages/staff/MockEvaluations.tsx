@@ -740,6 +740,30 @@ function ConsolidationSection({
     [deptMentors, mentorsWithEvals]
   );
 
+  // A mentor viewing their own page must only ever see their own mentees
+  // here, never a peer's — same privacy line as relevantMentorUids above,
+  // just applied to individual students instead of mentor names.
+  const myMenteeIds = useMemo(() => {
+    if (!isMentorScoped || !mentorMappings || !myUid) return null;
+    return new Set(mentorMappings.filter((m) => m.facultyId === myUid).map((m) => m.studentId));
+  }, [isMentorScoped, mentorMappings, myUid]);
+
+  // Named students, not just a count — the linked drive's advancedIds is a
+  // definite roster (unlike the inferred-from-who-logged-something pool
+  // Mock Interview Analytics has to fall back to for unlinked modules), so
+  // a student who never got evaluated at all still shows up here instead of
+  // silently not being counted anywhere.
+  const evaluatedStudentIds = useMemo(() => new Set(moduleEvals.map((e) => e.studentId)), [moduleEvals]);
+  const studentsNotEvaluated = useMemo(() => {
+    if (!driveId || !advancedIds) return [];
+    let pool = Array.from(advancedIds);
+    if (isMentorScoped && myMenteeIds) pool = pool.filter((uid) => myMenteeIds.has(uid));
+    return pool
+      .map((uid) => studentsByUid[uid])
+      .filter((s): s is Student => s !== undefined && !evaluatedStudentIds.has(s.uid))
+      .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
+  }, [driveId, advancedIds, isMentorScoped, myMenteeIds, studentsByUid, evaluatedStudentIds]);
+
   const filteredEvals = useMemo(
     () => (!isMentorScoped && mentorFilter ? moduleEvals.filter((e) => e.mentorId === mentorFilter) : moduleEvals),
     [moduleEvals, mentorFilter, isMentorScoped]
@@ -856,6 +880,13 @@ function ConsolidationSection({
             ? `Have a mentee who cleared ${driveName ?? "this drive"} but haven't logged an evaluation yet: `
             : "Haven't logged any evaluations for this module yet: "}
           {mentorsWithoutEvals.map((m) => m.name).join(", ")}
+        </p>
+      )}
+
+      {driveId && studentsNotEvaluated.length > 0 && (
+        <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+          Cleared {driveName ?? "this drive"} but not evaluated yet ({studentsNotEvaluated.length}):{" "}
+          {studentsNotEvaluated.map((s) => `${s.rollNo} — ${s.name}`).join(", ")}
         </p>
       )}
 
