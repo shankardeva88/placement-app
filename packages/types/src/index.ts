@@ -526,6 +526,12 @@ export interface MockInterviewModule {
   department: Department;
   startDate: Timestamp;
   endDate: Timestamp;
+  // Optional link to the drive this module is prepping students for — when
+  // set, the mentor's logging view narrows to mentees who actually advanced
+  // in that drive (shortlisted/in_round/selected) instead of every mentee,
+  // so mock-interview time focuses on students the company already moved
+  // forward, not the whole roster.
+  driveId?: string;
   createdBy: string;
   createdAt: Timestamp;
 }

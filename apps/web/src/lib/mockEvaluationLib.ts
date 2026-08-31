@@ -122,6 +122,7 @@ export interface CreateMockModuleInput {
   department: Department;
   startDate: number;
   endDate: number;
+  driveId?: string;
   createdBy: string;
 }
 
@@ -136,6 +137,7 @@ export async function createMockModule(input: CreateMockModuleInput) {
     createdBy: input.createdBy,
     createdAt: Date.now(),
   };
+  if (input.driveId) module.driveId = input.driveId;
   await update(ref(db), {
     [`${DB_NODES.mockInterviewModules}/${moduleId}`]: module,
     [`${DB_NODES.mockInterviewModulesDeptIndex}/${input.department}/${moduleId}`]: true,

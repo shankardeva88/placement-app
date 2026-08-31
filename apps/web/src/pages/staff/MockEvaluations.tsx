@@ -1,10 +1,14 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { ClipboardCheck, Download, ChevronDown, ChevronRight } from "lucide-react";
-import type { Department, MockEvalRating, Student } from "@placement-app/types";
+import { ref, onValue } from "firebase/database";
+import { db } from "../../firebase/config";
+import { DB_NODES } from "@placement-app/types";
+import type { ApplicationStatus, Department, Drive, MockEvalRating, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useMyMentees } from "../../lib/menteeFollowUpLib";
+import { useAllApplications } from "../../lib/applicantsLib";
 import { useMentorDirectory } from "../../lib/drivePrepLib";
 import {
   useMockModules,
@@ -31,6 +35,11 @@ import { TrendLineChart } from "../../components/charts/TrendLineChart";
 const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
 const CAN_CREATE_MODULE_ROLES = ["coordinator", "hod", "dean", "cpo", "admin"];
 const CAN_LOG_EVAL_ROLES = ["faculty_mentor", "coordinator", "hod", "dean", "cpo", "admin"];
+
+// "Advanced" in the linked drive's process — cleared at least the first
+// round, not just applied. This is what a module linked to a drive filters
+// mentees down to.
+const ADVANCED_STATUSES: ApplicationStatus[] = ["shortlisted", "in_round", "selected"];
 
 const RATING_BADGE: Record<MockEvalRating, BadgeVariant> = {
   excellent: "success",
@@ -68,8 +77,19 @@ function CreateModuleSection({ onCreated }: { onCreated: () => void }) {
   const [department, setDepartment] = useState<Department>(myDept ?? "CSE");
   const [startDate, setStartDate] = useState(toDateInputValue(Date.now()));
   const [endDate, setEndDate] = useState(toDateInputValue(Date.now()));
+  const [driveId, setDriveId] = useState("");
+  const [drives, setDrives] = useState<Drive[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    return onValue(ref(db, DB_NODES.drives), (snap) => {
+      const val = snap.val() as Record<string, Drive> | null;
+      setDrives(val ? Object.values(val) : []);
+    });
+  }, []);
+
+  const sortedDrives = useMemo(() => drives.slice().sort((a, b) => b.driveDate - a.driveDate), [drives]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -90,10 +110,12 @@ function CreateModuleSection({ onCreated }: { onCreated: () => void }) {
         department: myDept ?? department,
         startDate: new Date(startDate).getTime(),
         endDate: new Date(endDate).getTime(),
+        driveId: driveId || undefined,
         createdBy: appUser.uid,
       });
       showToast("Module created");
       setName("");
+      setDriveId("");
       onCreated();
     } finally {
       setSubmitting(false);
@@ -130,6 +152,20 @@ function CreateModuleSection({ onCreated }: { onCreated: () => void }) {
         <div>
           <label className={labelClass}>End date</label>
           <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputClass} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Link to drive (optional)</label>
+          <select value={driveId} onChange={(e) => setDriveId(e.target.value)} className={inputClass}>
+            <option value="">Not linked — show every mentee</option>
+            {sortedDrives.map((d) => (
+              <option key={d.driveId} value={d.driveId}>
+                {d.companyName} — {new Date(d.driveDate).toLocaleDateString()}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-400">
+            When linked, mentors only see mentees who've cleared at least the first round of this drive — not the whole roster.
+          </p>
         </div>
         {error && <p className="text-sm text-red-600 sm:col-span-4">{error}</p>}
         <div className="sm:col-span-4">
@@ -304,17 +340,33 @@ function LogEvaluationsSection({
   moduleId,
   moduleStart,
   moduleEnd,
+  driveId,
+  driveName,
 }: {
   moduleId: string;
   moduleStart: number;
   moduleEnd: number;
+  driveId?: string;
+  driveName?: string;
 }) {
   const { appUser, firebaseUser } = useAuth();
   const mentees = useMyMentees(appUser, firebaseUser?.uid);
   const students = useStudentsDirectory(appUser);
   const evaluations = useMockEvaluations(appUser);
+  const applications = useAllApplications(appUser);
 
   const studentsByUid = useMemo(() => Object.fromEntries((students ?? []).map((s) => [s.uid, s])), [students]);
+
+  // Cleared at least the first round of the linked drive — see
+  // ADVANCED_STATUSES. Only meaningful once applications have loaded; while
+  // they're still null, don't filter anything out yet (avoids a flash of
+  // "no mentees" before the data that would actually include them arrives).
+  const advancedIds = useMemo(() => {
+    if (!driveId || !applications) return null;
+    return new Set(
+      applications.filter((a) => a.driveId === driveId && ADVANCED_STATUSES.includes(a.status)).map((a) => a.studentId)
+    );
+  }, [driveId, applications]);
 
   const evalsByStudent = useMemo(() => {
     const map: Record<string, (EvalRatingFields & { date: number; notes?: string })[]> = {};
@@ -334,6 +386,15 @@ function LogEvaluationsSection({
       .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
   }, [mentees, studentsByUid]);
 
+  // Narrowed to mentees who cleared at least the first round of the linked
+  // drive, when one's linked — see advancedIds above. Kept separate from
+  // menteeStudents so the "you have no mentees at all" case (below) stays
+  // distinct from "you have mentees, none have advanced in this drive yet".
+  const filteredMenteeStudents = useMemo(() => {
+    if (!driveId || !advancedIds) return menteeStudents;
+    return menteeStudents.filter((s) => advancedIds.has(s.uid));
+  }, [menteeStudents, driveId, advancedIds]);
+
   if (!firebaseUser) return null;
   // Coordinator/hod/dean/cpo/admin can technically log evaluations too (same
   // tier as mockInterviews — small colleges often have the coordinator
@@ -343,15 +404,25 @@ function LogEvaluationsSection({
   // nothing rather than an empty "no mentees" card for everyone else.
   if (mentees !== null && students !== null && menteeStudents.length === 0) return null;
 
+  const stillLoading = mentees === null || students === null || (!!driveId && advancedIds === null);
+
   return (
     <Card className="mb-4">
       <h3 className="mb-1 text-base font-semibold text-slate-900">Log today's evaluations</h3>
-      <p className="mb-3 text-sm text-slate-500">Your mentees — click one to log or update an evaluation.</p>
-      {mentees === null || students === null ? (
+      <p className="mb-3 text-sm text-slate-500">
+        {driveId
+          ? `Mentees who've cleared at least the first round of ${driveName ?? "the linked drive"} — click one to log or update an evaluation.`
+          : "Your mentees — click one to log or update an evaluation."}
+      </p>
+      {stillLoading ? (
         <Skeleton className="h-24" />
+      ) : filteredMenteeStudents.length === 0 ? (
+        <p className="text-sm text-slate-400">
+          None of your mentees have advanced in {driveName ?? "this drive"} yet.
+        </p>
       ) : (
         <ul className="divide-y divide-slate-100">
-          {menteeStudents.map((s) => (
+          {filteredMenteeStudents.map((s) => (
             <MenteeEvalRow
               key={s.studentId}
               student={s}
@@ -674,6 +745,13 @@ export default function MockEvaluations() {
   const { appUser } = useAuth();
   const modules = useMockModules(appUser);
   const [selectedModuleId, setSelectedModuleId] = useState<string>("");
+  const [drives, setDrives] = useState<Record<string, Drive>>({});
+
+  useEffect(() => {
+    return onValue(ref(db, DB_NODES.drives), (snap) => {
+      setDrives((snap.val() as Record<string, Drive> | null) ?? {});
+    });
+  }, []);
 
   const canCreateModule = !!appUser && CAN_CREATE_MODULE_ROLES.includes(appUser.role);
   const canLogEval = !!appUser && CAN_LOG_EVAL_ROLES.includes(appUser.role);
@@ -708,6 +786,7 @@ export default function MockEvaluations() {
               {sortedModules.map((m) => (
                 <option key={m.moduleId} value={m.moduleId}>
                   {m.name} ({formatDay(m.startDate)} – {formatDay(m.endDate)})
+                  {m.driveId && drives[m.driveId] ? ` — linked to ${drives[m.driveId].companyName}` : ""}
                 </option>
               ))}
             </select>
@@ -720,6 +799,8 @@ export default function MockEvaluations() {
                   moduleId={selectedModule.moduleId}
                   moduleStart={selectedModule.startDate}
                   moduleEnd={selectedModule.endDate}
+                  driveId={selectedModule.driveId}
+                  driveName={selectedModule.driveId ? drives[selectedModule.driveId]?.companyName : undefined}
                 />
               )}
               <ConsolidationSection moduleId={selectedModule.moduleId} moduleName={selectedModule.name} />
