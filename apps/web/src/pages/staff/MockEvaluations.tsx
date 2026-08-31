@@ -726,11 +726,20 @@ function ConsolidationSection({
     return new Set(mentorMappings.filter((m) => advancedIds.has(m.studentId)).map((m) => m.facultyId));
   }, [driveId, advancedIds, mentorMappings]);
 
-  // Who's actually logged something for this module vs. every relevant
-  // faculty mentor in the department — the gap between the two is "who
-  // hasn't conducted a mock interview yet," which a coordinator can't see
-  // just by scrolling the evaluations themselves (no entry means no row).
-  const mentorsWithEvals = useMemo(() => new Set(moduleEvals.map((e) => e.mentorId)), [moduleEvals]);
+  // Scopes both "who's missing" callouts below to the selected day, when
+  // one's picked — "hasn't logged anything in this whole module" and
+  // "hasn't logged anything today" are different, more actionable
+  // questions, and the day filter already exists for the table below it.
+  const complianceScopeEvals = useMemo(
+    () => (dayFilter === "" ? moduleEvals : moduleEvals.filter((e) => e.date === dayFilter)),
+    [moduleEvals, dayFilter]
+  );
+
+  // Who's actually logged something (in-scope) vs. every relevant faculty
+  // mentor in the department — the gap between the two is "who hasn't
+  // conducted a mock interview yet," which a coordinator can't see just by
+  // scrolling the evaluations themselves (no entry means no row).
+  const mentorsWithEvals = useMemo(() => new Set(complianceScopeEvals.map((e) => e.mentorId)), [complianceScopeEvals]);
   const deptMentors = useMemo(() => {
     const all = (mentors ?? []).filter((m) => m.role === "faculty_mentor");
     return relevantMentorUids ? all.filter((m) => relevantMentorUids.has(m.uid)) : all;
@@ -751,9 +760,9 @@ function ConsolidationSection({
   // Named students, not just a count — the linked drive's advancedIds is a
   // definite roster (unlike the inferred-from-who-logged-something pool
   // Mock Interview Analytics has to fall back to for unlinked modules), so
-  // a student who never got evaluated at all still shows up here instead of
-  // silently not being counted anywhere.
-  const evaluatedStudentIds = useMemo(() => new Set(moduleEvals.map((e) => e.studentId)), [moduleEvals]);
+  // a student who never got evaluated (in scope) still shows up here
+  // instead of silently not being counted anywhere.
+  const evaluatedStudentIds = useMemo(() => new Set(complianceScopeEvals.map((e) => e.studentId)), [complianceScopeEvals]);
   const studentsNotEvaluated = useMemo(() => {
     if (!driveId || !advancedIds) return [];
     let pool = Array.from(advancedIds);
@@ -876,17 +885,23 @@ function ConsolidationSection({
 
       {!isMentorScoped && mentorsWithoutEvals.length > 0 && (
         <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          {driveId
-            ? `Have a mentee who cleared ${driveName ?? "this drive"} but haven't logged an evaluation yet: `
-            : "Haven't logged any evaluations for this module yet: "}
+          {dayFilter !== ""
+            ? `Haven't logged anything for ${formatDay(dayFilter)} (${mentorsWithoutEvals.length}): `
+            : driveId
+              ? `Have a mentee who cleared ${driveName ?? "this drive"} but haven't logged an evaluation yet (${mentorsWithoutEvals.length}): `
+              : `Haven't logged any evaluations for this module yet (${mentorsWithoutEvals.length}): `}
           {mentorsWithoutEvals.map((m) => m.name).join(", ")}
         </p>
       )}
 
       {driveId && studentsNotEvaluated.length > 0 && (
         <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
-          Cleared {driveName ?? "this drive"} but not evaluated yet ({studentsNotEvaluated.length}):{" "}
-          {studentsNotEvaluated.map((s) => `${s.rollNo} — ${s.name}`).join(", ")}
+          {dayFilter !== "" ? (
+            <>Cleared {driveName ?? "this drive"} but not evaluated on {formatDay(dayFilter)}</>
+          ) : (
+            <>Cleared {driveName ?? "this drive"} but not evaluated yet</>
+          )}{" "}
+          ({studentsNotEvaluated.length}): {studentsNotEvaluated.map((s) => `${s.rollNo} — ${s.name}`).join(", ")}
         </p>
       )}
 
