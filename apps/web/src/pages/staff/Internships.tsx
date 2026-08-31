@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { Briefcase, Check, Plus, Search, Trash2 } from "lucide-react";
+import { Briefcase, Check, ChevronDown, ChevronUp, Plus, Search, Trash2 } from "lucide-react";
 import type { Internship, InternshipMode, InternshipStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
@@ -311,15 +311,15 @@ function InternshipCard({ internship, student }: { internship: Internship; stude
 
   if (editing) {
     return (
-      <Card>
+      <div className="rounded-lg border border-slate-200 p-3">
         <h3 className="mb-4 text-base font-semibold text-slate-900">Edit internship</h3>
         <InternshipForm initial={internship} submitLabel="Save changes" onCancel={() => setEditing(false)} onSubmit={handleUpdate} />
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card>
+    <div className="rounded-lg border border-slate-200 p-3">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="font-medium text-slate-900">{student ? `${student.rollNo} — ${student.name}` : internship.studentId}</p>
@@ -373,6 +373,45 @@ function InternshipCard({ internship, student }: { internship: Internship; stude
           Delete
         </Button>
       </div>
+    </div>
+  );
+}
+
+// Company-first, click-to-expand — same reasoning as the Offers list: a
+// flat list of every internship got hard to scan once a company had
+// several students on it. Always starts collapsed (an "auto-expand when
+// only one company" version of this looked broken once only one company
+// had records — same lesson from the Offers page).
+function CompanyInternshipsGroup({
+  companyName,
+  rows,
+}: {
+  companyName: string;
+  rows: { internship: Internship; student: Student | null }[];
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const ongoingCount = rows.filter((r) => r.internship.status === "ongoing").length;
+
+  return (
+    <Card>
+      <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-start justify-between gap-4 text-left">
+        <h3 className="text-base font-semibold text-slate-900">{companyName}</h3>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge variant="brand">
+            {rows.length} student{rows.length === 1 ? "" : "s"}
+          </Badge>
+          {ongoingCount > 0 && <Badge variant="warning">{ongoingCount} ongoing</Badge>}
+          {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+          {rows.map((r) => (
+            <InternshipCard key={r.internship.internshipId} internship={r.internship} student={r.student} />
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
@@ -423,6 +462,21 @@ export default function StaffInternships() {
     if (!rows) return null;
     const ongoing = rows.filter((r) => r.internship.status === "ongoing").length;
     return { total: rows.length, ongoing, completed: rows.length - ongoing };
+  }, [rows]);
+
+  const groupedByCompany = useMemo(() => {
+    if (!rows) return null;
+    const map = new Map<string, { internship: Internship; student: Student | null }[]>();
+    for (const r of rows) {
+      if (!map.has(r.internship.companyName)) map.set(r.internship.companyName, []);
+      map.get(r.internship.companyName)!.push(r);
+    }
+    return Array.from(map.entries())
+      .map(([companyName, companyRows]) => ({
+        companyName,
+        rows: companyRows.sort((a, b) => (a.student?.rollNo ?? "").localeCompare(b.student?.rollNo ?? "")),
+      }))
+      .sort((a, b) => a.companyName.localeCompare(b.companyName));
   }, [rows]);
 
   return (
@@ -521,8 +575,8 @@ export default function StaffInternships() {
       )}
 
       <div className="space-y-4">
-        {rows?.map((r) => (
-          <InternshipCard key={r.internship.internshipId} internship={r.internship} student={r.student} />
+        {groupedByCompany?.map((g) => (
+          <CompanyInternshipsGroup key={g.companyName} companyName={g.companyName} rows={g.rows} />
         ))}
       </div>
     </div>
