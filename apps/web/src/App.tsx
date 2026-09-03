@@ -25,6 +25,7 @@ import StaffDashboard from "./pages/staff/StaffDashboard";
 import StaffDrives from "./pages/staff/Drives";
 import FacultyMentorDrives from "./pages/staff/FacultyMentorDrives";
 import FacultyMentorInternships from "./pages/staff/FacultyMentorInternships";
+import MenteeDriveStatus from "./pages/staff/MenteeDriveStatus";
 import DriveApplicants from "./pages/staff/DriveApplicants";
 import DriveEligibility from "./pages/staff/DriveEligibility";
 import Students from "./pages/staff/Students";
@@ -205,6 +206,14 @@ export default function App() {
             element={
               <StaffLayoutRoute>
                 <FacultyMentorInternships />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/mentee-drive-status"
+            element={
+              <StaffLayoutRoute>
+                <MenteeDriveStatus />
               </StaffLayoutRoute>
             }
           />

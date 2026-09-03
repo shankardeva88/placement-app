@@ -15,6 +15,7 @@ import {
   ClipboardCheck,
   KeyRound,
   Building2,
+  ListChecks,
   Menu,
   X,
   LogOut,
@@ -56,6 +57,11 @@ const ADMIN_NAV_ITEMS = [...STAFF_NAV_ITEMS, MANAGE_STAFF_ITEM];
 //     coordinators use, just entered from "my mentees" instead of the full
 //     department directory (which faculty_mentor doesn't get — no
 //     /staff/students item here, that's coordinator/hod-tier).
+//   - Mentee Drive Status: MenteeDriveStatus.tsx — the flip side of
+//     Drives below (one row per drive there; here it's one card per
+//     mentee, every drive they've applied to and which round, all at
+//     once) — scanning ~10-12 mentees drive-by-drive across 20+ open
+//     drives was the actual complaint, not missing data.
 //   - Drives: read-only view of every drive (completed and upcoming) with
 //     the full details a coordinator entered — FacultyMentorDrives.tsx, a
 //     separate page from /staff/drives (which has create/edit/status
@@ -79,6 +85,7 @@ const ADMIN_NAV_ITEMS = [...STAFF_NAV_ITEMS, MANAGE_STAFF_ITEM];
 const FACULTY_MENTOR_NAV_ITEMS = [
   { to: "/staff/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/staff/mentee-info", label: "Mentee Info", icon: Users },
+  { to: "/staff/mentee-drive-status", label: "Mentee Drive Status", icon: ListChecks },
   { to: "/staff/mentor-drives", label: "Drives", icon: Briefcase },
   { to: "/staff/mentor-internships", label: "Internships", icon: Building2 },
   { to: "/staff/mentor-training", label: "Training", icon: BookOpen },
