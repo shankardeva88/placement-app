@@ -20,6 +20,8 @@ import { PageHeader } from "../../components/ui/PageHeader";
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
 
+const STATUS_OPTIONS: ApplicationStatus[] = ["applied", "shortlisted", "in_round", "selected", "rejected", "withdrawn"];
+
 const APPLICATION_BADGE: Record<ApplicationStatus, BadgeVariant> = {
   applied: "brand",
   shortlisted: "brand",
@@ -93,6 +95,8 @@ export default function MenteeDriveStatus() {
   const applications = useAllApplications(appUser);
   const [drives, setDrives] = useState<Record<string, Drive>>({});
   const [search, setSearch] = useState("");
+  const [batchFilter, setBatchFilter] = useState<number | "">("");
+  const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "">("");
 
   useEffect(() => {
     return onValue(ref(db, DB_NODES.drives), (snap) => {
@@ -110,6 +114,14 @@ export default function MenteeDriveStatus() {
       .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
   }, [menteeUids, studentsByUid]);
 
+  // A mentor with mentees across more than one batch year (see the same
+  // gap fixed on Mock Interview Modules) — every batch showed mixed
+  // together with no way to narrow to just one.
+  const batchYearOptions = useMemo(
+    () => Array.from(new Set(menteeStudents.map((s) => s.batchYear))).sort((a, b) => a - b),
+    [menteeStudents]
+  );
+
   const applicationsByStudent = useMemo(() => {
     const map = new Map<string, Application[]>();
     for (const a of applications ?? []) {
@@ -121,11 +133,17 @@ export default function MenteeDriveStatus() {
     return map;
   }, [applications, menteeUids]);
 
+  // The status filter narrows which mentees show (must have at least one
+  // matching application) AND which of that mentee's drive rows actually
+  // render — picking "selected", for instance, means "just show me who's
+  // selected somewhere," not every drive they've ever applied to.
   const filteredMentees = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return menteeStudents;
-    return menteeStudents.filter((s) => s.rollNo.toLowerCase().includes(term) || s.name.toLowerCase().includes(term));
-  }, [menteeStudents, search]);
+    return menteeStudents
+      .filter((s) => !batchFilter || s.batchYear === batchFilter)
+      .filter((s) => !term || s.rollNo.toLowerCase().includes(term) || s.name.toLowerCase().includes(term))
+      .filter((s) => !statusFilter || (applicationsByStudent.get(s.uid) ?? []).some((a) => a.status === statusFilter));
+  }, [menteeStudents, search, batchFilter, statusFilter, applicationsByStudent]);
 
   const loading = mentees === null || students === null || applications === null;
 
@@ -149,23 +167,53 @@ export default function MenteeDriveStatus() {
 
       {!loading && menteeStudents.length > 0 && (
         <>
-          <div className="relative mb-4">
-            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search by roll number or name"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className={`${inputClass} pl-9`}
-            />
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by roll number or name"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={`${inputClass} pl-9`}
+              />
+            </div>
+            {batchYearOptions.length > 1 && (
+              <select
+                value={batchFilter}
+                onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
+                className={`${inputClass} sm:w-44`}
+              >
+                <option value="">All batches</option>
+                {batchYearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    Batch {y}
+                  </option>
+                ))}
+              </select>
+            )}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as ApplicationStatus | "")}
+              className={`${inputClass} sm:w-44`}
+            >
+              <option value="">All statuses</option>
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s.replace("_", " ")}
+                </option>
+              ))}
+            </select>
           </div>
           {filteredMentees.length === 0 ? (
-            <EmptyState icon={Search} title="No mentees match this search" />
+            <EmptyState icon={Search} title="No mentees match your filters" />
           ) : (
             <div className="space-y-4">
-              {filteredMentees.map((s) => (
-                <MenteeCard key={s.uid} student={s} applications={applicationsByStudent.get(s.uid) ?? []} drivesById={drives} />
-              ))}
+              {filteredMentees.map((s) => {
+                const allApps = applicationsByStudent.get(s.uid) ?? [];
+                const shownApps = statusFilter ? allApps.filter((a) => a.status === statusFilter) : allApps;
+                return <MenteeCard key={s.uid} student={s} applications={shownApps} drivesById={drives} />;
+              })}
             </div>
           )}
         </>
