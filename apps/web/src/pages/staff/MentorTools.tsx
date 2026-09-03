@@ -399,20 +399,6 @@ function MenteeRow({
   );
 }
 
-const YEAR_ORDER = ["4th year", "3rd year", "2nd year", "1st year", "Other"];
-
-/** currentSemester (1-8) → year of study. Final year first in YEAR_ORDER —
- * this is a placement app, so who's closest to graduating is the most
- * urgent group for a mentor to see. */
-function yearLabel(currentSemester: number | undefined): string {
-  if (!currentSemester) return "Other";
-  if (currentSemester <= 2) return "1st year";
-  if (currentSemester <= 4) return "2nd year";
-  if (currentSemester <= 6) return "3rd year";
-  if (currentSemester <= 8) return "4th year";
-  return "Other";
-}
-
 function MyMenteesSection() {
   const { appUser, firebaseUser } = useAuth();
   const mentees = useMyMentees(appUser, firebaseUser?.uid);
@@ -432,16 +418,16 @@ function MyMenteesSection() {
     );
   }, [mentees, studentsByUid]);
 
-  const groupedByYear = useMemo(() => {
+  // Flat, sorted by roll number — used to group by "year of study" here,
+  // but that label next to a batch filter just confused things (a batch
+  // number and a year-of-study label look related but aren't the same
+  // axis, especially for lateral-entry mentees).
+  const filteredMentees = useMemo(() => {
     if (!mentees) return null;
     const filtered = batchFilter ? mentees.filter((m) => studentsByUid[m.studentId]?.batchYear === batchFilter) : mentees;
-    const groups = new Map<string, typeof mentees>();
-    for (const m of filtered) {
-      const label = yearLabel(studentsByUid[m.studentId]?.currentSemester);
-      if (!groups.has(label)) groups.set(label, []);
-      groups.get(label)!.push(m);
-    }
-    return YEAR_ORDER.filter((y) => groups.has(y)).map((year) => ({ year, mentees: groups.get(year)! }));
+    return filtered
+      .slice()
+      .sort((a, b) => (studentsByUid[a.studentId]?.rollNo ?? "").localeCompare(studentsByUid[b.studentId]?.rollNo ?? ""));
   }, [mentees, studentsByUid, batchFilter]);
 
   // Coordinator/hod/dean/cpo/admin can see this section too (they're
@@ -484,33 +470,24 @@ function MyMenteesSection() {
         CGPA, or no follow-up in {STALE_FOLLOW_UP_DAYS}+ days.
       </p>
 
-      {groupedByYear === null ? (
+      {filteredMentees === null ? (
         <Skeleton className="h-24" />
-      ) : groupedByYear.length === 0 ? (
+      ) : filteredMentees.length === 0 ? (
         <p className="text-sm text-slate-400">No mentees in Batch {batchFilter}.</p>
       ) : firebaseUser ? (
-        <div className="space-y-4">
-          {groupedByYear.map(({ year, mentees: yearMentees }) => (
-            <div key={year}>
-              <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                {year} ({yearMentees.length})
-              </h4>
-              <ul className="divide-y divide-slate-100">
-                {yearMentees.map((m) => (
-                  <MenteeRow
-                    key={m.mappingId}
-                    mappingId={m.mappingId}
-                    student={studentsByUid[m.studentId]}
-                    department={m.department}
-                    mentorId={firebaseUser.uid}
-                    isOpen={expandedId === m.studentId}
-                    onToggle={() => setExpandedId((prev) => (prev === m.studentId ? null : m.studentId))}
-                  />
-                ))}
-              </ul>
-            </div>
+        <ul className="divide-y divide-slate-100">
+          {filteredMentees.map((m) => (
+            <MenteeRow
+              key={m.mappingId}
+              mappingId={m.mappingId}
+              student={studentsByUid[m.studentId]}
+              department={m.department}
+              mentorId={firebaseUser.uid}
+              isOpen={expandedId === m.studentId}
+              onToggle={() => setExpandedId((prev) => (prev === m.studentId ? null : m.studentId))}
+            />
           ))}
-        </div>
+        </ul>
       ) : null}
     </Card>
   );
