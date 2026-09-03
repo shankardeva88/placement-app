@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Download, Search, UserPlus, Users } from "lucide-react";
+import { ArrowLeft, Download, Search, Trash2, UserPlus, Users } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
 import type { Application, ApplicationStatus, Drive, Gender, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
-import { useDriveApplicants, updateApplicationStatus } from "../../lib/applicantsLib";
+import { useDriveApplicants, updateApplicationStatus, deleteApplication } from "../../lib/applicantsLib";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { applyToDrive, checkEligibility } from "../../lib/driveActions";
 import { applicationRoleLabel, driveRoleSummary, isMultiRole } from "../../lib/driveRolesLib";
@@ -117,6 +117,9 @@ export default function DriveApplicants() {
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const [bulkUpdateProgress, setBulkUpdateProgress] = useState(0);
   const [extraColumns, setExtraColumns] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteProgress, setBulkDeleteProgress] = useState(0);
 
   // A "details restricted" row (different department, see the empty-state
   // branch below) has no student record to search/filter on — search and
@@ -164,6 +167,28 @@ export default function DriveApplicants() {
       showToast(err instanceof Error ? err.message : "Could not update status");
     } finally {
       setUpdatingId(null);
+    }
+  }
+
+  // Removes the application entirely, not just its status — e.g. a
+  // student applied but never actually showed up, and "withdrawn" still
+  // leaves them cluttering the applicant list/counts.
+  async function handleDelete(applicationId: string, department: Application["department"], label: string) {
+    if (!window.confirm(`Delete ${label}'s application? This removes the record entirely — this can't be undone.`)) return;
+    setDeletingId(applicationId);
+    try {
+      await deleteApplication(applicationId, department);
+      showToast("Application deleted");
+      setSelectedIds((prev) => {
+        if (!prev.has(applicationId)) return prev;
+        const next = new Set(prev);
+        next.delete(applicationId);
+        return next;
+      });
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not delete application");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -220,6 +245,43 @@ export default function DriveApplicants() {
       failed > 0
         ? `${updated} updated, ${failed} didn't finish in time — click again to retry (still selected)`
         : `${updated} applicant(s) updated to ${bulkStatusValue.replace("_", " ")}`
+    );
+    if (failed === 0) setSelectedIds(new Set());
+  }
+
+  // Same chunked-concurrency approach as the bulk status update above —
+  // department comes from the application record itself (denormalized),
+  // not the student, so this works even for "details restricted" rows.
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0 || !rows) return;
+    if (!window.confirm(`Delete ${selectedIds.size} application(s)? This removes the records entirely — this can't be undone.`)) return;
+    const departmentById = new Map(rows.map((r) => [r.application.applicationId, r.application.department]));
+    const ids = Array.from(selectedIds);
+    setBulkDeleting(true);
+    setBulkDeleteProgress(0);
+    let failed = 0;
+    const CONCURRENCY = 20;
+    for (let i = 0; i < ids.length; i += CONCURRENCY) {
+      const chunk = ids.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(
+        chunk.map((id) => {
+          const department = departmentById.get(id);
+          if (!department) return Promise.reject(new Error("missing department"));
+          return Promise.race([
+            deleteApplication(id, department),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("timed out")), 10000)),
+          ]);
+        })
+      );
+      failed += results.filter((r) => r.status === "rejected").length;
+      setBulkDeleteProgress((p) => p + chunk.length);
+    }
+    setBulkDeleting(false);
+    const deleted = ids.length - failed;
+    showToast(
+      failed > 0
+        ? `${deleted} deleted, ${failed} didn't finish in time — click again to retry (still selected)`
+        : `${deleted} application(s) deleted`
     );
     if (failed === 0) setSelectedIds(new Set());
   }
@@ -456,10 +518,14 @@ export default function DriveApplicants() {
                   ))}
                 </select>
               )}
-              <Button onClick={handleBulkStatusUpdate} loading={bulkUpdating}>
+              <Button onClick={handleBulkStatusUpdate} loading={bulkUpdating} disabled={bulkDeleting}>
                 {bulkUpdating ? `Updating ${bulkUpdateProgress}/${selectedIds.size}…` : `Apply to ${selectedIds.size}`}
               </Button>
-              <Button variant="secondary" onClick={() => setSelectedIds(new Set())} disabled={bulkUpdating}>
+              <Button variant="danger" onClick={handleBulkDelete} loading={bulkDeleting} disabled={bulkUpdating}>
+                <Trash2 className="h-4 w-4" />
+                {bulkDeleting ? `Deleting ${bulkDeleteProgress}/${selectedIds.size}…` : `Delete ${selectedIds.size}`}
+              </Button>
+              <Button variant="secondary" onClick={() => setSelectedIds(new Set())} disabled={bulkUpdating || bulkDeleting}>
                 Clear
               </Button>
             </>
@@ -546,6 +612,16 @@ export default function DriveApplicants() {
                   ))}
                 </select>
               )}
+              <Button
+                variant="danger"
+                onClick={() =>
+                  handleDelete(application.applicationId, application.department, student ? `${student.rollNo} — ${student.name}` : "this")
+                }
+                loading={deletingId === application.applicationId}
+                className="!px-2 !py-1.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
             </div>
           </Card>
         ))}

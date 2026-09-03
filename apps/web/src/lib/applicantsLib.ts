@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { ref, update } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { AppUser, Application, ApplicationStatus, Student } from "@placement-app/types";
+import type { AppUser, Application, ApplicationStatus, Department, Student } from "@placement-app/types";
 import { useDeptScopedCollection } from "./useDeptScopedCollection";
 
 export interface ApplicantRow {
@@ -60,5 +60,19 @@ export async function updateApplicationStatus(applicationId: string, status: App
     status,
     currentRoundId: currentRoundId ?? null,
     updatedAt: Date.now(),
+  });
+}
+
+/** Removes the application record itself, not just its status — e.g. a
+ * student applied but never actually showed up for the drive, and
+ * "withdrawn" still leaves them cluttering applicant counts/lists. Cleans
+ * up both write sites in one update() (the record and its
+ * applicationsDeptIndex entry) so nothing's left pointing at a deleted
+ * application — same reasoning as the Nuclei drive stale-application
+ * cleanup this formalizes into an in-app action. */
+export async function deleteApplication(applicationId: string, department: Department) {
+  await update(ref(db), {
+    [`${DB_NODES.applications}/${applicationId}`]: null,
+    [`${DB_NODES.applicationsDeptIndex}/${department}/${applicationId}`]: null,
   });
 }
