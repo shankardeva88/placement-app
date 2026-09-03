@@ -418,19 +418,31 @@ function MyMenteesSection() {
   const mentees = useMyMentees(appUser, firebaseUser?.uid);
   const students = useStudentsDirectory(appUser);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [batchFilter, setBatchFilter] = useState<number | "">("");
 
   const studentsByUid = useMemo(() => Object.fromEntries((students ?? []).map((s) => [s.uid, s])), [students]);
 
+  // A mentor with mentees across more than one batch year (same gap fixed
+  // on Mock Interview Modules and Mentee Drive Status) — shown mixed
+  // together with no way to narrow to just one.
+  const batchYearOptions = useMemo(() => {
+    if (!mentees) return [];
+    return Array.from(new Set(mentees.map((m) => studentsByUid[m.studentId]?.batchYear).filter((y): y is number => y != null))).sort(
+      (a, b) => a - b
+    );
+  }, [mentees, studentsByUid]);
+
   const groupedByYear = useMemo(() => {
     if (!mentees) return null;
+    const filtered = batchFilter ? mentees.filter((m) => studentsByUid[m.studentId]?.batchYear === batchFilter) : mentees;
     const groups = new Map<string, typeof mentees>();
-    for (const m of mentees) {
+    for (const m of filtered) {
       const label = yearLabel(studentsByUid[m.studentId]?.currentSemester);
       if (!groups.has(label)) groups.set(label, []);
       groups.get(label)!.push(m);
     }
     return YEAR_ORDER.filter((y) => groups.has(y)).map((year) => ({ year, mentees: groups.get(year)! }));
-  }, [mentees, studentsByUid]);
+  }, [mentees, studentsByUid, batchFilter]);
 
   // Coordinator/hod/dean/cpo/admin can see this section too (they're
   // eligible mentors via mentorMapping, same as faculty_mentor — small
@@ -439,14 +451,33 @@ function MyMenteesSection() {
   // clutter on a page they're mainly using for other things. Same fix as
   // Mock Interview Modules' "Log today's evaluations": render nothing once
   // loaded if there's nothing to show, instead of an empty-state message.
-  if (groupedByYear !== null && groupedByYear.length === 0) return null;
+  // Checked against the unfiltered list — a batch filter matching nothing
+  // should show an empty state with the filter still visible, not hide the
+  // whole card as if there were never any mentees at all.
+  if (mentees !== null && mentees.length === 0) return null;
 
   return (
     <Card>
-      <h3 className="mb-1 flex items-center gap-2 text-base font-semibold text-slate-900">
-        <Users className="h-5 w-5 text-brand-600" />
-        My mentees
-      </h3>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+          <Users className="h-5 w-5 text-brand-600" />
+          My mentees
+        </h3>
+        {batchYearOptions.length > 1 && (
+          <select
+            value={batchFilter}
+            onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
+            className={`${inputClass} sm:w-40`}
+          >
+            <option value="">All batches</option>
+            {batchYearOptions.map((y) => (
+              <option key={y} value={y}>
+                Batch {y}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
       <p className="mb-4 text-sm text-slate-500">
         Your assigned mentees — follow up on academics, placement, attendance, activities, and parent communication.
         The <AlertTriangle className="mb-0.5 inline h-3.5 w-3.5 text-amber-500" /> flag means backlogs, low/declining
@@ -455,6 +486,8 @@ function MyMenteesSection() {
 
       {groupedByYear === null ? (
         <Skeleton className="h-24" />
+      ) : groupedByYear.length === 0 ? (
+        <p className="text-sm text-slate-400">No mentees in Batch {batchFilter}.</p>
       ) : firebaseUser ? (
         <div className="space-y-4">
           {groupedByYear.map(({ year, mentees: yearMentees }) => (
