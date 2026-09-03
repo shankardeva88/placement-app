@@ -39,7 +39,8 @@ import {
   useMyMentees,
   useMenteeFollowUps,
   recordFollowUp,
-  getNextMeetingDate,
+  getNextMeetingFollowUp,
+  clearNextMeetingDate,
   computeAtRiskReasons,
   STALE_FOLLOW_UP_DAYS,
 } from "../../lib/menteeFollowUpLib";
@@ -267,20 +268,33 @@ function MenteeDetailPanel({
   student: Student | undefined;
 }) {
   const followUps = useMenteeFollowUps(studentId);
-  const nextMeeting = getNextMeetingDate(followUps);
+  const { showToast } = useToast();
+  const nextMeetingFollowUp = getNextMeetingFollowUp(followUps);
+  const nextMeeting = nextMeetingFollowUp?.nextMeetingDate ?? null;
   const sgpaTrend = student ? sortedSgpaEntries(student.semesterWiseSgpa) : [];
+
+  async function handleClearNextMeeting() {
+    if (!nextMeetingFollowUp) return;
+    await clearNextMeetingDate(nextMeetingFollowUp.followUpId);
+    showToast("Next meeting date cleared");
+  }
 
   return (
     <div className="mt-2 space-y-3 rounded-lg bg-slate-50 p-3">
       {nextMeeting && (
         <div
-          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+          className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm ${
             nextMeeting < Date.now() ? "bg-red-50 text-red-700" : "bg-brand-50 text-brand-700"
           }`}
         >
-          <CalendarClock className="h-4 w-4 shrink-0" />
-          {nextMeeting < Date.now() ? "Meeting overdue — was set for " : "Next meeting: "}
-          {new Date(nextMeeting).toLocaleDateString()}
+          <span className="flex items-center gap-2">
+            <CalendarClock className="h-4 w-4 shrink-0" />
+            {nextMeeting < Date.now() ? "Meeting overdue — was set for " : "Next meeting: "}
+            {new Date(nextMeeting).toLocaleDateString()}
+          </span>
+          <button type="button" onClick={handleClearNextMeeting} className="shrink-0 text-xs font-medium underline">
+            Clear
+          </button>
         </div>
       )}
 

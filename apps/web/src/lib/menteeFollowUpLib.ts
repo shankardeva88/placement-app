@@ -87,9 +87,21 @@ export async function recordFollowUp(input: RecordFollowUpInput) {
 /** The standing "next meeting" for a mentee is whatever the most recent
  * follow-up entry says — each new entry with a date supersedes the last. */
 export function getNextMeetingDate(followUps: MenteeFollowUp[] | null): number | null {
+  return getNextMeetingFollowUp(followUps)?.nextMeetingDate ?? null;
+}
+
+/** Same "latest entry wins" rule as getNextMeetingDate, but returns the
+ * whole record — needed to let a mentor clear a mistakenly-set date (e.g.
+ * typing the date they just talked to the parent into "next meeting"
+ * instead of leaving it blank) without logging a whole new entry just to
+ * supersede it. */
+export function getNextMeetingFollowUp(followUps: MenteeFollowUp[] | null): MenteeFollowUp | null {
   if (!followUps || followUps.length === 0) return null;
   const withDate = followUps.filter((f) => f.nextMeetingDate);
   if (withDate.length === 0) return null;
-  const latest = withDate.reduce((a, b) => (a.createdAt > b.createdAt ? a : b));
-  return latest.nextMeetingDate ?? null;
+  return withDate.reduce((a, b) => (a.createdAt > b.createdAt ? a : b));
+}
+
+export async function clearNextMeetingDate(followUpId: string) {
+  await update(ref(db, `${DB_NODES.menteeFollowUps}/${followUpId}`), { nextMeetingDate: null });
 }
