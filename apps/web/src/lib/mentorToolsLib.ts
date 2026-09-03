@@ -106,6 +106,25 @@ export async function recordMockInterview(input: MockInterviewInput) {
   return interviewId;
 }
 
+export interface UpdateMockInterviewInput {
+  type: MockInterviewType;
+  communication: number;
+  technical: number;
+  confidence: number;
+  feedback: string;
+}
+
+/** No new studentIndex/DeptIndex writes needed — the record's studentId/
+ * department never change on edit, so the index entries written at create
+ * time already point at the right place. */
+export async function updateMockInterview(interviewId: string, input: UpdateMockInterviewInput) {
+  await update(ref(db, `${DB_NODES.mockInterviews}/${interviewId}`), {
+    type: input.type,
+    scores: { communication: input.communication, technical: input.technical, confidence: input.confidence },
+    feedback: input.feedback,
+  });
+}
+
 export interface ResumeReviewInput {
   studentId: string;
   department: Department;
@@ -137,6 +156,22 @@ export async function recordResumeReview(input: ResumeReviewInput) {
   return reviewId;
 }
 
+export interface UpdateResumeReviewInput {
+  version: number;
+  fileUrl: string;
+  status: "not_reviewed" | "needs_revision" | "approved";
+  comment: string;
+}
+
+export async function updateResumeReview(reviewId: string, input: UpdateResumeReviewInput) {
+  await update(ref(db, `${DB_NODES.resumeReviews}/${reviewId}`), {
+    version: input.version,
+    fileUrl: input.fileUrl,
+    status: input.status,
+    comments: input.comment ? [input.comment] : [],
+  });
+}
+
 export interface SkillAssessmentInput {
   studentId: string;
   department: Department;
@@ -164,4 +199,20 @@ export async function recordSkillAssessment(input: SkillAssessmentInput) {
     [`${DB_NODES.skillAssessmentsDeptIndex}/${input.department}/${assessmentId}`]: true,
   });
   return assessmentId;
+}
+
+export interface UpdateSkillAssessmentInput {
+  type: "technical" | "soft_skill" | "certification";
+  source: "manual" | "hackerrank" | "codechef" | "other";
+  score: number;
+  notes: string;
+}
+
+export async function updateSkillAssessment(assessmentId: string, input: UpdateSkillAssessmentInput) {
+  await update(ref(db, `${DB_NODES.skillAssessments}/${assessmentId}`), {
+    type: input.type,
+    source: input.source,
+    score: input.score,
+    notes: input.notes || null,
+  });
 }

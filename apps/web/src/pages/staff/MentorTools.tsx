@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { AlertTriangle, CalendarClock, GraduationCap, MessageCircleMore, Phone, Upload, UserPlus, Users } from "lucide-react";
+import { AlertTriangle, CalendarClock, GraduationCap, MessageCircleMore, Pencil, Phone, Upload, UserPlus, Users } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -10,15 +10,27 @@ import type {
   FacultyDesignation,
   FollowUpCategory,
   MentorMapping,
+  MockInterview,
   MockInterviewType,
   ParentContactMode,
   PlacementStatus,
+  ResumeReview,
+  SkillAssessment,
   Student,
 } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useDeptScopedCollection } from "../../lib/useDeptScopedCollection";
-import { assignMentorBulk, recordMockInterview, recordResumeReview, recordSkillAssessment, useAllMockInterviews } from "../../lib/mentorToolsLib";
+import {
+  assignMentorBulk,
+  recordMockInterview,
+  updateMockInterview,
+  recordResumeReview,
+  updateResumeReview,
+  recordSkillAssessment,
+  updateSkillAssessment,
+  useAllMockInterviews,
+} from "../../lib/mentorToolsLib";
 import { createStaffAccount, parseMentorRows } from "../../lib/staffAuthActions";
 import type { ParsedMentorRow } from "../../lib/staffAuthActions";
 import { parseDelimited } from "../../lib/csv";
@@ -31,7 +43,7 @@ import {
   computeAtRiskReasons,
   STALE_FOLLOW_UP_DAYS,
 } from "../../lib/menteeFollowUpLib";
-import { sortedSgpaEntries } from "../../lib/mentorProgressLib";
+import { sortedSgpaEntries, useIndexedList } from "../../lib/mentorProgressLib";
 import { useMockEvaluations } from "../../lib/mockEvaluationLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
@@ -131,11 +143,19 @@ function useRecordableStudents(): { students: Student[]; loading: boolean } {
   return { students: sorted, loading };
 }
 
-function StudentPicker({ value, onChange }: { value: string; onChange: (uid: string) => void }) {
+function StudentPicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (uid: string) => void;
+  disabled?: boolean;
+}) {
   const { students: sorted, loading } = useRecordableStudents();
 
   return (
-    <select required value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
+    <select required disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
       <option value="">{loading ? "Loading…" : sorted.length === 0 ? "No mentees or drive-prep students yet" : "Select a student"}</option>
       {sorted.map((s) => (
         <option key={s.studentId} value={s.uid}>
@@ -755,6 +775,9 @@ function MockInterviewSection({
   const [confidence, setConfidence] = useState(5);
   const [feedback, setFeedback] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const pastRecords = useIndexedList<MockInterview>(studentId || undefined, DB_NODES.mockInterviews);
 
   useEffect(() => {
     if (!prefill) return;
@@ -775,17 +798,41 @@ function MockInterviewSection({
     onConsumedPrefill();
   }
 
+  function startEdit(record: MockInterview) {
+    setEditingId(record.interviewId);
+    setType(record.type);
+    setCommunication(record.scores.communication);
+    setTechnical(record.scores.technical);
+    setConfidence(record.scores.confidence);
+    setFeedback(record.feedback);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setType("technical");
+    setCommunication(5);
+    setTechnical(5);
+    setConfidence(5);
+    setFeedback("");
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const department = students?.find((s) => s.uid === studentId)?.department;
     if (!firebaseUser || !department) return;
     setSubmitting(true);
     try {
-      await recordMockInterview({ studentId, department, mentorId: firebaseUser.uid, type, communication, technical, confidence, feedback, driveId });
-      showToast("Mock interview recorded");
-      setStudentId("");
-      setFeedback("");
-      clearDrivePrep();
+      if (editingId) {
+        await updateMockInterview(editingId, { type, communication, technical, confidence, feedback });
+        showToast("Mock interview updated");
+        cancelEdit();
+      } else {
+        await recordMockInterview({ studentId, department, mentorId: firebaseUser.uid, type, communication, technical, confidence, feedback, driveId });
+        showToast("Mock interview recorded");
+        setStudentId("");
+        setFeedback("");
+        clearDrivePrep();
+      }
     } finally {
       setSubmitting(false);
     }
@@ -802,9 +849,17 @@ function MockInterviewSection({
           </button>
         </div>
       )}
+      {editingId && (
+        <div className="mb-3 flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <span>Editing a previously logged interview</span>
+          <button type="button" onClick={cancelEdit} className="text-xs font-medium underline">
+            Cancel
+          </button>
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <StudentPicker value={studentId} onChange={setStudentId} />
+          <StudentPicker value={studentId} onChange={setStudentId} disabled={!!editingId} />
           <select value={type} onChange={(e) => setType(e.target.value as MockInterviewType)} className={inputClass}>
             {MOCK_TYPES.map((t) => (
               <option key={t} value={t}>
@@ -828,10 +883,45 @@ function MockInterviewSection({
           </div>
         </div>
         <textarea placeholder="Feedback" rows={2} value={feedback} onChange={(e) => setFeedback(e.target.value)} className={inputClass} />
-        <Button type="submit" loading={submitting}>
-          Save
-        </Button>
+        <div className="flex gap-2">
+          <Button type="submit" loading={submitting}>
+            {editingId ? "Update" : "Save"}
+          </Button>
+          {editingId && (
+            <Button type="button" variant="secondary" onClick={cancelEdit}>
+              Cancel
+            </Button>
+          )}
+        </div>
       </form>
+
+      {studentId && pastRecords && pastRecords.length > 0 && (
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Past interviews for this student
+          </p>
+          <ul className="space-y-1.5">
+            {pastRecords
+              .slice()
+              .sort((a, b) => b.date - a.date)
+              .map((r) => (
+                <li key={r.interviewId} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-1.5 text-sm">
+                  <span className="capitalize text-slate-700">
+                    {r.type.replace("_", " ")} — {new Date(r.date).toLocaleDateString()}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => startEdit(r)}
+                    className="flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Edit
+                  </button>
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
     </Card>
   );
 }
@@ -847,8 +937,27 @@ function ResumeReviewSection() {
   const [status, setStatus] = useState<"not_reviewed" | "needs_revision" | "approved">("needs_revision");
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const pastRecords = useIndexedList<ResumeReview>(studentId || undefined, DB_NODES.resumeReviews);
 
   if (!recordableLoading && recordable.length === 0) return null;
+
+  function startEdit(record: ResumeReview) {
+    setEditingId(record.reviewId);
+    setVersion(record.version);
+    setFileUrl(record.fileUrl);
+    setStatus(record.status);
+    setComment(record.comments[record.comments.length - 1] ?? "");
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setVersion(1);
+    setFileUrl("");
+    setStatus("needs_revision");
+    setComment("");
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -856,11 +965,17 @@ function ResumeReviewSection() {
     if (!firebaseUser || !department) return;
     setSubmitting(true);
     try {
-      await recordResumeReview({ studentId, department, mentorId: firebaseUser.uid, version, fileUrl, status, comment });
-      showToast("Resume review recorded");
-      setStudentId("");
-      setFileUrl("");
-      setComment("");
+      if (editingId) {
+        await updateResumeReview(editingId, { version, fileUrl, status, comment });
+        showToast("Resume review updated");
+        cancelEdit();
+      } else {
+        await recordResumeReview({ studentId, department, mentorId: firebaseUser.uid, version, fileUrl, status, comment });
+        showToast("Resume review recorded");
+        setStudentId("");
+        setFileUrl("");
+        setComment("");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -869,9 +984,17 @@ function ResumeReviewSection() {
   return (
     <Card>
       <h3 className="mb-4 text-base font-semibold text-slate-900">Record resume review</h3>
+      {editingId && (
+        <div className="mb-3 flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <span>Editing a previously logged review</span>
+          <button type="button" onClick={cancelEdit} className="text-xs font-medium underline">
+            Cancel
+          </button>
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <StudentPicker value={studentId} onChange={setStudentId} />
+          <StudentPicker value={studentId} onChange={setStudentId} disabled={!!editingId} />
           <input type="number" min={1} placeholder="Version" value={version} onChange={(e) => setVersion(Number(e.target.value))} className={inputClass} />
           <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={inputClass}>
             <option value="not_reviewed">Not reviewed</option>
@@ -881,10 +1004,44 @@ function ResumeReviewSection() {
         </div>
         <input type="url" placeholder="Resume file link" value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} className={inputClass} />
         <textarea placeholder="Comment" rows={2} value={comment} onChange={(e) => setComment(e.target.value)} className={inputClass} />
-        <Button type="submit" loading={submitting}>
-          Save
-        </Button>
+        <div className="flex gap-2">
+          <Button type="submit" loading={submitting}>
+            {editingId ? "Update" : "Save"}
+          </Button>
+          {editingId && (
+            <Button type="button" variant="secondary" onClick={cancelEdit}>
+              Cancel
+            </Button>
+          )}
+        </div>
       </form>
+
+      {studentId && pastRecords && pastRecords.length > 0 && (
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Past reviews for this student</p>
+          <ul className="space-y-1.5">
+            {pastRecords
+              .slice()
+              .sort((a, b) => (b.reviewedAt ?? 0) - (a.reviewedAt ?? 0))
+              .map((r) => (
+                <li key={r.reviewId} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-1.5 text-sm">
+                  <span className="text-slate-700">
+                    v{r.version} — {r.status.replace("_", " ")}
+                    {r.reviewedAt ? ` — ${new Date(r.reviewedAt).toLocaleDateString()}` : ""}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => startEdit(r)}
+                    className="flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Edit
+                  </button>
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
     </Card>
   );
 }
@@ -900,8 +1057,27 @@ function SkillAssessmentSection() {
   const [score, setScore] = useState(0);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const pastRecords = useIndexedList<SkillAssessment>(studentId || undefined, DB_NODES.skillAssessments);
 
   if (!recordableLoading && recordable.length === 0) return null;
+
+  function startEdit(record: SkillAssessment) {
+    setEditingId(record.assessmentId);
+    setType(record.type);
+    setSource(record.source);
+    setScore(record.score);
+    setNotes(record.notes ?? "");
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setType("technical");
+    setSource("manual");
+    setScore(0);
+    setNotes("");
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -909,10 +1085,16 @@ function SkillAssessmentSection() {
     if (!department) return;
     setSubmitting(true);
     try {
-      await recordSkillAssessment({ studentId, department, type, source, score, notes });
-      showToast("Skill assessment recorded");
-      setStudentId("");
-      setNotes("");
+      if (editingId) {
+        await updateSkillAssessment(editingId, { type, source, score, notes });
+        showToast("Skill assessment updated");
+        cancelEdit();
+      } else {
+        await recordSkillAssessment({ studentId, department, type, source, score, notes });
+        showToast("Skill assessment recorded");
+        setStudentId("");
+        setNotes("");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -921,9 +1103,17 @@ function SkillAssessmentSection() {
   return (
     <Card>
       <h3 className="mb-4 text-base font-semibold text-slate-900">Record skill assessment</h3>
+      {editingId && (
+        <div className="mb-3 flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <span>Editing a previously logged assessment</span>
+          <button type="button" onClick={cancelEdit} className="text-xs font-medium underline">
+            Cancel
+          </button>
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-          <StudentPicker value={studentId} onChange={setStudentId} />
+          <StudentPicker value={studentId} onChange={setStudentId} disabled={!!editingId} />
           <select value={type} onChange={(e) => setType(e.target.value as typeof type)} className={inputClass}>
             <option value="technical">Technical</option>
             <option value="soft_skill">Soft skill</option>
@@ -938,10 +1128,43 @@ function SkillAssessmentSection() {
           <input type="number" min={0} max={100} placeholder="Score /100" value={score} onChange={(e) => setScore(Number(e.target.value))} className={inputClass} />
         </div>
         <input type="text" placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} />
-        <Button type="submit" loading={submitting}>
-          Save
-        </Button>
+        <div className="flex gap-2">
+          <Button type="submit" loading={submitting}>
+            {editingId ? "Update" : "Save"}
+          </Button>
+          {editingId && (
+            <Button type="button" variant="secondary" onClick={cancelEdit}>
+              Cancel
+            </Button>
+          )}
+        </div>
       </form>
+
+      {studentId && pastRecords && pastRecords.length > 0 && (
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Past assessments for this student</p>
+          <ul className="space-y-1.5">
+            {pastRecords
+              .slice()
+              .sort((a, b) => b.date - a.date)
+              .map((r) => (
+                <li key={r.assessmentId} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-1.5 text-sm">
+                  <span className="capitalize text-slate-700">
+                    {r.type.replace("_", " ")} — {r.score}/100 — {new Date(r.date).toLocaleDateString()}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => startEdit(r)}
+                    className="flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Edit
+                  </button>
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
     </Card>
   );
 }
