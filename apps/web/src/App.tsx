@@ -61,6 +61,7 @@ import SkillAssessmentReport from "./pages/staff/reports/SkillAssessmentReport";
 import MentorReportsHome from "./pages/staff/reports/MentorReportsHome";
 import MenteeMasterReport from "./pages/staff/reports/MenteeMasterReport";
 import MenteeFollowUpReport from "./pages/staff/reports/MenteeFollowUpReport";
+import MenteeFollowUpLogReport from "./pages/staff/reports/MenteeFollowUpLogReport";
 import MenteeMockEvaluationReport from "./pages/staff/reports/MenteeMockEvaluationReport";
 
 export default function App() {
@@ -502,6 +503,14 @@ export default function App() {
             element={
               <StaffLayoutRoute>
                 <MenteeFollowUpReport />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/mentor-reports/follow-up-log"
+            element={
+              <StaffLayoutRoute>
+                <MenteeFollowUpLogReport />
               </StaffLayoutRoute>
             }
           />

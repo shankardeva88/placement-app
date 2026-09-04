@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, FileBarChart, Users, MessageCircleMore, ClipboardCheck } from "lucide-react";
+import { ArrowRight, FileBarChart, FileText, Users, MessageCircleMore, ClipboardCheck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card } from "../../../components/ui/Card";
 import { PageHeader } from "../../../components/ui/PageHeader";
@@ -17,6 +17,13 @@ const REPORTS: { to: string; label: string; description: string; icon: LucideIco
     label: "Follow-up Activity Report",
     description: "Per mentee: how many follow-ups, by category, last contact date.",
     icon: MessageCircleMore,
+    gradient: "from-pink-500 to-rose-600",
+  },
+  {
+    to: "/staff/mentor-reports/follow-up-log",
+    label: "Mentee Follow-up Log",
+    description: "Every follow-up entry in full detail — subject, drive, readiness, attendance %, note — your maintained record, exportable.",
+    icon: FileText,
     gradient: "from-pink-500 to-rose-600",
   },
   {
