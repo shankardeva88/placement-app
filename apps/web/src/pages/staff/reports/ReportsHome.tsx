@@ -10,6 +10,7 @@ import {
   FileBarChart,
   FileCheck,
   FileSpreadsheet,
+  FileText,
   Users,
   Users2,
   UserCheck,
@@ -69,6 +70,13 @@ const REPORTS: { to: string; label: string; description: string; icon: LucideIco
     description: "Every mentor-mentee assignment, one row each — filter by mentor, department, or batch.",
     icon: UserCheck,
     gradient: "from-emerald-500 to-teal-600",
+  },
+  {
+    to: "/staff/reports/follow-up-log",
+    label: "Mentee Follow-up Log",
+    description: "Every mentor's follow-up entries, department-wide, in full detail — subject, drive, readiness, attendance %, note. Filter by mentor, batch, category, or date.",
+    icon: FileText,
+    gradient: "from-pink-500 to-rose-600",
   },
   {
     to: "/staff/reports/mock-interviews",

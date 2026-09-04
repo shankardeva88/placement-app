@@ -54,6 +54,7 @@ import OffersInternshipsReport from "./pages/staff/reports/OffersInternshipsRepo
 import DriveSummaryReport from "./pages/staff/reports/DriveSummaryReport";
 import MentorWiseReport from "./pages/staff/reports/MentorWiseReport";
 import MenteeRosterReport from "./pages/staff/reports/MenteeRosterReport";
+import FollowUpLogReport from "./pages/staff/reports/FollowUpLogReport";
 import MockInterviewReport from "./pages/staff/reports/MockInterviewReport";
 import MockInterviewAnalytics from "./pages/staff/reports/MockInterviewAnalytics";
 import ResumeReviewReport from "./pages/staff/reports/ResumeReviewReport";
@@ -447,6 +448,14 @@ export default function App() {
             element={
               <StaffLayoutRoute>
                 <MenteeRosterReport />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/reports/follow-up-log"
+            element={
+              <StaffLayoutRoute>
+                <FollowUpLogReport />
               </StaffLayoutRoute>
             }
           />
