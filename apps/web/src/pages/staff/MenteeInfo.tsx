@@ -48,9 +48,15 @@ export function MenteeRow({ student }: { student: Student }) {
               {student.rollNo} — {student.name}
             </p>
             <p className="text-sm text-slate-500">
-              {student.department} · CGPA {student.cgpa}
-              {student.activeBacklogs > 0 ? ` · ${student.activeBacklogs} backlog(s)` : ""}
+              {student.department} · Batch {student.batchYear} · CGPA {student.cgpa} · Backlogs {student.activeBacklogs}
+              {student.entranceRank && ` · ${student.entranceType ? `${student.entranceType}: ` : ""}${student.entranceRank}`}
             </p>
+            {(student.skills ?? []).length > 0 && (
+              <p className="mt-0.5 truncate text-xs text-slate-400">{(student.skills ?? []).join(", ")}</p>
+            )}
+            {Object.keys(student.trainings ?? {}).length > 0 && (
+              <p className="mt-0.5 truncate text-xs text-slate-400">Training: {Object.keys(student.trainings ?? {}).join(", ")}</p>
+            )}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
