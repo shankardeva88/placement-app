@@ -1087,14 +1087,20 @@ function MockInterviewSection({
       )}
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <StudentPicker value={studentId} onChange={setStudentId} disabled={!!editingId} batchFilter={batchFilter} />
-          <select value={type} onChange={(e) => setType(e.target.value as MockInterviewType)} className={inputClass}>
-            {MOCK_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t.replace("_", " ")}
-              </option>
-            ))}
-          </select>
+          <div>
+            <label className={labelClass}>Student</label>
+            <StudentPicker value={studentId} onChange={setStudentId} disabled={!!editingId} batchFilter={batchFilter} />
+          </div>
+          <div>
+            <label className={labelClass}>Type</label>
+            <select value={type} onChange={(e) => setType(e.target.value as MockInterviewType)} className={inputClass}>
+              {MOCK_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t.replace("_", " ")}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className={labelClass}>Date</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
@@ -1114,7 +1120,10 @@ function MockInterviewSection({
             <input type="number" min={0} max={10} value={confidence} onChange={(e) => setConfidence(Number(e.target.value))} className={inputClass} />
           </div>
         </div>
-        <textarea placeholder="Feedback" rows={2} value={feedback} onChange={(e) => setFeedback(e.target.value)} className={inputClass} />
+        <div>
+          <label className={labelClass}>Feedback (optional)</label>
+          <textarea rows={2} value={feedback} onChange={(e) => setFeedback(e.target.value)} className={inputClass} />
+        </div>
         <div className="flex gap-2">
           <Button type="submit" loading={submitting}>
             {editingId ? "Update" : "Save"}
@@ -1231,20 +1240,35 @@ function ResumeReviewSection({ batchFilter }: { batchFilter: number | "" }) {
       )}
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-          <StudentPicker value={studentId} onChange={setStudentId} disabled={!!editingId} batchFilter={batchFilter} />
-          <input type="number" min={1} placeholder="Version" value={version} onChange={(e) => setVersion(Number(e.target.value))} className={inputClass} />
-          <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={inputClass}>
-            <option value="not_reviewed">Not reviewed</option>
-            <option value="needs_revision">Needs revision</option>
-            <option value="approved">Approved</option>
-          </select>
+          <div>
+            <label className={labelClass}>Student</label>
+            <StudentPicker value={studentId} onChange={setStudentId} disabled={!!editingId} batchFilter={batchFilter} />
+          </div>
+          <div>
+            <label className={labelClass}>Version</label>
+            <input type="number" min={1} value={version} onChange={(e) => setVersion(Number(e.target.value))} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Status</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={inputClass}>
+              <option value="not_reviewed">Not reviewed</option>
+              <option value="needs_revision">Needs revision</option>
+              <option value="approved">Approved</option>
+            </select>
+          </div>
           <div>
             <label className={labelClass}>Date</label>
             <input type="date" value={reviewDate} onChange={(e) => setReviewDate(e.target.value)} className={inputClass} />
           </div>
         </div>
-        <input type="url" placeholder="Resume file link" value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} className={inputClass} />
-        <textarea placeholder="Comment" rows={2} value={comment} onChange={(e) => setComment(e.target.value)} className={inputClass} />
+        <div>
+          <label className={labelClass}>Resume file link</label>
+          <input type="url" value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>Comment (optional)</label>
+          <textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} className={inputClass} />
+        </div>
         <div className="flex gap-2">
           <Button type="submit" loading={submitting}>
             {editingId ? "Update" : "Save"}
@@ -1359,27 +1383,42 @@ function SkillAssessmentSection({ batchFilter }: { batchFilter: number | "" }) {
       )}
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <StudentPicker value={studentId} onChange={setStudentId} disabled={!!editingId} batchFilter={batchFilter} />
-          <select value={type} onChange={(e) => setType(e.target.value as typeof type)} className={inputClass}>
-            <option value="technical">Technical</option>
-            <option value="soft_skill">Soft skill</option>
-            <option value="certification">Certification</option>
-          </select>
-          <select value={source} onChange={(e) => setSource(e.target.value as typeof source)} className={inputClass}>
-            <option value="manual">Manual</option>
-            <option value="hackerrank">HackerRank</option>
-            <option value="codechef">CodeChef</option>
-            <option value="other">Other</option>
-          </select>
+          <div>
+            <label className={labelClass}>Student</label>
+            <StudentPicker value={studentId} onChange={setStudentId} disabled={!!editingId} batchFilter={batchFilter} />
+          </div>
+          <div>
+            <label className={labelClass}>Type</label>
+            <select value={type} onChange={(e) => setType(e.target.value as typeof type)} className={inputClass}>
+              <option value="technical">Technical</option>
+              <option value="soft_skill">Soft skill</option>
+              <option value="certification">Certification</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Source</label>
+            <select value={source} onChange={(e) => setSource(e.target.value as typeof source)} className={inputClass}>
+              <option value="manual">Manual</option>
+              <option value="hackerrank">HackerRank</option>
+              <option value="codechef">CodeChef</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <input type="number" min={0} max={100} placeholder="Score /100" value={score} onChange={(e) => setScore(Number(e.target.value))} className={inputClass} />
+          <div>
+            <label className={labelClass}>Score /100</label>
+            <input type="number" min={0} max={100} value={score} onChange={(e) => setScore(Number(e.target.value))} className={inputClass} />
+          </div>
           <div>
             <label className={labelClass}>Date</label>
             <input type="date" value={assessedDate} onChange={(e) => setAssessedDate(e.target.value)} className={inputClass} />
           </div>
+          <div>
+            <label className={labelClass}>Notes (optional)</label>
+            <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} />
+          </div>
         </div>
-        <input type="text" placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} />
         <div className="flex gap-2">
           <Button type="submit" loading={submitting}>
             {editingId ? "Update" : "Save"}
