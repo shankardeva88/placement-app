@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Briefcase, ListChecks, Plus, Search, Trash2, Users } from "lucide-react";
+import { Briefcase, ChevronDown, ChevronUp, ListChecks, Plus, Search, Trash2, Users } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -55,6 +55,11 @@ function DriveCard({ drive, applicantCount }: { drive: Drive; applicantCount: nu
   const [editing, setEditing] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Collapsed by default — a coordinator running 20+ drives at once had
+  // every card's full info grid and action row dumped open at all times,
+  // same fix already applied to Offers/Internships/Training. Click a card
+  // to see its details and actions.
+  const [expanded, setExpanded] = useState(false);
 
   async function handleUpdate(values: DriveFormValues) {
     await updateDrive(drive.driveId, {
@@ -111,78 +116,86 @@ function DriveCard({ drive, applicantCount }: { drive: Drive; applicantCount: nu
 
   return (
     <Card>
-      <div className="flex items-start justify-between gap-4">
+      <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-start justify-between gap-4 text-left">
         <div>
           <h3 className="text-base font-semibold text-slate-900">{drive.companyName}</h3>
           <p className="text-sm text-slate-500">{driveRoleSummary(drive)}</p>
         </div>
-        <Badge variant={DRIVE_BADGE[drive.status]}>{drive.status}</Badge>
-      </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge variant="brand">{driveCtcSummary(drive)}</Badge>
+          <Badge variant={DRIVE_BADGE[drive.status]}>{drive.status}</Badge>
+          {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+        </div>
+      </button>
 
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-        <div>
-          <dt className="text-slate-500">Type</dt>
-          <dd className="font-medium text-slate-900">{DRIVE_TYPE_LABEL[drive.type]}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">CTC</dt>
-          <dd className="font-medium text-slate-900">{driveCtcSummary(drive)}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Eligible depts</dt>
-          <dd className="font-medium text-slate-900">{(drive.eligibility.departments ?? []).join(", ") || "Any department"}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Drive date</dt>
-          <dd className="font-medium text-slate-900">{new Date(drive.driveDate).toLocaleDateString()}</dd>
-        </div>
-      </dl>
+      {expanded && (
+        <>
+          <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            <div>
+              <dt className="text-slate-500">Type</dt>
+              <dd className="font-medium text-slate-900">{DRIVE_TYPE_LABEL[drive.type]}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">CTC</dt>
+              <dd className="font-medium text-slate-900">{driveCtcSummary(drive)}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Eligible depts</dt>
+              <dd className="font-medium text-slate-900">{(drive.eligibility.departments ?? []).join(", ") || "Any department"}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Drive date</dt>
+              <dd className="font-medium text-slate-900">{new Date(drive.driveDate).toLocaleDateString()}</dd>
+            </div>
+          </dl>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
-        <Link to={`/staff/drives/${drive.driveId}`}>
-          <Button variant="secondary">
-            <Users className="h-4 w-4" />
-            Applicants
-          </Button>
-        </Link>
-        <Link to={`/staff/drives/${drive.driveId}/eligibility`}>
-          <Button variant="secondary">
-            <ListChecks className="h-4 w-4" />
-            Eligibility List
-          </Button>
-        </Link>
-        <Button variant="secondary" onClick={() => setEditing(true)}>
-          Edit
-        </Button>
-        <select
-          value={drive.status}
-          disabled={changingStatus}
-          onChange={(e) => handleStatusChange(e.target.value as DriveStatus)}
-          className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-        >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        <Button
-          variant="danger"
-          onClick={handleDelete}
-          loading={deleting}
-          disabled={applicantCount === null || applicantCount > 0}
-          title={
-            applicantCount === null
-              ? "Loading applicant count…"
-              : applicantCount > 0
-                ? `Can't delete — ${applicantCount} student(s) have already applied. Mark it cancelled instead.`
-                : "Delete this drive"
-          }
-        >
-          <Trash2 className="h-4 w-4" />
-          Delete
-        </Button>
-      </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+            <Link to={`/staff/drives/${drive.driveId}`}>
+              <Button variant="secondary">
+                <Users className="h-4 w-4" />
+                Applicants
+              </Button>
+            </Link>
+            <Link to={`/staff/drives/${drive.driveId}/eligibility`}>
+              <Button variant="secondary">
+                <ListChecks className="h-4 w-4" />
+                Eligibility List
+              </Button>
+            </Link>
+            <Button variant="secondary" onClick={() => setEditing(true)}>
+              Edit
+            </Button>
+            <select
+              value={drive.status}
+              disabled={changingStatus}
+              onChange={(e) => handleStatusChange(e.target.value as DriveStatus)}
+              className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            <Button
+              variant="danger"
+              onClick={handleDelete}
+              loading={deleting}
+              disabled={applicantCount === null || applicantCount > 0}
+              title={
+                applicantCount === null
+                  ? "Loading applicant count…"
+                  : applicantCount > 0
+                    ? `Can't delete — ${applicantCount} student(s) have already applied. Mark it cancelled instead.`
+                    : "Delete this drive"
+              }
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </Button>
+          </div>
+        </>
+      )}
     </Card>
   );
 }
