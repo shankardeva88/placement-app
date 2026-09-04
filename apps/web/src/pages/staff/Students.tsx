@@ -235,7 +235,7 @@ export default function Students() {
   const [rankMax, setRankMax] = useState("");
   const [backlogFilter, setBacklogFilter] = useState<"" | "0" | "1" | "2" | "3" | "4+">("");
   const [recentlyUpdatedOnly, setRecentlyUpdatedOnly] = useState(false);
-  const [notVerifiedOnly, setNotVerifiedOnly] = useState(false);
+  const [verificationFilter, setVerificationFilter] = useState<"" | "verified" | "not_verified">("");
   const [showAlumni, setShowAlumni] = useState(false);
   const [sortBy, setSortBy] = useState<"rollNo" | "recentlyUpdated">("rollNo");
   const [adding, setAdding] = useState(false);
@@ -278,39 +278,75 @@ export default function Students() {
   const rankMinNum = rankMin === "" ? null : Number(rankMin);
   const rankMaxNum = rankMax === "" ? null : Number(rankMax);
 
-  const filtered = useMemo(() => {
+  // Split out from the verification checkbox on purpose — verifiedCount/
+  // notVerifiedCount below need "everyone matching every other filter",
+  // not "everyone matching every other filter AND the verification filter
+  // itself", or picking one option would make the other option's count
+  // disappear along with it.
+  const preVerificationFiltered = useMemo(() => {
     if (!students) return null;
     const term = search.trim().toLowerCase();
     const cutoff = Date.now() - RECENT_WINDOW_MS;
-    return students
+    return students.filter((s) => {
+      if (!showAlumni && s.isAlumni) return false;
+      if (deptFilter && s.department !== deptFilter) return false;
+      if (batchFilter && s.batchYear !== batchFilter) return false;
+      if (entranceTypeFilter && s.entranceType !== entranceTypeFilter) return false;
+      if (placementFilter && s.placementStatus !== placementFilter) return false;
+      if (backlogFilter && !(backlogFilter === "4+" ? s.activeBacklogs >= 4 : s.activeBacklogs === Number(backlogFilter))) return false;
+      if (rankMinNum != null || rankMaxNum != null) {
+        const rank = numericRank(s.entranceRank);
+        if (rank == null) return false;
+        if (rankMinNum != null && rank < rankMinNum) return false;
+        if (rankMaxNum != null && rank > rankMaxNum) return false;
+      }
+      if (trainingFilter.startsWith("batch:")) {
+        if (!studentIdsByBatchName.get(trainingFilter.slice(6))?.has(s.uid)) return false;
+      } else if (trainingFilter.startsWith("import:")) {
+        if (!(s.trainings ?? {})[trainingFilter.slice(7)]) return false;
+      }
+      if (recentlyUpdatedOnly && (!s.lastSignificantUpdateAt || s.lastSignificantUpdateAt < cutoff)) return false;
+      if (!term) return true;
+      return (
+        s.name.toLowerCase().includes(term) ||
+        s.rollNo.toLowerCase().includes(term) ||
+        (s.entranceRank ?? "").toLowerCase().includes(term) ||
+        (s.skills ?? []).some((skill) => skill.toLowerCase().includes(term)) ||
+        Object.keys(s.trainings ?? {}).some((training) => training.toLowerCase().includes(term))
+      );
+    });
+  }, [
+    students,
+    search,
+    deptFilter,
+    batchFilter,
+    entranceTypeFilter,
+    placementFilter,
+    backlogFilter,
+    rankMinNum,
+    rankMaxNum,
+    trainingFilter,
+    studentIdsByBatchName,
+    recentlyUpdatedOnly,
+    showAlumni,
+  ]);
+
+  const verifiedCount = useMemo(
+    () => preVerificationFiltered?.filter((s) => s.verifiedByFaculty).length ?? 0,
+    [preVerificationFiltered]
+  );
+  const notVerifiedCount = useMemo(
+    () => preVerificationFiltered?.filter((s) => !s.verifiedByFaculty).length ?? 0,
+    [preVerificationFiltered]
+  );
+
+  const filtered = useMemo(() => {
+    if (!preVerificationFiltered) return null;
+    return preVerificationFiltered
       .filter((s) => {
-        if (!showAlumni && s.isAlumni) return false;
-        if (deptFilter && s.department !== deptFilter) return false;
-        if (batchFilter && s.batchYear !== batchFilter) return false;
-        if (entranceTypeFilter && s.entranceType !== entranceTypeFilter) return false;
-        if (placementFilter && s.placementStatus !== placementFilter) return false;
-        if (backlogFilter && !(backlogFilter === "4+" ? s.activeBacklogs >= 4 : s.activeBacklogs === Number(backlogFilter))) return false;
-        if (rankMinNum != null || rankMaxNum != null) {
-          const rank = numericRank(s.entranceRank);
-          if (rank == null) return false;
-          if (rankMinNum != null && rank < rankMinNum) return false;
-          if (rankMaxNum != null && rank > rankMaxNum) return false;
-        }
-        if (trainingFilter.startsWith("batch:")) {
-          if (!studentIdsByBatchName.get(trainingFilter.slice(6))?.has(s.uid)) return false;
-        } else if (trainingFilter.startsWith("import:")) {
-          if (!(s.trainings ?? {})[trainingFilter.slice(7)]) return false;
-        }
-        if (recentlyUpdatedOnly && (!s.lastSignificantUpdateAt || s.lastSignificantUpdateAt < cutoff)) return false;
-        if (notVerifiedOnly && s.verifiedByFaculty) return false;
-        if (!term) return true;
-        return (
-          s.name.toLowerCase().includes(term) ||
-          s.rollNo.toLowerCase().includes(term) ||
-          (s.entranceRank ?? "").toLowerCase().includes(term) ||
-          (s.skills ?? []).some((skill) => skill.toLowerCase().includes(term)) ||
-          Object.keys(s.trainings ?? {}).some((training) => training.toLowerCase().includes(term))
-        );
+        if (verificationFilter === "verified") return s.verifiedByFaculty;
+        if (verificationFilter === "not_verified") return !s.verifiedByFaculty;
+        return true;
       })
       .sort((a, b) => {
         if (sortBy === "recentlyUpdated") {
@@ -325,23 +361,7 @@ export default function Students() {
         // which is exactly the order this fixed-width format needs.
         return a.rollNo.localeCompare(b.rollNo);
       });
-  }, [
-    students,
-    search,
-    deptFilter,
-    batchFilter,
-    entranceTypeFilter,
-    placementFilter,
-    backlogFilter,
-    rankMinNum,
-    rankMaxNum,
-    trainingFilter,
-    studentIdsByBatchName,
-    recentlyUpdatedOnly,
-    notVerifiedOnly,
-    showAlumni,
-    sortBy,
-  ]);
+  }, [preVerificationFiltered, verificationFilter, sortBy]);
 
   // Selection is kept as its own set (not "index into filtered") so it
   // survives a filter change instead of silently pointing at the wrong
@@ -626,8 +646,16 @@ export default function Students() {
             Recently updated only (last 7 days)
           </label>
           <label className="flex items-center gap-1.5 text-sm text-slate-600">
-            <input type="checkbox" checked={notVerifiedOnly} onChange={(e) => setNotVerifiedOnly(e.target.checked)} />
-            Not verified only
+            Verification:
+            <select
+              value={verificationFilter}
+              onChange={(e) => setVerificationFilter(e.target.value as typeof verificationFilter)}
+              className="rounded-lg border border-slate-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
+              <option value="">All ({verifiedCount + notVerifiedCount})</option>
+              <option value="verified">Verified only ({verifiedCount})</option>
+              <option value="not_verified">Not verified only ({notVerifiedCount})</option>
+            </select>
           </label>
           {filtered && filtered.some((s) => !s.verifiedByFaculty) && (
             <Button variant="secondary" onClick={handleCopyNotVerified} className="!px-2.5 !py-1 text-xs">
