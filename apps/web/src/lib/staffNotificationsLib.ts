@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ref, push, set, onValue, serverTimestamp } from "firebase/database";
+import { ref, push, set, remove, onValue, serverTimestamp } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
 import type { AppNotification, NotificationAudienceType } from "@placement-app/types";
@@ -39,4 +39,11 @@ export async function sendNotification(input: SendNotificationInput) {
   };
   if (input.filterValue) (notification.audience as Record<string, unknown>).filterValue = input.filterValue;
   await set(newRef, notification);
+}
+
+/** Notifications have no expiry — once sent, one stays visible to every
+ * matching student forever unless it's deleted. This is the only way to
+ * retract a mistaken or now-outdated one. */
+export async function deleteNotification(notificationId: string) {
+  await remove(ref(db, `${DB_NODES.notifications}/${notificationId}`));
 }

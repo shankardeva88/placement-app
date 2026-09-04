@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { Bell, Plus } from "lucide-react";
+import { Bell, Plus, Trash2 } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
 import type { Department, Drive, NotificationAudienceType } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
-import { useAllNotifications, sendNotification } from "../../lib/staffNotificationsLib";
+import { useAllNotifications, sendNotification, deleteNotification } from "../../lib/staffNotificationsLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -137,8 +137,10 @@ function SendNotificationForm({ onDone, drives }: { onDone: () => void; drives: 
 
 export default function StaffNotifications() {
   const notifications = useAllNotifications();
+  const { showToast } = useToast();
   const [creating, setCreating] = useState(false);
   const [drives, setDrives] = useState<Drive[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     return onValue(ref(db, DB_NODES.drives), (snap) => {
@@ -148,6 +150,22 @@ export default function StaffNotifications() {
   }, []);
 
   const drivesById = useMemo(() => Object.fromEntries(drives.map((d) => [d.driveId, d])), [drives]);
+
+  // No expiry on these — once sent, a notification stays visible to every
+  // matching student forever, so this is the only way to retract a mistake
+  // or something now outdated.
+  async function handleDelete(notificationId: string, title: string) {
+    if (!window.confirm(`Delete "${title}"? This removes it for everyone it was sent to — this can't be undone.`)) return;
+    setDeletingId(notificationId);
+    try {
+      await deleteNotification(notificationId);
+      showToast("Notification deleted");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not delete notification");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div>
@@ -192,10 +210,20 @@ export default function StaffNotifications() {
             <Card key={n.notificationId}>
               <div className="flex items-start justify-between gap-3">
                 <h3 className="text-sm font-semibold text-slate-900">{n.title}</h3>
-                <Badge variant="neutral">
-                  {AUDIENCE_LABEL[n.audience.type] ?? n.audience.type}
-                  {filterLabel ? ` · ${filterLabel}` : ""}
-                </Badge>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Badge variant="neutral">
+                    {AUDIENCE_LABEL[n.audience.type] ?? n.audience.type}
+                    {filterLabel ? ` · ${filterLabel}` : ""}
+                  </Badge>
+                  <Button
+                    variant="danger"
+                    onClick={() => handleDelete(n.notificationId, n.title)}
+                    loading={deletingId === n.notificationId}
+                    className="!px-2 !py-1"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
               <p className="mt-1 text-sm text-slate-600">{n.body}</p>
               <p className="mt-2 text-xs text-slate-400">{new Date(n.sentAt).toLocaleString()}</p>
