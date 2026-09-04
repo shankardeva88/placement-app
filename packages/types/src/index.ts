@@ -452,9 +452,11 @@ export interface MentorMapping {
  * (via MentorMapping above), regular follow-up across academics, placement,
  * attendance, activities, and parent contact — not just the placement-tool
  * actions below (mock interviews etc). This is a running, timestamped log per
- * mentee a mentor adds to over the semester. "Activities" deliberately has no
- * dedicated field — it's just another category a mentor writes a note under,
- * not structured data (varies too much per student to standardize). */
+ * mentee a mentor adds to over the semester. "Personal" and
+ * "parent_communication" stay plain notes (too individual to standardize);
+ * the other four each get a small set of optional structured fields below,
+ * same convention as parentContactMode — only set when their matching
+ * category is picked. */
 export type FollowUpCategory =
   | "academics"
   | "placement"
@@ -464,6 +466,9 @@ export type FollowUpCategory =
   | "parent_communication";
 
 export type ParentContactMode = "call" | "meeting" | "message";
+export type FollowUpConcernLevel = "minor" | "moderate" | "serious";
+export type PlacementReadiness = "ready" | "needs_prep" | "not_ready";
+export type ActivityType = "hackathon" | "coding_club" | "sports" | "cultural" | "ncc_nss" | "other";
 
 export interface MenteeFollowUp {
   followUpId: string;
@@ -473,6 +478,13 @@ export interface MenteeFollowUp {
   category: FollowUpCategory;
   note: string;
   parentContactMode?: ParentContactMode; // only set when category === "parent_communication"
+  subject?: string; // academics or attendance — which subject the concern is about
+  concernLevel?: FollowUpConcernLevel; // academics
+  driveId?: string; // placement — which drive this note is about
+  readiness?: PlacementReadiness; // placement
+  attendancePercent?: number; // attendance
+  activityType?: ActivityType; // activities
+  activityName?: string; // activities
   nextMeetingDate?: Timestamp; // optional — the most recent entry with this set is "the" next meeting for the mentee
   createdAt: Timestamp;
 }

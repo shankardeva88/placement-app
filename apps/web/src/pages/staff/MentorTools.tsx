@@ -5,14 +5,17 @@ import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
 import type {
+  ActivityType,
   Department,
   Drive,
   FacultyDesignation,
   FollowUpCategory,
+  FollowUpConcernLevel,
   MentorMapping,
   MockInterview,
   MockInterviewType,
   ParentContactMode,
+  PlacementReadiness,
   PlacementStatus,
   ResumeReview,
   SkillAssessment,
@@ -102,6 +105,23 @@ const CATEGORY_LABEL: Record<FollowUpCategory, string> = {
 };
 const PARENT_CONTACT_MODES: ParentContactMode[] = ["call", "meeting", "message"];
 
+const CONCERN_LEVELS: FollowUpConcernLevel[] = ["minor", "moderate", "serious"];
+const READINESS_OPTIONS: PlacementReadiness[] = ["ready", "needs_prep", "not_ready"];
+const READINESS_LABEL: Record<PlacementReadiness, string> = {
+  ready: "Ready",
+  needs_prep: "Needs prep",
+  not_ready: "Not ready",
+};
+const ACTIVITY_TYPES: ActivityType[] = ["hackathon", "coding_club", "sports", "cultural", "ncc_nss", "other"];
+const ACTIVITY_TYPE_LABEL: Record<ActivityType, string> = {
+  hackathon: "Hackathon",
+  coding_club: "Coding club",
+  sports: "Sports",
+  cultural: "Cultural",
+  ncc_nss: "NCC/NSS",
+  other: "Other",
+};
+
 
 function useDrivesById(): Record<string, Drive> | null {
   const [drives, setDrives] = useState<Record<string, Drive> | null>(null);
@@ -179,11 +199,36 @@ function FollowUpForm({
   onDone: () => void;
 }) {
   const { showToast } = useToast();
+  const drives = useDrivesById();
   const [category, setCategory] = useState<FollowUpCategory>("academics");
   const [parentContactMode, setParentContactMode] = useState<ParentContactMode>("call");
   const [note, setNote] = useState("");
   const [nextMeetingDate, setNextMeetingDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Category-specific fields — each only sent when its matching category is
+  // picked, same convention as parentContactMode above.
+  const [subject, setSubject] = useState("");
+  const [concernLevel, setConcernLevel] = useState<FollowUpConcernLevel>("minor");
+  const [driveId, setDriveId] = useState("");
+  const [readiness, setReadiness] = useState<PlacementReadiness>("needs_prep");
+  const [attendancePercent, setAttendancePercent] = useState("");
+  const [activityType, setActivityType] = useState<ActivityType>("hackathon");
+  const [activityName, setActivityName] = useState("");
+
+  const sortedDrives = useMemo(
+    () => Object.values(drives ?? {}).sort((a, b) => b.driveDate - a.driveDate),
+    [drives]
+  );
+
+  function resetCategoryFields() {
+    setSubject("");
+    setConcernLevel("minor");
+    setDriveId("");
+    setReadiness("needs_prep");
+    setAttendancePercent("");
+    setActivityType("hackathon");
+    setActivityName("");
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -198,10 +243,18 @@ function FollowUpForm({
         note: note.trim(),
         parentContactMode: category === "parent_communication" ? parentContactMode : undefined,
         nextMeetingDate: nextMeetingDate ? new Date(nextMeetingDate).getTime() : undefined,
+        subject: category === "academics" || category === "attendance" ? subject.trim() || undefined : undefined,
+        concernLevel: category === "academics" ? concernLevel : undefined,
+        driveId: category === "placement" ? driveId || undefined : undefined,
+        readiness: category === "placement" ? readiness : undefined,
+        attendancePercent: category === "attendance" && attendancePercent !== "" ? Number(attendancePercent) : undefined,
+        activityType: category === "activities" ? activityType : undefined,
+        activityName: category === "activities" ? activityName.trim() || undefined : undefined,
       });
       showToast("Follow-up logged");
       setNote("");
       setNextMeetingDate("");
+      resetCategoryFields();
       onDone();
     } finally {
       setSubmitting(false);
@@ -211,7 +264,14 @@ function FollowUpForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-2 rounded-lg bg-slate-50 p-3">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <select value={category} onChange={(e) => setCategory(e.target.value as FollowUpCategory)} className={inputClass}>
+        <select
+          value={category}
+          onChange={(e) => {
+            setCategory(e.target.value as FollowUpCategory);
+            resetCategoryFields();
+          }}
+          className={inputClass}
+        >
           {FOLLOW_UP_CATEGORIES.map((c) => (
             <option key={c} value={c}>
               {CATEGORY_LABEL[c]}
@@ -232,6 +292,86 @@ function FollowUpForm({
           </select>
         )}
       </div>
+
+      {category === "academics" && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <input
+            type="text"
+            placeholder="Subject (optional) — e.g. DBMS"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            className={inputClass}
+          />
+          <select value={concernLevel} onChange={(e) => setConcernLevel(e.target.value as FollowUpConcernLevel)} className={inputClass}>
+            {CONCERN_LEVELS.map((c) => (
+              <option key={c} value={c} className="capitalize">
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {category === "placement" && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <select value={driveId} onChange={(e) => setDriveId(e.target.value)} className={inputClass}>
+            <option value="">Not tied to a specific drive</option>
+            {sortedDrives.map((d) => (
+              <option key={d.driveId} value={d.driveId}>
+                {d.companyName}
+              </option>
+            ))}
+          </select>
+          <select value={readiness} onChange={(e) => setReadiness(e.target.value as PlacementReadiness)} className={inputClass}>
+            {READINESS_OPTIONS.map((r) => (
+              <option key={r} value={r}>
+                {READINESS_LABEL[r]}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {category === "attendance" && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <input
+            type="text"
+            placeholder="Subject (optional)"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            className={inputClass}
+          />
+          <input
+            type="number"
+            min={0}
+            max={100}
+            placeholder="Attendance % (optional)"
+            value={attendancePercent}
+            onChange={(e) => setAttendancePercent(e.target.value)}
+            className={inputClass}
+          />
+        </div>
+      )}
+
+      {category === "activities" && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <select value={activityType} onChange={(e) => setActivityType(e.target.value as ActivityType)} className={inputClass}>
+            {ACTIVITY_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {ACTIVITY_TYPE_LABEL[t]}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            placeholder="Activity name (optional) — e.g. Smart India Hackathon"
+            value={activityName}
+            onChange={(e) => setActivityName(e.target.value)}
+            className={inputClass}
+          />
+        </div>
+      )}
+
       <textarea
         required
         placeholder={category === "parent_communication" ? "What was discussed with the parent?" : "Note"}
@@ -269,6 +409,7 @@ function MenteeDetailPanel({
 }) {
   const followUps = useMenteeFollowUps(studentId);
   const { showToast } = useToast();
+  const drives = useDrivesById();
   const nextMeetingFollowUp = getNextMeetingFollowUp(followUps);
   const nextMeeting = nextMeetingFollowUp?.nextMeetingDate ?? null;
   const sgpaTrend = student ? sortedSgpaEntries(student.semesterWiseSgpa) : [];
@@ -338,6 +479,25 @@ function MenteeDetailPanel({
                 </span>
                 <span className="text-xs text-slate-400">{new Date(f.createdAt).toLocaleDateString()}</span>
               </div>
+              {(f.subject || f.concernLevel || f.driveId || f.readiness || f.attendancePercent != null || f.activityType || f.activityName) && (
+                <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                  {f.subject && <Badge variant="neutral">{f.subject}</Badge>}
+                  {f.concernLevel && (
+                    <Badge variant={f.concernLevel === "serious" ? "danger" : f.concernLevel === "moderate" ? "warning" : "neutral"}>
+                      {f.concernLevel}
+                    </Badge>
+                  )}
+                  {f.driveId && <Badge variant="brand">{drives?.[f.driveId]?.companyName ?? f.driveId}</Badge>}
+                  {f.readiness && (
+                    <Badge variant={f.readiness === "ready" ? "success" : f.readiness === "needs_prep" ? "warning" : "danger"}>
+                      {READINESS_LABEL[f.readiness]}
+                    </Badge>
+                  )}
+                  {f.attendancePercent != null && <Badge variant={f.attendancePercent < 75 ? "danger" : "neutral"}>{f.attendancePercent}%</Badge>}
+                  {f.activityType && <Badge variant="neutral">{ACTIVITY_TYPE_LABEL[f.activityType]}</Badge>}
+                  {f.activityName && <Badge variant="neutral">{f.activityName}</Badge>}
+                </div>
+              )}
               <p className="text-slate-600">{f.note}</p>
             </li>
           ))}

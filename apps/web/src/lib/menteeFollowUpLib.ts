@@ -2,7 +2,18 @@ import { useMemo } from "react";
 import { ref, push, update } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { AppUser, Department, FollowUpCategory, MentorMapping, MenteeFollowUp, ParentContactMode, Student } from "@placement-app/types";
+import type {
+  ActivityType,
+  AppUser,
+  Department,
+  FollowUpCategory,
+  FollowUpConcernLevel,
+  MentorMapping,
+  MenteeFollowUp,
+  ParentContactMode,
+  PlacementReadiness,
+  Student,
+} from "@placement-app/types";
 import { useDeptScopedCollection } from "./useDeptScopedCollection";
 import { useIndexedList, sortedSgpaEntries } from "./mentorProgressLib";
 
@@ -58,6 +69,15 @@ export interface RecordFollowUpInput {
   note: string;
   parentContactMode?: ParentContactMode;
   nextMeetingDate?: number;
+  // Category-specific structured fields — each only written when its
+  // matching category is picked, same convention as parentContactMode.
+  subject?: string;
+  concernLevel?: FollowUpConcernLevel;
+  driveId?: string;
+  readiness?: PlacementReadiness;
+  attendancePercent?: number;
+  activityType?: ActivityType;
+  activityName?: string;
 }
 
 export async function recordFollowUp(input: RecordFollowUpInput) {
@@ -74,6 +94,22 @@ export async function recordFollowUp(input: RecordFollowUpInput) {
   };
   if (input.category === "parent_communication" && input.parentContactMode) {
     record.parentContactMode = input.parentContactMode;
+  }
+  if (input.category === "academics") {
+    if (input.subject) record.subject = input.subject;
+    if (input.concernLevel) record.concernLevel = input.concernLevel;
+  }
+  if (input.category === "placement") {
+    if (input.driveId) record.driveId = input.driveId;
+    if (input.readiness) record.readiness = input.readiness;
+  }
+  if (input.category === "attendance") {
+    if (input.subject) record.subject = input.subject;
+    if (input.attendancePercent != null) record.attendancePercent = input.attendancePercent;
+  }
+  if (input.category === "activities") {
+    if (input.activityType) record.activityType = input.activityType;
+    if (input.activityName) record.activityName = input.activityName;
   }
   if (input.nextMeetingDate) record.nextMeetingDate = input.nextMeetingDate;
   await update(ref(db), {
