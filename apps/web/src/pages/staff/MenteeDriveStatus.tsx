@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ListChecks, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, ListChecks, Search } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -61,18 +61,48 @@ function MenteeCard({
   applications: Application[];
   drivesById: Record<string, Drive>;
 }) {
+  // Collapsed by default — a mentee applying to 10-15 drives dumped that
+  // many detail rows into every single card at once, which is a lot to
+  // scroll past just to see the next mentee. Click a card to see its drives.
+  const [expanded, setExpanded] = useState(false);
+  const selectedCount = applications.filter((a) => a.status === "selected").length;
+
+  if (applications.length === 0) {
+    return (
+      <Card>
+        <p className="font-medium text-slate-900">
+          {student.rollNo} — {student.name}
+        </p>
+        <p className="text-sm text-slate-500">
+          {student.department} · Batch {student.batchYear}
+        </p>
+        <p className="mt-3 text-sm text-slate-400">Not applied to any drive yet.</p>
+      </Card>
+    );
+  }
+
   return (
     <Card>
-      <p className="font-medium text-slate-900">
-        {student.rollNo} — {student.name}
-      </p>
-      <p className="text-sm text-slate-500">
-        {student.department} · Batch {student.batchYear}
-      </p>
-      {applications.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-400">Not applied to any drive yet.</p>
-      ) : (
-        <div className="mt-3 space-y-2">
+      <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-start justify-between gap-4 text-left">
+        <div>
+          <p className="font-medium text-slate-900">
+            {student.rollNo} — {student.name}
+          </p>
+          <p className="text-sm text-slate-500">
+            {student.department} · Batch {student.batchYear}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge variant="brand">
+            {applications.length} drive{applications.length === 1 ? "" : "s"}
+          </Badge>
+          {selectedCount > 0 && <Badge variant="success">{selectedCount} selected</Badge>}
+          {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
           {applications.map((a) => (
             <MenteeDriveRow key={a.applicationId} application={a} drive={drivesById[a.driveId]} />
           ))}
