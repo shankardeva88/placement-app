@@ -16,7 +16,7 @@ import type { Offer, PlacementStatus } from "@placement-app/types";
 import { useAuth } from "../auth/AuthContext";
 import { useMyApplications } from "../lib/useMyApplications";
 import { useOwnedDriveRecords } from "../lib/useOwnedDriveRecords";
-import { getSeenIds, useRelevantNotifications } from "../lib/notificationsLib";
+import { useRelevantNotifications } from "../lib/notificationsLib";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import type { BadgeVariant } from "../components/ui/Badge";
@@ -117,8 +117,7 @@ export default function Dashboard() {
 
   const applicationCount = applications?.filter((a) => a.record !== null).length;
   const offerCount = offers?.filter((o) => o.record !== null).length;
-  const seenIds = getSeenIds();
-  const unreadCount = notifications?.filter((n) => !seenIds.has(n.notificationId)).length;
+  const unreadCount = notifications?.filter((n) => !n.readBy?.[student?.uid ?? ""]).length;
 
   const name = student?.name ?? appUser?.name;
 

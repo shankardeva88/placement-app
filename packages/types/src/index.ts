@@ -383,7 +383,7 @@ export interface AppNotification {
   };
   sentBy: string; // uid
   sentAt: Timestamp;
-  readBy: string[]; // uids that opened it
+  readBy?: Record<string, true>; // uid -> true, set by the student themselves on open (see notificationsLib.ts)
 }
 
 // ----------------------------------------------------------------------------

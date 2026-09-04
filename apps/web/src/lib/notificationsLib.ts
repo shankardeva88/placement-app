@@ -1,29 +1,18 @@
 import { useEffect, useState } from "react";
-import { ref, onValue } from "firebase/database";
+import { ref, onValue, update } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
 import type { AppNotification, Drive, Student } from "@placement-app/types";
 import { isDriveVisibleToStudent } from "./driveActions";
 
-const SEEN_KEY = "placement-app:seen-notifications";
-
-/** "Seen" tracking is client-side only (localStorage), not written back to
- * RTDB — the readBy field on notifications is currently staff-write-only,
- * and reopening that for self-service read receipts wasn't worth it for a
- * non-essential feature. See plan notes on Notifications. */
-export function getSeenIds(): Set<string> {
-  try {
-    const raw = localStorage.getItem(SEEN_KEY);
-    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
-  } catch {
-    return new Set();
-  }
-}
-
-export function markSeen(seenIds: Set<string>, id: string): Set<string> {
-  const next = new Set(seenIds).add(id);
-  localStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(next)));
-  return next;
+/** Marks a notification read for this student, in RTDB — not localStorage.
+ * A previous version tracked "seen" only in localStorage, which meant a
+ * notification you'd already opened showed as unread again on any other
+ * device/browser, or after clearing site data. readBy/{uid} is carved out
+ * in the rules so a student can write just their own entry without needing
+ * write access to the rest of the notification (see database.rules.json). */
+export async function markNotificationRead(notificationId: string, uid: string) {
+  await update(ref(db, `${DB_NODES.notifications}/${notificationId}/readBy`), { [uid]: true });
 }
 
 /** Membership for freeform custom audiences isn't in the data model, so those

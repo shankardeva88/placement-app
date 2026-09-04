@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { logout } from "../lib/authActions";
-import { getSeenIds, useRelevantNotifications } from "../lib/notificationsLib";
+import { useRelevantNotifications } from "../lib/notificationsLib";
 import { Avatar } from "./ui/Avatar";
 
 const NAV_ITEMS = [
@@ -40,10 +40,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const notifications = useRelevantNotifications(student);
-  // Re-read on every render (route changes included) rather than caching in
-  // state — cheap localStorage read, and it means the badge clears as soon
-  // as the student navigates away from Notifications after opening one.
-  const unreadCount = (notifications ?? []).filter((n) => !getSeenIds().has(n.notificationId)).length;
+  // readBy now lives in RTDB (see notificationsLib.ts), so this updates live
+  // via useRelevantNotifications' own subscription — no local caching needed.
+  const unreadCount = (notifications ?? []).filter((n) => !n.readBy?.[student?.uid ?? ""]).length;
 
   async function handleLogout() {
     await logout();

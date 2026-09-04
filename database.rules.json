@@ -275,7 +275,16 @@
     "notifications": {
       ".read": "auth != null",
       "$notificationId": {
-        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'",
+        // A student can't write the notification itself (create/edit stays
+        // staff-only above), but marking their own read state needs to
+        // survive across devices/browsers, not just live in localStorage —
+        // so carve out just their own uid under readBy.
+        "readBy": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        }
       }
     },
 

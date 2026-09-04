@@ -35,7 +35,6 @@ export async function sendNotification(input: SendNotificationInput) {
     audience: { type: input.audienceType },
     sentBy: input.sentBy,
     sentAt: serverTimestamp(),
-    readBy: [],
   };
   if (input.filterValue) (notification.audience as Record<string, unknown>).filterValue = input.filterValue;
   await set(newRef, notification);

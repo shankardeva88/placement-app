@@ -1,8 +1,7 @@
-import { useState } from "react";
 import { Bell } from "lucide-react";
 import type { NotificationAudienceType } from "@placement-app/types";
 import { useAuth } from "../auth/AuthContext";
-import { getSeenIds, markSeen, useRelevantNotifications } from "../lib/notificationsLib";
+import { markNotificationRead, useRelevantNotifications } from "../lib/notificationsLib";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -24,13 +23,14 @@ const AUDIENCE_LABEL: Record<NotificationAudienceType, string> = {
 export default function Notifications() {
   const { student } = useAuth();
   const notifications = useRelevantNotifications(student);
-  const [seenIds, setSeenIds] = useState<Set<string>>(() => getSeenIds());
 
   if (!student) return null;
 
-  function handleOpen(id: string) {
-    if (seenIds.has(id)) return;
-    setSeenIds(markSeen(seenIds, id));
+  function handleOpen(id: string, alreadySeen: boolean) {
+    if (alreadySeen || !student) return;
+    markNotificationRead(id, student.uid).catch(() => {
+      // Best-effort — worst case it just shows as unread again next visit.
+    });
   }
 
   return (
@@ -50,12 +50,12 @@ export default function Notifications() {
 
       <div className="space-y-3">
         {notifications?.map((n) => {
-          const isSeen = seenIds.has(n.notificationId);
+          const isSeen = Boolean(n.readBy?.[student.uid]);
           return (
             <Card
               key={n.notificationId}
               className={`cursor-pointer ${!isSeen ? "ring-2 ring-brand-200" : ""}`}
-              onClick={() => handleOpen(n.notificationId)}
+              onClick={() => handleOpen(n.notificationId, isSeen)}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2">
