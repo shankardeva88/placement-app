@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, MouseEvent } from "react";
 import { Link } from "react-router-dom";
-import { Users, Search, Upload, UserPlus, GraduationCap, RefreshCw, Copy } from "lucide-react";
+import { Users, Search, Upload, UserPlus, GraduationCap, RefreshCw, Copy, BadgeCheck } from "lucide-react";
 import type { Department, EntranceExamType, Gender, PlacementStatus } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
-import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
+import { useStudentsDirectory, setStudentVerified } from "../../lib/studentsDirectoryLib";
 import { createBulkStudent } from "../../lib/bulkImportLib";
 import { useAllTrainingBatches } from "../../lib/trainingManagementLib";
 import { useToast } from "../../components/ui/Toast";
@@ -239,6 +239,7 @@ export default function Students() {
   const [showAlumni, setShowAlumni] = useState(false);
   const [sortBy, setSortBy] = useState<"rollNo" | "recentlyUpdated">("rollNo");
   const [adding, setAdding] = useState(false);
+  const [verifyingUid, setVerifyingUid] = useState<string | null>(null);
   const canBulkImport = !!appUser && CAN_BULK_IMPORT_ROLES.includes(appUser.role);
 
   const batchYears = useMemo(() => {
@@ -362,6 +363,28 @@ export default function Students() {
     const text = `Profile not yet verified (${unverified.length}):\n\n${lines.join("\n")}`;
     await navigator.clipboard.writeText(text);
     showToast("Copied to clipboard");
+  }
+
+  // Same action as the "Verify profile" button on Student Detail, just
+  // reachable right from the list — going in one at a time through the
+  // detail page was too slow when working through a whole roster.
+  // Unverifying is the deliberate way to nudge a student: it flips
+  // Student.verifiedByFaculty back to false, which is exactly the
+  // condition the student Dashboard's red "not verified" banner watches
+  // (see VerificationBanner in Dashboard.tsx) — so this is what actually
+  // puts the alert in front of them and gets them updating again.
+  async function handleToggleVerify(e: MouseEvent, uid: string, currentlyVerified: boolean) {
+    e.preventDefault();
+    e.stopPropagation();
+    setVerifyingUid(uid);
+    try {
+      await setStudentVerified(uid, !currentlyVerified);
+      showToast(currentlyVerified ? "Verification removed — student will see an alert to update their profile" : "Profile verified");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not update verification");
+    } finally {
+      setVerifyingUid(null);
+    }
   }
 
   return (
@@ -615,6 +638,16 @@ export default function Students() {
                 {!s.verifiedByFaculty && s.verificationRequestedAt && <Badge variant="warning">Requested verification</Badge>}
                 {s.isAlumni && <Badge variant="neutral">Alumni</Badge>}
                 <Badge variant={PLACEMENT_BADGE[s.placementStatus]}>{s.placementStatus.replace("_", " ")}</Badge>
+                <Button
+                  type="button"
+                  variant={s.verifiedByFaculty ? "secondary" : "primary"}
+                  loading={verifyingUid === s.uid}
+                  onClick={(e) => handleToggleVerify(e, s.uid, s.verifiedByFaculty)}
+                  className="!px-2.5 !py-1 text-xs"
+                >
+                  <BadgeCheck className="h-3.5 w-3.5" />
+                  {s.verifiedByFaculty ? "Unverify" : "Verify"}
+                </Button>
               </div>
             </Card>
           </Link>
