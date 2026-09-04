@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { Users, Search, Upload, UserPlus, GraduationCap, RefreshCw } from "lucide-react";
+import { Users, Search, Upload, UserPlus, GraduationCap, RefreshCw, Copy } from "lucide-react";
 import type { Department, EntranceExamType, Gender, PlacementStatus } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
@@ -222,6 +222,7 @@ function AddStudentForm({ onDone }: { onDone: () => void }) {
 
 export default function Students() {
   const { appUser } = useAuth();
+  const { showToast } = useToast();
   const students = useStudentsDirectory(appUser);
   const trainingBatches = useAllTrainingBatches();
   const [search, setSearch] = useState("");
@@ -234,6 +235,7 @@ export default function Students() {
   const [rankMax, setRankMax] = useState("");
   const [backlogFilter, setBacklogFilter] = useState<"" | "0" | "1" | "2" | "3" | "4+">("");
   const [recentlyUpdatedOnly, setRecentlyUpdatedOnly] = useState(false);
+  const [notVerifiedOnly, setNotVerifiedOnly] = useState(false);
   const [showAlumni, setShowAlumni] = useState(false);
   const [sortBy, setSortBy] = useState<"rollNo" | "recentlyUpdated">("rollNo");
   const [adding, setAdding] = useState(false);
@@ -297,6 +299,7 @@ export default function Students() {
           if (!(s.trainings ?? {})[trainingFilter.slice(7)]) return false;
         }
         if (recentlyUpdatedOnly && (!s.lastSignificantUpdateAt || s.lastSignificantUpdateAt < cutoff)) return false;
+        if (notVerifiedOnly && s.verifiedByFaculty) return false;
         if (!term) return true;
         return (
           s.name.toLowerCase().includes(term) ||
@@ -332,6 +335,7 @@ export default function Students() {
     trainingFilter,
     studentIdsByBatchName,
     recentlyUpdatedOnly,
+    notVerifiedOnly,
     showAlumni,
     sortBy,
   ]);
@@ -342,6 +346,19 @@ export default function Students() {
     const notPlaced = filtered.filter((s) => s.placementStatus === "not_placed").length;
     return { total: filtered.length, placed, notPlaced };
   }, [filtered]);
+
+  // Plain-text list, same shape as the drive Eligibility List's "Copy list"
+  // — meant to be pasted straight into a class/mentor WhatsApp group as a
+  // follow-up nudge, not just viewed on-screen.
+  async function handleCopyNotVerified() {
+    if (!filtered) return;
+    const unverified = filtered.filter((s) => !s.verifiedByFaculty);
+    if (unverified.length === 0) return;
+    const lines = unverified.map((s, i) => `${i + 1}. ${s.rollNo} — ${s.name}`);
+    const text = `Profile not yet verified (${unverified.length}):\n\n${lines.join("\n")}`;
+    await navigator.clipboard.writeText(text);
+    showToast("Copied to clipboard");
+  }
 
   return (
     <div>
@@ -531,6 +548,16 @@ export default function Students() {
             <input type="checkbox" checked={recentlyUpdatedOnly} onChange={(e) => setRecentlyUpdatedOnly(e.target.checked)} />
             Recently updated only (last 7 days)
           </label>
+          <label className="flex items-center gap-1.5 text-sm text-slate-600">
+            <input type="checkbox" checked={notVerifiedOnly} onChange={(e) => setNotVerifiedOnly(e.target.checked)} />
+            Not verified only
+          </label>
+          {filtered && filtered.some((s) => !s.verifiedByFaculty) && (
+            <Button variant="secondary" onClick={handleCopyNotVerified} className="!px-2.5 !py-1 text-xs">
+              <Copy className="h-3.5 w-3.5" />
+              Copy not-verified list
+            </Button>
+          )}
           <label className="flex items-center gap-1.5 text-sm text-slate-600">
             <input type="checkbox" checked={showAlumni} onChange={(e) => setShowAlumni(e.target.checked)} />
             Show graduated (alumni)

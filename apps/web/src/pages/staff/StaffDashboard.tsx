@@ -481,6 +481,11 @@ function FacultyMentorDashboard() {
     [menteeStudents, batchFilter]
   );
 
+  // Named, not just the "Verified" stat tile's count — a mentor asking "who
+  // do I need to follow up with" can't act on a number alone. Scoped to the
+  // same batch filter as the list below it.
+  const unverifiedMentees = useMemo(() => visibleMentees.filter((s) => !s.verifiedByFaculty), [visibleMentees]);
+
   return (
     <div>
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600 p-6 text-white shadow-lg shadow-brand-200 sm:p-8">
@@ -526,6 +531,11 @@ function FacultyMentorDashboard() {
           </select>
         )}
       </div>
+      {!loading && unverifiedMentees.length > 0 && (
+        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Profile not verified ({unverifiedMentees.length}): {unverifiedMentees.map((s) => `${s.rollNo} — ${s.name}`).join(", ")}
+        </p>
+      )}
       {loading ? (
         <div className="space-y-3">
           <Skeleton className="h-16" />
