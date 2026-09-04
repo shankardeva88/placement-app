@@ -53,13 +53,32 @@ export default function AcademicRecord() {
     e.preventDefault();
     if (!firebaseUser) return;
     setError(null);
+
+    const semesterWiseSgpa: Record<string, number> = {};
+    for (const [key, val] of Object.entries(sgpaMap)) {
+      const num = parseFloat(val);
+      if (!Number.isNaN(num)) semesterWiseSgpa[key] = num;
+    }
+
+    // Explicit confirm before saving — this data drives drive eligibility
+    // (minCgpa/maxBacklogsAllowed) and is what mentors/coordinators see, so
+    // students should knowingly sign off on it rather than tab away from an
+    // autosave. Showing the actual values back to them (not a generic "are
+    // you sure?") means they can't later say they didn't know what they
+    // submitted.
+    const semesterLines = Array.from({ length: semesterCount }, (_, i) => i + 1)
+      .map((sem) => `  Semester ${sem}: ${sgpaMap[`sem${sem}`] || "—"}`)
+      .join("\n");
+    const confirmed = window.confirm(
+      `Please confirm these details are accurate before saving:\n\n` +
+        `CGPA: ${cgpa}\n` +
+        `Active backlogs: ${activeBacklogs}\n${semesterLines}\n\n` +
+        `This is used to check drive eligibility and is visible to your mentor and coordinator.`
+    );
+    if (!confirmed) return;
+
     setSubmitting(true);
     try {
-      const semesterWiseSgpa: Record<string, number> = {};
-      for (const [key, val] of Object.entries(sgpaMap)) {
-        const num = parseFloat(val);
-        if (!Number.isNaN(num)) semesterWiseSgpa[key] = num;
-      }
       await updateAcademicRecord(firebaseUser.uid, {
         semesterWiseSgpa,
         cgpa,
