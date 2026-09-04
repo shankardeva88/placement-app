@@ -174,16 +174,54 @@ function StudentPicker({
   disabled?: boolean;
 }) {
   const { students: sorted, loading } = useRecordableStudents();
+  const [batchFilter, setBatchFilter] = useState<number | "">("");
+
+  // Mentees + drive-prep students can span more than one batch year — with
+  // both mixed into one dropdown, finding a specific student meant scrolling
+  // past everyone else's batch too.
+  const batchYearOptions = useMemo(
+    () => Array.from(new Set(sorted.map((s) => s.batchYear))).sort((a, b) => a - b),
+    [sorted]
+  );
+  const filtered = useMemo(
+    () => (batchFilter ? sorted.filter((s) => s.batchYear === batchFilter) : sorted),
+    [sorted, batchFilter]
+  );
 
   return (
-    <select required disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
-      <option value="">{loading ? "Loading…" : sorted.length === 0 ? "No mentees or drive-prep students yet" : "Select a student"}</option>
-      {sorted.map((s) => (
-        <option key={s.studentId} value={s.uid}>
-          {s.rollNo} — {s.name}
+    <div className="space-y-1.5">
+      {batchYearOptions.length > 1 && (
+        <select
+          disabled={disabled}
+          value={batchFilter}
+          onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
+          className={`${inputClass} !py-1.5 text-xs`}
+        >
+          <option value="">All batches</option>
+          {batchYearOptions.map((y) => (
+            <option key={y} value={y}>
+              Batch {y}
+            </option>
+          ))}
+        </select>
+      )}
+      <select required disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
+        <option value="">
+          {loading
+            ? "Loading…"
+            : sorted.length === 0
+              ? "No mentees or drive-prep students yet"
+              : filtered.length === 0
+                ? "No students in this batch"
+                : "Select a student"}
         </option>
-      ))}
-    </select>
+        {filtered.map((s) => (
+          <option key={s.studentId} value={s.uid}>
+            {s.rollNo} — {s.name}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
 
