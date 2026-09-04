@@ -122,6 +122,15 @@ const ACTIVITY_TYPE_LABEL: Record<ActivityType, string> = {
   other: "Other",
 };
 
+// Local date components, not toISOString() — UTC would default this to
+// yesterday's date all day for any timezone ahead of UTC (see the matching
+// comment in MockEvaluations.tsx).
+function toDateInputValue(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 
 function useDrivesById(): Record<string, Drive> | null {
   const [drives, setDrives] = useState<Record<string, Drive> | null>(null);
@@ -164,64 +173,43 @@ function useRecordableStudents(): { students: Student[]; loading: boolean } {
   return { students: sorted, loading };
 }
 
+// batchFilter is owned by the page (one filter at the top, shared by every
+// recording form below it) rather than each StudentPicker keeping its own —
+// three separate batch dropdowns doing the same job wasn't better than one.
 function StudentPicker({
   value,
   onChange,
   disabled,
+  batchFilter,
 }: {
   value: string;
   onChange: (uid: string) => void;
   disabled?: boolean;
+  batchFilter: number | "";
 }) {
   const { students: sorted, loading } = useRecordableStudents();
-  const [batchFilter, setBatchFilter] = useState<number | "">("");
-
-  // Mentees + drive-prep students can span more than one batch year — with
-  // both mixed into one dropdown, finding a specific student meant scrolling
-  // past everyone else's batch too.
-  const batchYearOptions = useMemo(
-    () => Array.from(new Set(sorted.map((s) => s.batchYear))).sort((a, b) => a - b),
-    [sorted]
-  );
   const filtered = useMemo(
     () => (batchFilter ? sorted.filter((s) => s.batchYear === batchFilter) : sorted),
     [sorted, batchFilter]
   );
 
   return (
-    <div className="space-y-1.5">
-      {batchYearOptions.length > 1 && (
-        <select
-          disabled={disabled}
-          value={batchFilter}
-          onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
-          className={`${inputClass} !py-1.5 text-xs`}
-        >
-          <option value="">All batches</option>
-          {batchYearOptions.map((y) => (
-            <option key={y} value={y}>
-              Batch {y}
-            </option>
-          ))}
-        </select>
-      )}
-      <select required disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
-        <option value="">
-          {loading
-            ? "Loading…"
-            : sorted.length === 0
-              ? "No mentees or drive-prep students yet"
-              : filtered.length === 0
-                ? "No students in this batch"
-                : "Select a student"}
+    <select required disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
+      <option value="">
+        {loading
+          ? "Loading…"
+          : sorted.length === 0
+            ? "No mentees or drive-prep students yet"
+            : filtered.length === 0
+              ? "No students in this batch"
+              : "Select a student"}
+      </option>
+      {filtered.map((s) => (
+        <option key={s.studentId} value={s.uid}>
+          {s.rollNo} — {s.name}
         </option>
-        {filtered.map((s) => (
-          <option key={s.studentId} value={s.uid}>
-            {s.rollNo} — {s.name}
-          </option>
-        ))}
-      </select>
-    </div>
+      ))}
+    </select>
   );
 }
 
@@ -980,9 +968,11 @@ export interface MockInterviewPrefill {
 function MockInterviewSection({
   prefill,
   onConsumedPrefill,
+  batchFilter,
 }: {
   prefill: MockInterviewPrefill | null;
   onConsumedPrefill: () => void;
+  batchFilter: number | "";
 }) {
   const { appUser, firebaseUser } = useAuth();
   const students = useStudentsDirectory(appUser);
@@ -996,6 +986,7 @@ function MockInterviewSection({
   const [technical, setTechnical] = useState(5);
   const [confidence, setConfidence] = useState(5);
   const [feedback, setFeedback] = useState("");
+  const [date, setDate] = useState(toDateInputValue(Date.now()));
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -1027,6 +1018,7 @@ function MockInterviewSection({
     setTechnical(record.scores.technical);
     setConfidence(record.scores.confidence);
     setFeedback(record.feedback);
+    setDate(toDateInputValue(record.date));
   }
 
   function cancelEdit() {
@@ -1036,23 +1028,37 @@ function MockInterviewSection({
     setTechnical(5);
     setConfidence(5);
     setFeedback("");
+    setDate(toDateInputValue(Date.now()));
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const department = students?.find((s) => s.uid === studentId)?.department;
     if (!firebaseUser || !department) return;
+    const dateMs = date ? new Date(date).getTime() : Date.now();
     setSubmitting(true);
     try {
       if (editingId) {
-        await updateMockInterview(editingId, { type, communication, technical, confidence, feedback });
+        await updateMockInterview(editingId, { type, communication, technical, confidence, feedback, date: dateMs });
         showToast("Mock interview updated");
         cancelEdit();
       } else {
-        await recordMockInterview({ studentId, department, mentorId: firebaseUser.uid, type, communication, technical, confidence, feedback, driveId });
+        await recordMockInterview({
+          studentId,
+          department,
+          mentorId: firebaseUser.uid,
+          type,
+          communication,
+          technical,
+          confidence,
+          feedback,
+          driveId,
+          date: dateMs,
+        });
         showToast("Mock interview recorded");
         setStudentId("");
         setFeedback("");
+        setDate(toDateInputValue(Date.now()));
         clearDrivePrep();
       }
     } finally {
@@ -1080,8 +1086,8 @@ function MockInterviewSection({
         </div>
       )}
       <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <StudentPicker value={studentId} onChange={setStudentId} disabled={!!editingId} />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <StudentPicker value={studentId} onChange={setStudentId} disabled={!!editingId} batchFilter={batchFilter} />
           <select value={type} onChange={(e) => setType(e.target.value as MockInterviewType)} className={inputClass}>
             {MOCK_TYPES.map((t) => (
               <option key={t} value={t}>
@@ -1089,6 +1095,10 @@ function MockInterviewSection({
               </option>
             ))}
           </select>
+          <div>
+            <label className={labelClass}>Date</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+          </div>
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
@@ -1148,7 +1158,7 @@ function MockInterviewSection({
   );
 }
 
-function ResumeReviewSection() {
+function ResumeReviewSection({ batchFilter }: { batchFilter: number | "" }) {
   const { appUser, firebaseUser } = useAuth();
   const students = useStudentsDirectory(appUser);
   const { students: recordable, loading: recordableLoading } = useRecordableStudents();
@@ -1158,6 +1168,7 @@ function ResumeReviewSection() {
   const [fileUrl, setFileUrl] = useState("");
   const [status, setStatus] = useState<"not_reviewed" | "needs_revision" | "approved">("needs_revision");
   const [comment, setComment] = useState("");
+  const [reviewDate, setReviewDate] = useState(toDateInputValue(Date.now()));
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -1171,6 +1182,7 @@ function ResumeReviewSection() {
     setFileUrl(record.fileUrl);
     setStatus(record.status);
     setComment(record.comments[record.comments.length - 1] ?? "");
+    setReviewDate(toDateInputValue(record.reviewedAt ?? Date.now()));
   }
 
   function cancelEdit() {
@@ -1179,24 +1191,27 @@ function ResumeReviewSection() {
     setFileUrl("");
     setStatus("needs_revision");
     setComment("");
+    setReviewDate(toDateInputValue(Date.now()));
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const department = students?.find((s) => s.uid === studentId)?.department;
     if (!firebaseUser || !department) return;
+    const reviewedAt = reviewDate ? new Date(reviewDate).getTime() : Date.now();
     setSubmitting(true);
     try {
       if (editingId) {
-        await updateResumeReview(editingId, { version, fileUrl, status, comment });
+        await updateResumeReview(editingId, { version, fileUrl, status, comment, reviewedAt });
         showToast("Resume review updated");
         cancelEdit();
       } else {
-        await recordResumeReview({ studentId, department, mentorId: firebaseUser.uid, version, fileUrl, status, comment });
+        await recordResumeReview({ studentId, department, mentorId: firebaseUser.uid, version, fileUrl, status, comment, reviewedAt });
         showToast("Resume review recorded");
         setStudentId("");
         setFileUrl("");
         setComment("");
+        setReviewDate(toDateInputValue(Date.now()));
       }
     } finally {
       setSubmitting(false);
@@ -1215,14 +1230,18 @@ function ResumeReviewSection() {
         </div>
       )}
       <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <StudentPicker value={studentId} onChange={setStudentId} disabled={!!editingId} />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+          <StudentPicker value={studentId} onChange={setStudentId} disabled={!!editingId} batchFilter={batchFilter} />
           <input type="number" min={1} placeholder="Version" value={version} onChange={(e) => setVersion(Number(e.target.value))} className={inputClass} />
           <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={inputClass}>
             <option value="not_reviewed">Not reviewed</option>
             <option value="needs_revision">Needs revision</option>
             <option value="approved">Approved</option>
           </select>
+          <div>
+            <label className={labelClass}>Date</label>
+            <input type="date" value={reviewDate} onChange={(e) => setReviewDate(e.target.value)} className={inputClass} />
+          </div>
         </div>
         <input type="url" placeholder="Resume file link" value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} className={inputClass} />
         <textarea placeholder="Comment" rows={2} value={comment} onChange={(e) => setComment(e.target.value)} className={inputClass} />
@@ -1268,7 +1287,7 @@ function ResumeReviewSection() {
   );
 }
 
-function SkillAssessmentSection() {
+function SkillAssessmentSection({ batchFilter }: { batchFilter: number | "" }) {
   const { appUser } = useAuth();
   const students = useStudentsDirectory(appUser);
   const { students: recordable, loading: recordableLoading } = useRecordableStudents();
@@ -1278,6 +1297,7 @@ function SkillAssessmentSection() {
   const [source, setSource] = useState<"manual" | "hackerrank" | "codechef" | "other">("manual");
   const [score, setScore] = useState(0);
   const [notes, setNotes] = useState("");
+  const [assessedDate, setAssessedDate] = useState(toDateInputValue(Date.now()));
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -1291,6 +1311,7 @@ function SkillAssessmentSection() {
     setSource(record.source);
     setScore(record.score);
     setNotes(record.notes ?? "");
+    setAssessedDate(toDateInputValue(record.date));
   }
 
   function cancelEdit() {
@@ -1299,23 +1320,26 @@ function SkillAssessmentSection() {
     setSource("manual");
     setScore(0);
     setNotes("");
+    setAssessedDate(toDateInputValue(Date.now()));
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const department = students?.find((s) => s.uid === studentId)?.department;
     if (!department) return;
+    const dateMs = assessedDate ? new Date(assessedDate).getTime() : Date.now();
     setSubmitting(true);
     try {
       if (editingId) {
-        await updateSkillAssessment(editingId, { type, source, score, notes });
+        await updateSkillAssessment(editingId, { type, source, score, notes, date: dateMs });
         showToast("Skill assessment updated");
         cancelEdit();
       } else {
-        await recordSkillAssessment({ studentId, department, type, source, score, notes });
+        await recordSkillAssessment({ studentId, department, type, source, score, notes, date: dateMs });
         showToast("Skill assessment recorded");
         setStudentId("");
         setNotes("");
+        setAssessedDate(toDateInputValue(Date.now()));
       }
     } finally {
       setSubmitting(false);
@@ -1334,8 +1358,8 @@ function SkillAssessmentSection() {
         </div>
       )}
       <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-          <StudentPicker value={studentId} onChange={setStudentId} disabled={!!editingId} />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <StudentPicker value={studentId} onChange={setStudentId} disabled={!!editingId} batchFilter={batchFilter} />
           <select value={type} onChange={(e) => setType(e.target.value as typeof type)} className={inputClass}>
             <option value="technical">Technical</option>
             <option value="soft_skill">Soft skill</option>
@@ -1347,7 +1371,13 @@ function SkillAssessmentSection() {
             <option value="codechef">CodeChef</option>
             <option value="other">Other</option>
           </select>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <input type="number" min={0} max={100} placeholder="Score /100" value={score} onChange={(e) => setScore(Number(e.target.value))} className={inputClass} />
+          <div>
+            <label className={labelClass}>Date</label>
+            <input type="date" value={assessedDate} onChange={(e) => setAssessedDate(e.target.value)} className={inputClass} />
+          </div>
         </div>
         <input type="text" placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} />
         <div className="flex gap-2">
@@ -1779,6 +1809,17 @@ export default function MentorTools() {
   const canCreateMentor = appUser && ["coordinator", "hod", "admin"].includes(appUser.role);
   const [mockInterviewPrefill, setMockInterviewPrefill] = useState<MockInterviewPrefill | null>(null);
 
+  // One batch filter, shared by the three recording forms below (mock
+  // interview / resume review / skill assessment all draw from the same
+  // recordable-students list) — each form having its own duplicate filter
+  // wasn't better than one at the top.
+  const { students: recordableAll } = useRecordableStudents();
+  const [recordBatchFilter, setRecordBatchFilter] = useState<number | "">("");
+  const recordBatchYearOptions = useMemo(
+    () => Array.from(new Set(recordableAll.map((s) => s.batchYear))).sort((a, b) => a - b),
+    [recordableAll]
+  );
+
   function handleLogMockInterview(prefill: MockInterviewPrefill) {
     setMockInterviewPrefill(prefill);
     document.getElementById("mock-interview-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1806,9 +1847,30 @@ export default function MentorTools() {
       {canRecordMentorFeedback && (
         <>
           <MyDrivePrepSection onLogMockInterview={handleLogMockInterview} />
-          <MockInterviewSection prefill={mockInterviewPrefill} onConsumedPrefill={() => setMockInterviewPrefill(null)} />
-          <ResumeReviewSection />
-          <SkillAssessmentSection />
+          {recordBatchYearOptions.length > 1 && (
+            <Card>
+              <label className={labelClass}>Batch (applies to the recording forms below)</label>
+              <select
+                value={recordBatchFilter}
+                onChange={(e) => setRecordBatchFilter(e.target.value ? Number(e.target.value) : "")}
+                className={`${inputClass} sm:w-56`}
+              >
+                <option value="">All batches</option>
+                {recordBatchYearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    Batch {y}
+                  </option>
+                ))}
+              </select>
+            </Card>
+          )}
+          <MockInterviewSection
+            prefill={mockInterviewPrefill}
+            onConsumedPrefill={() => setMockInterviewPrefill(null)}
+            batchFilter={recordBatchFilter}
+          />
+          <ResumeReviewSection batchFilter={recordBatchFilter} />
+          <SkillAssessmentSection batchFilter={recordBatchFilter} />
         </>
       )}
     </div>

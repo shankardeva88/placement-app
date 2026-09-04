@@ -82,6 +82,7 @@ export interface MockInterviewInput {
   confidence: number;
   feedback: string;
   driveId?: string; // set when this session is targeted prep for a specific drive
+  date?: number; // defaults to now — set explicitly when logging a session after the fact
 }
 
 export async function recordMockInterview(input: MockInterviewInput) {
@@ -92,7 +93,7 @@ export async function recordMockInterview(input: MockInterviewInput) {
     studentId: input.studentId,
     department: input.department,
     mentorId: input.mentorId,
-    date: Date.now(),
+    date: input.date ?? Date.now(),
     type: input.type,
     scores: { communication: input.communication, technical: input.technical, confidence: input.confidence },
     feedback: input.feedback,
@@ -112,6 +113,7 @@ export interface UpdateMockInterviewInput {
   technical: number;
   confidence: number;
   feedback: string;
+  date: number;
 }
 
 /** No new studentIndex/DeptIndex writes needed — the record's studentId/
@@ -122,6 +124,7 @@ export async function updateMockInterview(interviewId: string, input: UpdateMock
     type: input.type,
     scores: { communication: input.communication, technical: input.technical, confidence: input.confidence },
     feedback: input.feedback,
+    date: input.date,
   });
 }
 
@@ -133,6 +136,7 @@ export interface ResumeReviewInput {
   fileUrl: string;
   status: "not_reviewed" | "needs_revision" | "approved";
   comment: string;
+  reviewedAt?: number; // defaults to now — set explicitly when logging a review after the fact
 }
 
 export async function recordResumeReview(input: ResumeReviewInput) {
@@ -148,7 +152,7 @@ export async function recordResumeReview(input: ResumeReviewInput) {
       fileUrl: input.fileUrl,
       status: input.status,
       comments: input.comment ? [input.comment] : [],
-      reviewedAt: Date.now(),
+      reviewedAt: input.reviewedAt ?? Date.now(),
     },
     [`${DB_NODES.studentIndex}/${input.studentId}/${DB_NODES.resumeReviews}/${reviewId}`]: true,
     [`${DB_NODES.resumeReviewsDeptIndex}/${input.department}/${reviewId}`]: true,
@@ -161,6 +165,7 @@ export interface UpdateResumeReviewInput {
   fileUrl: string;
   status: "not_reviewed" | "needs_revision" | "approved";
   comment: string;
+  reviewedAt: number;
 }
 
 export async function updateResumeReview(reviewId: string, input: UpdateResumeReviewInput) {
@@ -169,6 +174,7 @@ export async function updateResumeReview(reviewId: string, input: UpdateResumeRe
     fileUrl: input.fileUrl,
     status: input.status,
     comments: input.comment ? [input.comment] : [],
+    reviewedAt: input.reviewedAt,
   });
 }
 
@@ -179,6 +185,7 @@ export interface SkillAssessmentInput {
   source: "manual" | "hackerrank" | "codechef" | "other";
   score: number;
   notes: string;
+  date?: number; // defaults to now — set explicitly when logging an assessment after the fact
 }
 
 export async function recordSkillAssessment(input: SkillAssessmentInput) {
@@ -192,7 +199,7 @@ export async function recordSkillAssessment(input: SkillAssessmentInput) {
       type: input.type,
       source: input.source,
       score: input.score,
-      date: Date.now(),
+      date: input.date ?? Date.now(),
       notes: input.notes || null,
     },
     [`${DB_NODES.studentIndex}/${input.studentId}/${DB_NODES.skillAssessments}/${assessmentId}`]: true,
@@ -206,6 +213,7 @@ export interface UpdateSkillAssessmentInput {
   source: "manual" | "hackerrank" | "codechef" | "other";
   score: number;
   notes: string;
+  date: number;
 }
 
 export async function updateSkillAssessment(assessmentId: string, input: UpdateSkillAssessmentInput) {
@@ -214,5 +222,6 @@ export async function updateSkillAssessment(assessmentId: string, input: UpdateS
     source: input.source,
     score: input.score,
     notes: input.notes || null,
+    date: input.date,
   });
 }
