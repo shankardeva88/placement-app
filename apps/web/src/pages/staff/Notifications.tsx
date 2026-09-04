@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Bell, Plus } from "lucide-react";
-import type { Department, NotificationAudienceType } from "@placement-app/types";
+import { ref, onValue } from "firebase/database";
+import { db } from "../../firebase/config";
+import { DB_NODES } from "@placement-app/types";
+import type { Department, Drive, NotificationAudienceType } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useAllNotifications, sendNotification } from "../../lib/staffNotificationsLib";
 import { useToast } from "../../components/ui/Toast";
@@ -23,10 +26,14 @@ const AUDIENCE_OPTIONS: { value: NotificationAudienceType; label: string }[] = [
   { value: "selected_students", label: "Selected students" },
   { value: "custom", label: "Custom" },
 ];
+const AUDIENCE_LABEL: Record<NotificationAudienceType, string> = Object.fromEntries(
+  AUDIENCE_OPTIONS.map((o) => [o.value, o.label])
+) as Record<NotificationAudienceType, string>;
+const DRIVE_SCOPED_AUDIENCE_TYPES: NotificationAudienceType[] = ["eligible_list", "selected_students"];
 
 const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
 
-function SendNotificationForm({ onDone }: { onDone: () => void }) {
+function SendNotificationForm({ onDone, drives }: { onDone: () => void; drives: Drive[] }) {
   const { firebaseUser } = useAuth();
   const { showToast } = useToast();
   const [title, setTitle] = useState("");
@@ -35,6 +42,8 @@ function SendNotificationForm({ onDone }: { onDone: () => void }) {
   const [filterValue, setFilterValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const sortedDrives = useMemo(() => drives.slice().sort((a, b) => b.driveDate - a.driveDate), [drives]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -65,7 +74,14 @@ function SendNotificationForm({ onDone }: { onDone: () => void }) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className={labelClass}>Audience</label>
-          <select value={audienceType} onChange={(e) => setAudienceType(e.target.value as NotificationAudienceType)} className={inputClass}>
+          <select
+            value={audienceType}
+            onChange={(e) => {
+              setAudienceType(e.target.value as NotificationAudienceType);
+              setFilterValue("");
+            }}
+            className={inputClass}
+          >
             {AUDIENCE_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -85,9 +101,21 @@ function SendNotificationForm({ onDone }: { onDone: () => void }) {
               ))}
             </select>
           </div>
-        ) : audienceType !== "all" ? (
+        ) : DRIVE_SCOPED_AUDIENCE_TYPES.includes(audienceType) ? (
           <div>
-            <label className={labelClass}>Reference (e.g. drive id)</label>
+            <label className={labelClass}>Drive</label>
+            <select required value={filterValue} onChange={(e) => setFilterValue(e.target.value)} className={inputClass}>
+              <option value="">Select a drive</option>
+              {sortedDrives.map((d) => (
+                <option key={d.driveId} value={d.driveId}>
+                  {d.companyName} — {new Date(d.driveDate).toLocaleDateString()}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : audienceType === "custom" ? (
+          <div>
+            <label className={labelClass}>Reference (free text)</label>
             <input type="text" value={filterValue} onChange={(e) => setFilterValue(e.target.value)} className={inputClass} />
           </div>
         ) : null}
@@ -110,6 +138,16 @@ function SendNotificationForm({ onDone }: { onDone: () => void }) {
 export default function StaffNotifications() {
   const notifications = useAllNotifications();
   const [creating, setCreating] = useState(false);
+  const [drives, setDrives] = useState<Drive[]>([]);
+
+  useEffect(() => {
+    return onValue(ref(db, DB_NODES.drives), (snap) => {
+      const val = snap.val() as Record<string, Drive> | null;
+      setDrives(val ? Object.values(val) : []);
+    });
+  }, []);
+
+  const drivesById = useMemo(() => Object.fromEntries(drives.map((d) => [d.driveId, d])), [drives]);
 
   return (
     <div>
@@ -131,7 +169,7 @@ export default function StaffNotifications() {
       {creating && (
         <Card className="mb-6">
           <h3 className="mb-4 text-base font-semibold text-slate-900">Send notification</h3>
-          <SendNotificationForm onDone={() => setCreating(false)} />
+          <SendNotificationForm onDone={() => setCreating(false)} drives={drives} />
         </Card>
       )}
 
@@ -141,19 +179,29 @@ export default function StaffNotifications() {
       )}
 
       <div className="space-y-3">
-        {notifications?.map((n) => (
-          <Card key={n.notificationId}>
-            <div className="flex items-start justify-between gap-3">
-              <h3 className="text-sm font-semibold text-slate-900">{n.title}</h3>
-              <Badge variant="neutral">
-                {n.audience.type}
-                {n.audience.filterValue ? ` · ${n.audience.filterValue}` : ""}
-              </Badge>
-            </div>
-            <p className="mt-1 text-sm text-slate-600">{n.body}</p>
-            <p className="mt-2 text-xs text-slate-400">{new Date(n.sentAt).toLocaleString()}</p>
-          </Card>
-        ))}
+        {notifications?.map((n) => {
+          // filterValue is a raw driveId for eligible_list/selected_students
+          // (a Firebase push id, meaningless on screen) — resolve it to the
+          // drive's company name the same way every other page does.
+          const filterLabel = n.audience.filterValue
+            ? DRIVE_SCOPED_AUDIENCE_TYPES.includes(n.audience.type)
+              ? (drivesById[n.audience.filterValue]?.companyName ?? n.audience.filterValue)
+              : n.audience.filterValue
+            : "";
+          return (
+            <Card key={n.notificationId}>
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-sm font-semibold text-slate-900">{n.title}</h3>
+                <Badge variant="neutral">
+                  {AUDIENCE_LABEL[n.audience.type] ?? n.audience.type}
+                  {filterLabel ? ` · ${filterLabel}` : ""}
+                </Badge>
+              </div>
+              <p className="mt-1 text-sm text-slate-600">{n.body}</p>
+              <p className="mt-2 text-xs text-slate-400">{new Date(n.sentAt).toLocaleString()}</p>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
