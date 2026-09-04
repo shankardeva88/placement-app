@@ -180,10 +180,19 @@
         "lastSignificantUpdateAt": { ".write": "auth != null && $studentId === auth.uid" },
 
         // Student's own "please review my profile" ping (see Timestamp doc
-        // comment on Student.verificationRequestedAt) — same student-only
-        // carve-out as the rest of this list, needed because it must stay
-        // writable even after verifiedByFaculty locks the parent path.
-        "verificationRequestedAt": { ".write": "auth != null && $studentId === auth.uid" },
+        // comment on Student.verificationRequestedAt) — student-writable for
+        // the same reason as the rest of this list (must survive
+        // verifiedByFaculty locking the parent path), PLUS writable by
+        // whoever can toggle verifiedByFaculty itself (same department-match
+        // condition as the parent $studentId rule above, since that's what
+        // actually governs verifiedByFaculty writes today — it has no
+        // per-field rule of its own). Staff needs this so unverifying clears
+        // a stale request: without it, a student who gets unverified again
+        // after a bad update still saw "awaiting review" instead of a fresh
+        // "not verified" alert on their dashboard.
+        "verificationRequestedAt": {
+          ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('department').val() === data.child('department').val() )"
+        },
 
         // Set automatically when a student accepts an offer (respondToOffer
         // in offerActions.ts), same self-write exemption as the other

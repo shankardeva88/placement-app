@@ -52,7 +52,11 @@ export function useStudentsDirectory(appUser: AppUser | null): Student[] | null 
 }
 
 export async function setStudentVerified(uid: string, verified: boolean) {
-  await update(ref(db, `${DB_NODES.students}/${uid}`), { verifiedByFaculty: verified });
+  // Clears any outstanding request too — see Student.verificationRequestedAt
+  // doc comment. Without this, unverifying a student who'd already
+  // requested review left them seeing "awaiting review" (stale) instead of
+  // a fresh "not verified" alert, even though staff just acted on it.
+  await update(ref(db, `${DB_NODES.students}/${uid}`), { verifiedByFaculty: verified, verificationRequestedAt: null });
 }
 
 /** Student-initiated "please check my profile" ping — see the doc comment
@@ -70,6 +74,7 @@ export async function setStudentsVerifiedBulk(uids: string[], verified: boolean)
   const updates: Record<string, unknown> = {};
   for (const uid of uids) {
     updates[`${DB_NODES.students}/${uid}/verifiedByFaculty`] = verified;
+    updates[`${DB_NODES.students}/${uid}/verificationRequestedAt`] = null; // see setStudentVerified
   }
   await update(ref(db), updates);
 }

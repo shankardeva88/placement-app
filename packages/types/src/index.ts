@@ -212,10 +212,12 @@ export interface Student {
   // Set when the student themselves clicks "Submit for verification" (see
   // Dashboard.tsx) after reviewing/updating their profile — a pull signal
   // so mentor/coordinator know to go check, instead of only ever finding
-  // out by scrolling the roster. Purely informational: doesn't gate
-  // anything and isn't cleared on verify, so the UI derives "pending"
-  // as `!verifiedByFaculty && verificationRequestedAt` rather than relying
-  // on this being reset.
+  // out by scrolling the roster. Doesn't gate anything; the UI derives
+  // "pending" as `!verifiedByFaculty && verificationRequestedAt`. Cleared
+  // (set to null) by setStudentVerified whenever staff acts — verify OR
+  // unverify — so an unverify-because-the-update-was-inadequate shows the
+  // student a fresh "not verified" alert instead of the stale "awaiting
+  // review" state from their earlier request.
   verificationRequestedAt?: Timestamp;
   createdAt: Timestamp;
   updatedAt: Timestamp;
