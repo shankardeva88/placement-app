@@ -62,6 +62,18 @@ export async function requestProfileVerification(uid: string) {
   await update(ref(db, `${DB_NODES.students}/${uid}`), { verificationRequestedAt: Date.now() });
 }
 
+/** Same effect as calling setStudentVerified once per uid, but as one
+ * multi-path update() — same batching approach as assignMentorBulk in
+ * mentorToolsLib.ts — so verifying a whole selection from Students.tsx
+ * doesn't fire N separate round-trips. */
+export async function setStudentsVerifiedBulk(uids: string[], verified: boolean) {
+  const updates: Record<string, unknown> = {};
+  for (const uid of uids) {
+    updates[`${DB_NODES.students}/${uid}/verifiedByFaculty`] = verified;
+  }
+  await update(ref(db), updates);
+}
+
 /** The "official roster" fields — same set bulkImportLib.ts writes at
  * creation time, the ones a coordinator/hod is the source of truth for
  * (confirmed scope). Personal/self-reported fields (address, skills, social

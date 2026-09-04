@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { Users, Search, Upload, UserPlus, GraduationCap, RefreshCw, Copy, BadgeCheck } from "lucide-react";
 import type { Department, EntranceExamType, Gender, PlacementStatus } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
-import { useStudentsDirectory, setStudentVerified } from "../../lib/studentsDirectoryLib";
+import { useStudentsDirectory, setStudentVerified, setStudentsVerifiedBulk } from "../../lib/studentsDirectoryLib";
 import { createBulkStudent } from "../../lib/bulkImportLib";
 import { useAllTrainingBatches } from "../../lib/trainingManagementLib";
 import { useToast } from "../../components/ui/Toast";
@@ -240,6 +240,8 @@ export default function Students() {
   const [sortBy, setSortBy] = useState<"rollNo" | "recentlyUpdated">("rollNo");
   const [adding, setAdding] = useState(false);
   const [verifyingUid, setVerifyingUid] = useState<string | null>(null);
+  const [selectedUids, setSelectedUids] = useState<Set<string>>(new Set());
+  const [bulkVerifying, setBulkVerifying] = useState(false);
   const canBulkImport = !!appUser && CAN_BULK_IMPORT_ROLES.includes(appUser.role);
 
   const batchYears = useMemo(() => {
@@ -340,6 +342,54 @@ export default function Students() {
     showAlumni,
     sortBy,
   ]);
+
+  // Selection is kept as its own set (not "index into filtered") so it
+  // survives a filter change instead of silently pointing at the wrong
+  // students — but the bulk action itself only ever acts on the
+  // intersection with what's currently visible, so a selection made under
+  // one filter can't reach out and verify someone hidden by the next one.
+  const filteredUidSet = useMemo(() => new Set((filtered ?? []).map((s) => s.uid)), [filtered]);
+  const selectedVisibleUids = useMemo(
+    () => Array.from(selectedUids).filter((uid) => filteredUidSet.has(uid)),
+    [selectedUids, filteredUidSet]
+  );
+  const allVisibleSelected = !!filtered && filtered.length > 0 && filtered.every((s) => selectedUids.has(s.uid));
+
+  function toggleSelected(uid: string) {
+    setSelectedUids((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    if (!filtered) return;
+    setSelectedUids((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        for (const s of filtered) next.delete(s.uid);
+      } else {
+        for (const s of filtered) next.add(s.uid);
+      }
+      return next;
+    });
+  }
+
+  async function handleBulkVerify(verified: boolean) {
+    if (selectedVisibleUids.length === 0) return;
+    setBulkVerifying(true);
+    try {
+      await setStudentsVerifiedBulk(selectedVisibleUids, verified);
+      showToast(`${selectedVisibleUids.length} student(s) ${verified ? "verified" : "unverified"}`);
+      setSelectedUids(new Set());
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not update verification");
+    } finally {
+      setBulkVerifying(false);
+    }
+  }
 
   const placementStats = useMemo(() => {
     if (!filtered) return null;
@@ -603,11 +653,56 @@ export default function Students() {
         <EmptyState icon={Users} title="No students found" />
       )}
 
+      {filtered !== null && filtered.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-1.5 text-sm text-slate-600">
+            <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
+            Select all {filtered.length} visible
+          </label>
+          {selectedVisibleUids.length > 0 && (
+            <>
+              <span className="text-sm text-slate-400">{selectedVisibleUids.length} selected</span>
+              <Button
+                variant="primary"
+                loading={bulkVerifying}
+                onClick={() => handleBulkVerify(true)}
+                className="!px-2.5 !py-1 text-xs"
+              >
+                <BadgeCheck className="h-3.5 w-3.5" />
+                Verify selected
+              </Button>
+              <Button
+                variant="secondary"
+                loading={bulkVerifying}
+                onClick={() => handleBulkVerify(false)}
+                className="!px-2.5 !py-1 text-xs"
+              >
+                Unverify selected
+              </Button>
+              <button
+                type="button"
+                onClick={() => setSelectedUids(new Set())}
+                className="text-xs font-medium text-slate-500 hover:text-slate-700"
+              >
+                Clear selection
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="space-y-3">
         {filtered?.map((s) => (
           <Link key={s.studentId} to={`/staff/students/${s.studentId}`}>
             <Card className="flex items-center justify-between gap-4 transition-shadow hover:shadow-md">
               <div className="flex min-w-0 items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={selectedUids.has(s.uid)}
+                  onChange={() => toggleSelected(s.uid)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-4 w-4 shrink-0"
+                />
                 <Avatar photoUrl={s.photoUrl} name={s.name} />
                 <div className="min-w-0">
                   <p className="font-medium text-slate-900">
