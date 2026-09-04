@@ -24,6 +24,19 @@ import { Skeleton } from "../../components/ui/Skeleton";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Avatar } from "../../components/ui/Avatar";
 
+// Same formatting as the "Recently updated" note on Students.tsx.
+function formatRelativeTime(ts: number): string {
+  const diffMs = Date.now() - ts;
+  const minutes = Math.floor(diffMs / (60 * 1000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(ts).toLocaleDateString();
+}
+
 const CAN_MANAGE_ROLES = ["coordinator", "hod", "dean", "principal", "cpo", "admin"];
 const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
 const GENDERS: Gender[] = ["male", "female", "other", "prefer_not_to_say"];
@@ -357,6 +370,9 @@ export default function StudentDetail() {
               <span className="flex items-center gap-2">
                 {`${student.department} · Batch ${student.batchYear} · Semester ${student.currentSemester}`}
                 {isActive === false && <Badge variant="danger">Inactive</Badge>}
+                {!student.verifiedByFaculty && student.verificationRequestedAt && (
+                  <Badge variant="warning">Requested verification {formatRelativeTime(student.verificationRequestedAt)}</Badge>
+                )}
               </span>
             }
             icon={User}

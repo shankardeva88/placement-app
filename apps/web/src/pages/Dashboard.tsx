@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   GraduationCap,
@@ -12,14 +13,17 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DB_NODES } from "@placement-app/types";
-import type { Offer, PlacementStatus } from "@placement-app/types";
+import type { Offer, PlacementStatus, Student } from "@placement-app/types";
 import { useAuth } from "../auth/AuthContext";
 import { useMyApplications } from "../lib/useMyApplications";
 import { useOwnedDriveRecords } from "../lib/useOwnedDriveRecords";
 import { useRelevantNotifications } from "../lib/notificationsLib";
+import { requestProfileVerification } from "../lib/studentsDirectoryLib";
+import { useToast } from "../components/ui/Toast";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import type { BadgeVariant } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
 
 const PLACEMENT_BADGE: Record<PlacementStatus, BadgeVariant> = {
   not_placed: "neutral",
@@ -109,6 +113,60 @@ function StatTile({
   );
 }
 
+// The one place a student is alerted their profile isn't verified yet, and
+// can do something about it — a red "not verified" state, and a softer
+// amber "already asked, waiting on mentor/coordinator" state once they've
+// clicked through. See Student.verificationRequestedAt doc comment.
+function VerificationBanner({ student }: { student: Student }) {
+  const { showToast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
+  const pending = !!student.verificationRequestedAt;
+
+  async function handleRequest() {
+    setSubmitting(true);
+    try {
+      await requestProfileVerification(student.uid);
+      showToast("Sent — your mentor or coordinator will review it");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not send request");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Card className={`mt-6 border ${pending ? "border-amber-200 bg-amber-50" : "border-red-200 bg-red-50"}`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className={`text-sm font-semibold ${pending ? "text-amber-800" : "text-red-800"}`}>
+            {pending ? "Verification requested — awaiting review" : "Your profile is not verified"}
+          </p>
+          <p className={`mt-0.5 text-sm ${pending ? "text-amber-700" : "text-red-700"}`}>
+            {pending ? (
+              "Your mentor or coordinator hasn't reviewed it yet — you can still update your details in the meantime."
+            ) : (
+              <>
+                Review your{" "}
+                <Link to="/personal-details" className="underline">
+                  Student Info
+                </Link>{" "}
+                and{" "}
+                <Link to="/academic-record" className="underline">
+                  Academic Record
+                </Link>
+                , then submit for your mentor/coordinator to verify.
+              </>
+            )}
+          </p>
+        </div>
+        <Button variant={pending ? "secondary" : "primary"} onClick={handleRequest} loading={submitting}>
+          {pending ? "Request again" : "Submit for verification"}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 export default function Dashboard() {
   const { appUser, student } = useAuth();
   const applications = useMyApplications(student?.uid);
@@ -162,6 +220,8 @@ export default function Dashboard() {
           </div>
         </dl>
       </Card>
+
+      {student && !student.verifiedByFaculty && <VerificationBanner student={student} />}
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatTile

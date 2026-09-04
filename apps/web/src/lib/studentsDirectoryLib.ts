@@ -55,6 +55,13 @@ export async function setStudentVerified(uid: string, verified: boolean) {
   await update(ref(db, `${DB_NODES.students}/${uid}`), { verifiedByFaculty: verified });
 }
 
+/** Student-initiated "please check my profile" ping — see the doc comment
+ * on Student.verificationRequestedAt. Distinct from setStudentVerified
+ * above (staff-only); this is the student's own self-write. */
+export async function requestProfileVerification(uid: string) {
+  await update(ref(db, `${DB_NODES.students}/${uid}`), { verificationRequestedAt: Date.now() });
+}
+
 /** The "official roster" fields — same set bulkImportLib.ts writes at
  * creation time, the ones a coordinator/hod is the source of truth for
  * (confirmed scope). Personal/self-reported fields (address, skills, social

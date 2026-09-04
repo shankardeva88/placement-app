@@ -179,6 +179,12 @@
         "certifications": { ".write": "auth != null && $studentId === auth.uid" },
         "lastSignificantUpdateAt": { ".write": "auth != null && $studentId === auth.uid" },
 
+        // Student's own "please review my profile" ping (see Timestamp doc
+        // comment on Student.verificationRequestedAt) — same student-only
+        // carve-out as the rest of this list, needed because it must stay
+        // writable even after verifiedByFaculty locks the parent path.
+        "verificationRequestedAt": { ".write": "auth != null && $studentId === auth.uid" },
+
         // Set automatically when a student accepts an offer (respondToOffer
         // in offerActions.ts), same self-write exemption as the other
         // system-driven fields above — without this, an already-verified

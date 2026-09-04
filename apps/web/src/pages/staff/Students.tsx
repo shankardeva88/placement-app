@@ -352,9 +352,13 @@ export default function Students() {
   // follow-up nudge, not just viewed on-screen.
   async function handleCopyNotVerified() {
     if (!filtered) return;
-    const unverified = filtered.filter((s) => !s.verifiedByFaculty);
+    const unverified = filtered
+      .filter((s) => !s.verifiedByFaculty)
+      .sort((a, b) => (b.verificationRequestedAt ?? 0) - (a.verificationRequestedAt ?? 0));
     if (unverified.length === 0) return;
-    const lines = unverified.map((s, i) => `${i + 1}. ${s.rollNo} — ${s.name}`);
+    const lines = unverified.map(
+      (s, i) => `${i + 1}. ${s.rollNo} — ${s.name}${s.verificationRequestedAt ? " (requested)" : ""}`
+    );
     const text = `Profile not yet verified (${unverified.length}):\n\n${lines.join("\n")}`;
     await navigator.clipboard.writeText(text);
     showToast("Copied to clipboard");
@@ -608,6 +612,7 @@ export default function Students() {
                   <Badge variant="brand">Recently updated</Badge>
                 )}
                 {s.verifiedByFaculty && <Badge variant="success">Verified</Badge>}
+                {!s.verifiedByFaculty && s.verificationRequestedAt && <Badge variant="warning">Requested verification</Badge>}
                 {s.isAlumni && <Badge variant="neutral">Alumni</Badge>}
                 <Badge variant={PLACEMENT_BADGE[s.placementStatus]}>{s.placementStatus.replace("_", " ")}</Badge>
               </div>

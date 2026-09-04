@@ -483,8 +483,16 @@ function FacultyMentorDashboard() {
 
   // Named, not just the "Verified" stat tile's count — a mentor asking "who
   // do I need to follow up with" can't act on a number alone. Scoped to the
-  // same batch filter as the list below it.
-  const unverifiedMentees = useMemo(() => visibleMentees.filter((s) => !s.verifiedByFaculty), [visibleMentees]);
+  // same batch filter as the list below it. Requested-but-not-verified
+  // mentees sort first — they've already said "please check this," so
+  // that's the more actionable half of the list.
+  const unverifiedMentees = useMemo(
+    () =>
+      visibleMentees
+        .filter((s) => !s.verifiedByFaculty)
+        .sort((a, b) => (b.verificationRequestedAt ?? 0) - (a.verificationRequestedAt ?? 0)),
+    [visibleMentees]
+  );
 
   return (
     <div>
@@ -533,7 +541,10 @@ function FacultyMentorDashboard() {
       </div>
       {!loading && unverifiedMentees.length > 0 && (
         <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Profile not verified ({unverifiedMentees.length}): {unverifiedMentees.map((s) => `${s.rollNo} — ${s.name}`).join(", ")}
+          Profile not verified ({unverifiedMentees.length}):{" "}
+          {unverifiedMentees
+            .map((s) => `${s.rollNo} — ${s.name}${s.verificationRequestedAt ? " (requested)" : ""}`)
+            .join(", ")}
         </p>
       )}
       {loading ? (
