@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { ChevronDown, ChevronUp, Download, GraduationCap, Plus, Trash2, Upload, Users2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, GraduationCap, Plus, Search, Trash2, Upload, Users2 } from "lucide-react";
 import type { AlumniPlacementStatus, AlumniRecord, Department } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import {
@@ -571,22 +571,35 @@ export default function Alumni() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const canGraduate = !!appUser && GRADUATE_ROLES.includes(appUser.role);
 
+  const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState<Department | "">("");
   const [yearFilter, setYearFilter] = useState<number | "">("");
   const [statusFilter, setStatusFilter] = useState<AlumniPlacementStatus | "">("");
+  const [companyFilter, setCompanyFilter] = useState("");
   const [duplicatesOnly, setDuplicatesOnly] = useState(false);
 
   const filtered = useMemo(() => {
     if (!alumni) return null;
+    const term = search.trim().toLowerCase();
     return alumni
       .filter((a) => !deptFilter || a.department === deptFilter)
       .filter((a) => !yearFilter || a.batchYear === yearFilter)
       .filter((a) => !statusFilter || a.placementStatus === statusFilter)
+      .filter((a) => !companyFilter || a.companyName === companyFilter)
+      .filter((a) => !term || a.rollNo.toLowerCase().includes(term) || a.name.toLowerCase().includes(term))
       .sort((a, b) => b.batchYear - a.batchYear || a.rollNo.localeCompare(b.rollNo));
-  }, [alumni, deptFilter, yearFilter, statusFilter]);
+  }, [alumni, deptFilter, yearFilter, statusFilter, companyFilter, search]);
 
   const years = useMemo(
     () => Array.from(new Set((alumni ?? []).map((a) => a.batchYear))).sort((a, b) => b - a),
+    [alumni]
+  );
+
+  // Same idea as Offers' driveOptions — only companies that actually have an
+  // alumnus recorded against them, not a hardcoded list, since companyName
+  // here is free text rather than a driveId lookup.
+  const companyOptions = useMemo(
+    () => Array.from(new Set((alumni ?? []).map((a) => a.companyName).filter((c): c is string => !!c))).sort((a, b) => a.localeCompare(b)),
     [alumni]
   );
 
@@ -771,7 +784,31 @@ export default function Alumni() {
       )}
 
       <Card className="mb-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="lg:col-span-2">
+            <label className={labelClass}>Search</label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Roll number or name"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={`${inputClass} pl-9`}
+              />
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>Company</label>
+            <select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className={inputClass}>
+              <option value="">All companies</option>
+              {companyOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className={labelClass}>Department</label>
             <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value as Department | "")} className={inputClass}>
@@ -805,9 +842,9 @@ export default function Alumni() {
               ))}
             </select>
           </div>
-          <div className="flex items-end">
+          <div className="flex items-end lg:col-span-6">
             {filtered && filtered.length > 0 && (
-              <Button variant="secondary" onClick={handleDownload} className="w-full">
+              <Button variant="secondary" onClick={handleDownload} className="w-full sm:w-auto">
                 <Download className="h-4 w-4" />
                 Download CSV
               </Button>
@@ -817,8 +854,11 @@ export default function Alumni() {
       </Card>
 
       {filtered === null && <Skeleton className="h-40" />}
-      {filtered !== null && filtered.length === 0 && (
+      {filtered !== null && filtered.length === 0 && alumni?.length === 0 && (
         <EmptyState icon={Users2} title="No alumni records yet" subtitle="Add one, or bulk import a whole batch." />
+      )}
+      {filtered !== null && filtered.length === 0 && alumni && alumni.length > 0 && (
+        <EmptyState icon={Search} title="No alumni match your search/filters" />
       )}
 
       {/* Was a single paragraph dumping every duplicated roll number inline
