@@ -4,6 +4,7 @@ import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
 import type { AppUser, Application, ApplicationStatus, Department, Student } from "@placement-app/types";
 import { useDeptScopedCollection } from "./useDeptScopedCollection";
+import { sendNotification } from "./staffNotificationsLib";
 
 export interface ApplicantRow {
   application: Application;
@@ -55,12 +56,70 @@ export function useAllApplications(appUser: AppUser | null): Application[] | nul
   return useDeptScopedCollection<Application>(appUser, DB_NODES.applications, DB_NODES.applicationsDeptIndex);
 }
 
-export async function updateApplicationStatus(applicationId: string, status: ApplicationStatus, currentRoundId?: string) {
+// Composed here (not left to the caller) so every call site — the
+// single-row update and the bulk update, both in DriveApplicants.tsx —
+// gets identical wording for free instead of drifting apart.
+function describeApplicationStatusChange(
+  companyName: string,
+  status: ApplicationStatus,
+  roundName?: string
+): { title: string; body: string } {
+  switch (status) {
+    case "shortlisted":
+      return { title: `${companyName} — Shortlisted`, body: `You've been shortlisted for ${companyName}. Check the drive for next steps.` };
+    case "in_round":
+      return roundName
+        ? { title: `${companyName} — ${roundName}`, body: `You're through to ${roundName} for ${companyName}.` }
+        : { title: `${companyName} — Round update`, body: `Your application for ${companyName} has moved to the next round.` };
+    case "selected":
+      return { title: `${companyName} — Selected!`, body: `Congratulations — you've been selected at ${companyName}!` };
+    case "rejected":
+      return {
+        title: `${companyName} — Update`,
+        body: roundName
+          ? `You weren't carried forward past ${roundName} at ${companyName} this time. Keep going!`
+          : `You weren't selected at ${companyName} this time. Keep going!`,
+      };
+    case "withdrawn":
+      return { title: `${companyName} — Application withdrawn`, body: `Your application for ${companyName} was withdrawn.` };
+    default:
+      return { title: `${companyName} — Application update`, body: `Your application status for ${companyName} was updated.` };
+  }
+}
+
+export interface ApplicationStatusNotifyContext {
+  studentUid: string;
+  companyName: string;
+  roundName?: string; // resolved from currentRoundId by the caller, who already has drive.rounds loaded
+  sentBy: string; // acting staff uid
+}
+
+/** Updates the application, then best-effort fires a targeted notification
+ * (audience "student", see NotificationAudienceType doc comment) so the
+ * student finds out without having to notice a status change themselves on
+ * the Drives page. `notify` is optional so callers that don't have the
+ * context handy (or don't want to notify — e.g. an automated cleanup) can
+ * skip it; a failed notification send never fails the status update itself,
+ * since the write that actually matters already landed by the time it runs. */
+export async function updateApplicationStatus(
+  applicationId: string,
+  status: ApplicationStatus,
+  currentRoundId?: string,
+  notify?: ApplicationStatusNotifyContext
+) {
   await update(ref(db, `${DB_NODES.applications}/${applicationId}`), {
     status,
     currentRoundId: currentRoundId ?? null,
     updatedAt: Date.now(),
   });
+  if (notify) {
+    try {
+      const { title, body } = describeApplicationStatusChange(notify.companyName, status, notify.roundName);
+      await sendNotification({ title, body, audienceType: "student", filterValue: notify.studentUid, sentBy: notify.sentBy });
+    } catch {
+      // Best-effort — the status update already succeeded either way.
+    }
+  }
 }
 
 /** Removes the application record itself, not just its status — e.g. a

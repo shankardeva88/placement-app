@@ -26,9 +26,13 @@ const AUDIENCE_OPTIONS: { value: NotificationAudienceType; label: string }[] = [
   { value: "selected_students", label: "Selected students" },
   { value: "custom", label: "Custom" },
 ];
-const AUDIENCE_LABEL: Record<NotificationAudienceType, string> = Object.fromEntries(
-  AUDIENCE_OPTIONS.map((o) => [o.value, o.label])
-) as Record<NotificationAudienceType, string>;
+// "student" isn't in AUDIENCE_OPTIONS (system-generated only, not something
+// a coordinator composes manually — see NotificationAudienceType doc
+// comment), so it needs its own label entry here instead.
+const AUDIENCE_LABEL: Record<NotificationAudienceType, string> = {
+  ...(Object.fromEntries(AUDIENCE_OPTIONS.map((o) => [o.value, o.label])) as Record<NotificationAudienceType, string>),
+  student: "Individual (auto)",
+};
 const DRIVE_SCOPED_AUDIENCE_TYPES: NotificationAudienceType[] = ["eligible_list", "selected_students"];
 
 const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
@@ -200,11 +204,17 @@ export default function StaffNotifications() {
         {notifications?.map((n) => {
           // filterValue is a raw driveId for eligible_list/selected_students
           // (a Firebase push id, meaningless on screen) — resolve it to the
-          // drive's company name the same way every other page does.
+          // drive's company name the same way every other page does. For the
+          // system-generated "student" type it's a student uid — just as
+          // meaningless here, and this page doesn't load the students
+          // directory to resolve it, so it's hidden rather than shown raw
+          // (the title/body already say which company/student it's about).
           const filterLabel = n.audience.filterValue
             ? DRIVE_SCOPED_AUDIENCE_TYPES.includes(n.audience.type)
               ? (drivesById[n.audience.filterValue]?.companyName ?? n.audience.filterValue)
-              : n.audience.filterValue
+              : n.audience.type === "student"
+                ? ""
+                : n.audience.filterValue
             : "";
           return (
             <Card key={n.notificationId}>

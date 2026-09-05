@@ -381,7 +381,14 @@ export type NotificationAudienceType =
   | "department"
   | "eligible_list"
   | "selected_students"
-  | "custom";
+  | "custom"
+  // System-generated only (not offered in the compose form) — filterValue is
+  // the one student's uid. Auto-fired by updateApplicationStatus
+  // (applicantsLib.ts) whenever a coordinator/mentor changes an applicant's
+  // status/round, so the student finds out without having to notice it
+  // themselves on the Drives page. See useRelevantNotifications for the
+  // exact-uid-match filter this depends on.
+  | "student";
 
 export interface AppNotification {
   notificationId: string;

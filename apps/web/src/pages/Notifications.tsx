@@ -18,6 +18,7 @@ const AUDIENCE_LABEL: Record<NotificationAudienceType, string> = {
   eligible_list: "Eligible students",
   selected_students: "Selected students",
   custom: "Targeted",
+  student: "For you",
 };
 
 export default function Notifications() {

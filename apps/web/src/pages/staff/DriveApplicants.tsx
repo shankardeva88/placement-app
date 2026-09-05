@@ -158,10 +158,22 @@ export default function DriveApplicants() {
     });
   }, [driveId]);
 
-  async function handleUpdate(applicationId: string, status: ApplicationStatus, currentRoundId: string) {
+  async function handleUpdate(applicationId: string, studentUid: string, status: ApplicationStatus, currentRoundId: string) {
     setUpdatingId(applicationId);
     try {
-      await updateApplicationStatus(applicationId, status, currentRoundId || undefined);
+      await updateApplicationStatus(
+        applicationId,
+        status,
+        currentRoundId || undefined,
+        appUser && drive
+          ? {
+              studentUid,
+              companyName: drive.companyName,
+              roundName: currentRoundId ? drive.rounds?.find((r) => r.roundId === currentRoundId)?.name : undefined,
+              sentBy: appUser.uid,
+            }
+          : undefined
+      );
       showToast("Status updated");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Could not update status");
@@ -220,8 +232,10 @@ export default function DriveApplicants() {
   // one-at-a-time updates for 229 selected applicants would take minutes;
   // chunking bounds it to roughly (selection size / CONCURRENCY) round trips.
   async function handleBulkStatusUpdate() {
-    if (selectedIds.size === 0) return;
+    if (selectedIds.size === 0 || !rows) return;
     const ids = Array.from(selectedIds);
+    const studentUidByAppId = new Map(rows.map((r) => [r.application.applicationId, r.application.studentId]));
+    const roundName = bulkRoundValue ? drive?.rounds?.find((r) => r.roundId === bulkRoundValue)?.name : undefined;
     setBulkUpdating(true);
     setBulkUpdateProgress(0);
     const CONCURRENCY = 20;
@@ -229,12 +243,20 @@ export default function DriveApplicants() {
     for (let i = 0; i < ids.length; i += CONCURRENCY) {
       const chunk = ids.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
-        chunk.map((id) =>
-          Promise.race([
-            updateApplicationStatus(id, bulkStatusValue, bulkRoundValue || undefined),
+        chunk.map((id) => {
+          const studentUid = studentUidByAppId.get(id);
+          return Promise.race([
+            updateApplicationStatus(
+              id,
+              bulkStatusValue,
+              bulkRoundValue || undefined,
+              appUser && drive && studentUid
+                ? { studentUid, companyName: drive.companyName, roundName, sentBy: appUser.uid }
+                : undefined
+            ),
             new Promise((_, reject) => setTimeout(() => reject(new Error("timed out")), 10000)),
-          ])
-        )
+          ]);
+        })
       );
       failed += results.filter((r) => r.status === "rejected").length;
       setBulkUpdateProgress((p) => p + chunk.length);
@@ -587,7 +609,12 @@ export default function DriveApplicants() {
                 value={application.status}
                 disabled={updatingId === application.applicationId}
                 onChange={(e) =>
-                  handleUpdate(application.applicationId, e.target.value as ApplicationStatus, application.currentRoundId ?? "")
+                  handleUpdate(
+                    application.applicationId,
+                    application.studentId,
+                    e.target.value as ApplicationStatus,
+                    application.currentRoundId ?? ""
+                  )
                 }
                 className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
               >
@@ -601,7 +628,7 @@ export default function DriveApplicants() {
                 <select
                   value={application.currentRoundId ?? ""}
                   disabled={updatingId === application.applicationId}
-                  onChange={(e) => handleUpdate(application.applicationId, application.status, e.target.value)}
+                  onChange={(e) => handleUpdate(application.applicationId, application.studentId, application.status, e.target.value)}
                   className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
                 >
                   <option value="">No round yet</option>

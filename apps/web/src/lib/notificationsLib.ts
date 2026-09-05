@@ -50,6 +50,11 @@ export function useRelevantNotifications(student: Student | null | undefined): A
       const drive = n.audience.filterValue && drives ? drives[n.audience.filterValue] : undefined;
       if (drive) return isDriveVisibleToStudent(student, drive);
     }
+    // System-generated, one specific student — see NotificationAudienceType
+    // doc comment. Must be an exact match, not the "no membership data,
+    // show everyone" fallback below, or every application status change
+    // would broadcast to the entire student body.
+    if (n.audience.type === "student") return n.audience.filterValue === student.uid;
     return true;
   });
 }
