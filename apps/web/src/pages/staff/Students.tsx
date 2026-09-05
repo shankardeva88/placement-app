@@ -739,6 +739,7 @@ export default function Students() {
                   <p className="text-sm text-slate-500">
                     {s.department} · Batch {s.batchYear} · CGPA {s.cgpa} · Backlogs {s.activeBacklogs}
                     {s.entranceRank && ` · ${s.entranceType ? `${s.entranceType}: ` : ""}${s.entranceRank}`}
+                    {s.studentPhone && ` · Mobile: ${s.studentPhone}`}
                   </p>
                   {(s.skills ?? []).length > 0 && (
                     <p className="mt-0.5 truncate text-xs text-slate-400">{(s.skills ?? []).join(", ")}</p>
