@@ -34,7 +34,16 @@ const STATUS_BADGE: Record<AlumniRecord["placementStatus"], BadgeVariant> = {
 export default function AlumniReport() {
   const alumni = useAllAlumni();
   const [deptFilter, setDeptFilter] = useState<Department | "">("");
+  const [batchFilter, setBatchFilter] = useState<number | "">("");
   const [search, setSearch] = useState("");
+
+  // Built from the data rather than a hardcoded range — future batches show
+  // up here automatically as soon as they're graduated/imported, same
+  // reasoning as every other batch-year dropdown in the app.
+  const batchYearOptions = useMemo(
+    () => Array.from(new Set((alumni ?? []).map((a) => a.batchYear))).sort((a, b) => b - a),
+    [alumni]
+  );
 
   // AlumniRecord has no uid — rollNo is the only real identity a person has.
   // Someone with multiple offers entered as one row per offer would
@@ -48,13 +57,13 @@ export default function AlumniReport() {
     if (!alumni) return null;
     const byRollNo = new Map<string, AlumniRecord>();
     for (const a of alumni) {
-      if (!deptFilter || a.department === deptFilter) {
+      if ((!deptFilter || a.department === deptFilter) && (!batchFilter || a.batchYear === batchFilter)) {
         const existing = byRollNo.get(a.rollNo);
         if (!existing || a.updatedAt > existing.updatedAt) byRollNo.set(a.rollNo, a);
       }
     }
     return Array.from(byRollNo.values());
-  }, [alumni, deptFilter]);
+  }, [alumni, deptFilter, batchFilter]);
 
   const batchStats = useMemo(() => {
     if (!deduped) return null;
@@ -114,7 +123,9 @@ export default function AlumniReport() {
   // whichever one happened to be saved/edited last.
   const fullListRows = useMemo(() => {
     if (!alumni) return null;
-    const scoped = alumni.filter((a) => !deptFilter || a.department === deptFilter);
+    const scoped = alumni.filter(
+      (a) => (!deptFilter || a.department === deptFilter) && (!batchFilter || a.batchYear === batchFilter)
+    );
     const byRollNo = new Map<string, AlumniRecord[]>();
     for (const a of scoped) {
       if (!byRollNo.has(a.rollNo)) byRollNo.set(a.rollNo, []);
@@ -135,7 +146,7 @@ export default function AlumniReport() {
         notes: canonical.notes,
       };
     });
-  }, [alumni, deptFilter]);
+  }, [alumni, deptFilter, batchFilter]);
 
   const filteredList = useMemo(() => {
     if (!fullListRows) return null;
@@ -187,19 +198,34 @@ export default function AlumniReport() {
       />
 
       <Card className="mb-4">
-        <label className={labelClass}>Department</label>
-        <select
-          value={deptFilter}
-          onChange={(e) => setDeptFilter(e.target.value as Department | "")}
-          className={`${inputClass} max-w-xs`}
-        >
-          <option value="">All departments</option>
-          {DEPARTMENTS.map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-        </select>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:max-w-md">
+          <div>
+            <label className={labelClass}>Department</label>
+            <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value as Department | "")} className={inputClass}>
+              <option value="">All departments</option>
+              {DEPARTMENTS.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Batch year</label>
+            <select
+              value={batchFilter}
+              onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
+              className={inputClass}
+            >
+              <option value="">All years</option>
+              {batchYearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </Card>
 
       {loading && <Skeleton className="h-40" />}
