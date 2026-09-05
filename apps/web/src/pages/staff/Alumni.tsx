@@ -500,16 +500,44 @@ export default function Alumni() {
     [alumni]
   );
 
-  const stats = useMemo(() => {
+  // AlumniRecord has no uid — rollNo is the only real identity a person has
+  // here. Manual entry / bulk import for someone with multiple offers has
+  // sometimes produced one row per offer/company instead of one row per
+  // person, which silently inflated "placed" (and total) since the stats
+  // below used to just count rows. Deduped to one record per rollNo — the
+  // most recently updated one, on the assumption that's the accurate/final
+  // outcome — so the summary always reflects unique people regardless of
+  // how many rows exist underneath. duplicateRollNos (below) surfaces the
+  // underlying data problem itself, not just papering over it in the stats.
+  const dedupedByRollNo = useMemo(() => {
     if (!filtered) return null;
-    return {
-      total: filtered.length,
-      placed: filtered.filter((a) => a.placementStatus === "placed").length,
-      unplaced: filtered.filter((a) => a.placementStatus === "unplaced").length,
-      entrepreneur: filtered.filter((a) => a.placementStatus === "entrepreneur").length,
-      higherStudies: filtered.filter((a) => a.placementStatus === "higher_studies").length,
-    };
+    const byRollNo = new Map<string, AlumniRecord>();
+    for (const a of filtered) {
+      const existing = byRollNo.get(a.rollNo);
+      if (!existing || a.updatedAt > existing.updatedAt) byRollNo.set(a.rollNo, a);
+    }
+    return Array.from(byRollNo.values());
   }, [filtered]);
+
+  const duplicateRollNos = useMemo(() => {
+    if (!filtered) return [];
+    const counts = new Map<string, number>();
+    for (const a of filtered) counts.set(a.rollNo, (counts.get(a.rollNo) ?? 0) + 1);
+    return Array.from(counts.entries())
+      .filter(([, count]) => count > 1)
+      .sort((a, b) => b[1] - a[1]);
+  }, [filtered]);
+
+  const stats = useMemo(() => {
+    if (!dedupedByRollNo) return null;
+    return {
+      total: dedupedByRollNo.length,
+      placed: dedupedByRollNo.filter((a) => a.placementStatus === "placed").length,
+      unplaced: dedupedByRollNo.filter((a) => a.placementStatus === "unplaced").length,
+      entrepreneur: dedupedByRollNo.filter((a) => a.placementStatus === "entrepreneur").length,
+      higherStudies: dedupedByRollNo.filter((a) => a.placementStatus === "higher_studies").length,
+    };
+  }, [dedupedByRollNo]);
 
   async function handleAdd(input: AlumniInput) {
     if (!firebaseUser) return;
@@ -665,6 +693,16 @@ export default function Alumni() {
       {filtered === null && <Skeleton className="h-40" />}
       {filtered !== null && filtered.length === 0 && (
         <EmptyState icon={Users2} title="No alumni records yet" subtitle="Add one, or bulk import a whole batch." />
+      )}
+
+      {duplicateRollNos.length > 0 && (
+        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          {duplicateRollNos.length} roll number{duplicateRollNos.length === 1 ? " has" : "s have"} more than one alumni
+          record — often from adding a separate row per offer for someone with multiple offers, instead of one row
+          per person. The counts above already count each roll number once (using its most recently updated record),
+          but the table below still lists every row — edit or delete the extras to clean it up:{" "}
+          {duplicateRollNos.map(([rollNo, count]) => `${rollNo} (${count})`).join(", ")}
+        </p>
       )}
 
       {filtered !== null && filtered.length > 0 && (
