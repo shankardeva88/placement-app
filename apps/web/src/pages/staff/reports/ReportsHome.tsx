@@ -65,6 +65,13 @@ const REPORTS: { to: string; label: string; description: string; icon: LucideIco
     gradient: "from-slate-500 to-slate-700",
   },
   {
+    to: "/staff/reports/alumni",
+    label: "Alumni Report",
+    description: "Placement % and average/highest CTC per batch year, top recruiting companies, plus the full searchable alumni list.",
+    icon: GraduationCap,
+    gradient: "from-slate-500 to-slate-700",
+  },
+  {
     to: "/staff/reports/mentee-roster",
     label: "Mentee Roster Report",
     description: "Every mentor-mentee assignment, one row each — filter by mentor, department, or batch.",
