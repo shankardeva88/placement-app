@@ -65,6 +65,30 @@ export default function AlumniReport() {
     return Array.from(byRollNo.values());
   }, [alumni, deptFilter, batchFilter]);
 
+  // Bug this fixes: "Highest CTC" and "Top recruiting companies" used to
+  // scan `deduped` — but deduped keeps only ONE row per rollNo (whichever
+  // was most recently updated), so a company that genuinely made an offer
+  // could vanish from both entirely if that offer wasn't the "canonical"
+  // row for the student it went to (e.g. State Street offered 11 LPA, but
+  // the student's other, later-edited offer row was the one dedup kept —
+  // State Street's row, and its 11 LPA, silently disappeared even though it
+  // was right there in the Full list below, which never deduped). Every
+  // genuine offer should count for "who's recruiting" and "what's the best
+  // package anyone got" — so both now scan every placed row in scope,
+  // not just the deduped set. Average CTC per batch stays on `deduped`
+  // deliberately: that's meant to read as "per person", and a person with
+  // 2 offers shouldn't count twice in an average.
+  const allPlacedOffers = useMemo(() => {
+    if (!alumni) return [];
+    return alumni.filter(
+      (a) =>
+        (!deptFilter || a.department === deptFilter) &&
+        (!batchFilter || a.batchYear === batchFilter) &&
+        a.placementStatus === "placed" &&
+        a.companyName
+    );
+  }, [alumni, deptFilter, batchFilter]);
+
   const batchStats = useMemo(() => {
     if (!deduped) return null;
     const byYear = new Map<number, AlumniRecord[]>();
@@ -72,23 +96,28 @@ export default function AlumniReport() {
       if (!byYear.has(a.batchYear)) byYear.set(a.batchYear, []);
       byYear.get(a.batchYear)!.push(a);
     }
+    const highestOfferByYear = new Map<number, AlumniRecord>();
+    for (const o of allPlacedOffers) {
+      if (o.ctc == null) continue;
+      const current = highestOfferByYear.get(o.batchYear);
+      if (!current || (o.ctc ?? 0) > (current.ctc ?? 0)) highestOfferByYear.set(o.batchYear, o);
+    }
     return Array.from(byYear.entries())
       .map(([batchYear, records]) => {
         const placed = records.filter((a) => a.placementStatus === "placed");
         const withCtc = placed.filter((a) => a.ctc != null);
         const avgCtc = withCtc.length > 0 ? withCtc.reduce((sum, a) => sum + (a.ctc ?? 0), 0) / withCtc.length : null;
-        const top = withCtc.reduce((best, a) => (best === null || (a.ctc ?? 0) > (best.ctc ?? 0) ? a : best), null as AlumniRecord | null);
         return {
           batchYear,
           total: records.length,
           placedCount: placed.length,
           placedPct: records.length > 0 ? Math.round((placed.length / records.length) * 100) : 0,
           avgCtc,
-          top,
+          top: highestOfferByYear.get(batchYear) ?? null,
         };
       })
       .sort((a, b) => a.batchYear - b.batchYear);
-  }, [deduped]);
+  }, [deduped, allPlacedOffers]);
 
   const ctcTrend = useMemo(() => {
     if (!batchStats) return [];
@@ -98,22 +127,24 @@ export default function AlumniReport() {
   }, [batchStats]);
 
   const topCompanies = useMemo(() => {
-    if (!deduped) return null;
     const byCompany = new Map<string, AlumniRecord[]>();
-    for (const a of deduped) {
-      if (a.placementStatus !== "placed" || !a.companyName) continue;
-      const key = a.companyName.trim();
+    for (const a of allPlacedOffers) {
+      const key = a.companyName!.trim();
       if (!byCompany.has(key)) byCompany.set(key, []);
       byCompany.get(key)!.push(a);
     }
     return Array.from(byCompany.entries())
       .map(([companyName, records]) => {
+        // Unique rollNos, not row count — guards against the same student
+        // somehow being entered against the same company twice (a data
+        // slip, not a second real offer) inflating "Alumni Hired".
+        const uniqueRollNos = new Set(records.map((r) => r.rollNo));
         const withCtc = records.filter((a) => a.ctc != null);
         const avgCtc = withCtc.length > 0 ? withCtc.reduce((sum, a) => sum + (a.ctc ?? 0), 0) / withCtc.length : null;
-        return { companyName, count: records.length, avgCtc };
+        return { companyName, count: uniqueRollNos.size, avgCtc };
       })
       .sort((a, b) => b.count - a.count || a.companyName.localeCompare(b.companyName));
-  }, [deduped]);
+  }, [allPlacedOffers]);
 
   // The batch-year/top-company stats above deliberately collapse a person
   // with multiple offers to one record (their final outcome) — right for
