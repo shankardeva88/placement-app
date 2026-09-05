@@ -574,6 +574,7 @@ export default function Alumni() {
   const [deptFilter, setDeptFilter] = useState<Department | "">("");
   const [yearFilter, setYearFilter] = useState<number | "">("");
   const [statusFilter, setStatusFilter] = useState<AlumniPlacementStatus | "">("");
+  const [duplicatesOnly, setDuplicatesOnly] = useState(false);
 
   const filtered = useMemo(() => {
     if (!alumni) return null;
@@ -616,6 +617,7 @@ export default function Alumni() {
       .filter(([, count]) => count > 1)
       .sort((a, b) => b[1] - a[1]);
   }, [filtered]);
+  const duplicateRollNoSet = useMemo(() => new Set(duplicateRollNos.map(([rollNo]) => rollNo)), [duplicateRollNos]);
 
   const stats = useMemo(() => {
     if (!dedupedByRollNo) return null;
@@ -645,8 +647,9 @@ export default function Alumni() {
 
   const grouped = useMemo(() => {
     if (!filtered) return null;
+    const source = duplicatesOnly ? filtered.filter((a) => duplicateRollNoSet.has(a.rollNo)) : filtered;
     const map = new Map<string, AlumniRecord[]>();
-    for (const a of filtered) {
+    for (const a of source) {
       const key = groupKeyFor(a);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(a);
@@ -660,7 +663,7 @@ export default function Alumni() {
         if (aIsBucket && bIsBucket) return STATUS_BUCKET_ORDER.indexOf(a.key) - STATUS_BUCKET_ORDER.indexOf(b.key);
         return a.key.localeCompare(b.key);
       });
-  }, [filtered]);
+  }, [filtered, duplicatesOnly, duplicateRollNoSet]);
 
   async function handleAdd(input: AlumniInput) {
     if (!firebaseUser) return;
@@ -818,14 +821,20 @@ export default function Alumni() {
         <EmptyState icon={Users2} title="No alumni records yet" subtitle="Add one, or bulk import a whole batch." />
       )}
 
+      {/* Was a single paragraph dumping every duplicated roll number inline
+          — unreadable once there were dozens of them. Now just the count,
+          plus a toggle that filters the company groups below (reusing that
+          same UI, not a separate list) down to just the affected people. */}
       {duplicateRollNos.length > 0 && (
-        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          {duplicateRollNos.length} roll number{duplicateRollNos.length === 1 ? " has" : "s have"} more than one alumni
-          record — often from adding a separate row per offer for someone with multiple offers, instead of one row
-          per person. The counts above already count each roll number once (using its most recently updated record),
-          but the table below still lists every row — edit or delete the extras to clean it up:{" "}
-          {duplicateRollNos.map(([rollNo, count]) => `${rollNo} (${count})`).join(", ")}
-        </p>
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <span>
+            {duplicateRollNos.length} roll number{duplicateRollNos.length === 1 ? " has" : "s have"} more than one
+            alumni record — the counts above already count each once, using its most recently updated record.
+          </span>
+          <Button variant="secondary" onClick={() => setDuplicatesOnly((v) => !v)} className="!px-2.5 !py-1 text-xs">
+            {duplicatesOnly ? "Show all alumni" : "Show duplicates only"}
+          </Button>
+        </div>
       )}
 
       <div className="space-y-4">
