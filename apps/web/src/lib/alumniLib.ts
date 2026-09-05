@@ -26,6 +26,7 @@ export interface AlumniInput {
   designation?: string;
   ctc?: number;
   offerLetterUrl?: string;
+  joiningReportUrl?: string;
   higherStudiesDetails?: string;
   contactPhone?: string;
   contactEmail?: string;
@@ -107,6 +108,7 @@ export const ALUMNI_CSV_HEADERS = [
   "Designation",
   "CTC",
   "OfferLetterURL",
+  "JoiningReportURL",
   "HigherStudiesDetails",
   "ContactPhone",
   "ContactEmail",
@@ -202,6 +204,7 @@ export function parseAlumniCsv(text: string): ParsedAlumniRow[] {
               designation: get("Designation") || undefined,
               ctc: ctcRaw ? Number(ctcRaw) : undefined,
               offerLetterUrl: get("OfferLetterURL") || undefined,
+              joiningReportUrl: get("JoiningReportURL") || undefined,
               higherStudiesDetails: get("HigherStudiesDetails") || undefined,
               contactPhone: get("ContactPhone") || undefined,
               contactEmail: get("ContactEmail") || undefined,

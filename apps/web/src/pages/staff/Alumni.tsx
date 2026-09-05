@@ -77,6 +77,7 @@ function AlumniForm({
           designation: initial.designation,
           ctc: initial.ctc,
           offerLetterUrl: initial.offerLetterUrl,
+          joiningReportUrl: initial.joiningReportUrl,
           higherStudiesDetails: initial.higherStudiesDetails,
           contactPhone: initial.contactPhone,
           contactEmail: initial.contactEmail,
@@ -173,15 +174,27 @@ function AlumniForm({
               className={inputClass}
             />
           </div>
-          <div className="sm:col-span-3">
-            <label className={labelClass}>Offer letter link</label>
-            <input
-              type="url"
-              placeholder="https://drive.google.com/..."
-              value={form.offerLetterUrl ?? ""}
-              onChange={(e) => set("offerLetterUrl", e.target.value)}
-              className={inputClass}
-            />
+          <div className="sm:col-span-3 sm:grid sm:grid-cols-2 sm:gap-4">
+            <div>
+              <label className={labelClass}>Offer letter link</label>
+              <input
+                type="url"
+                placeholder="https://drive.google.com/..."
+                value={form.offerLetterUrl ?? ""}
+                onChange={(e) => set("offerLetterUrl", e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Joining report link (optional)</label>
+              <input
+                type="url"
+                placeholder="https://drive.google.com/..."
+                value={form.joiningReportUrl ?? ""}
+                onChange={(e) => set("joiningReportUrl", e.target.value)}
+                className={inputClass}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -238,7 +251,7 @@ function BulkImport({ onDone }: { onDone: () => void }) {
     downloadCsv(
       "alumni-import-template.csv",
       ALUMNI_CSV_HEADERS,
-      [["20A91A0501", "Jane Doe", "CSE", "2022", "8.2", "placed", "Acme Corp", "SDE-1", "6.5", "", "", "9999999999", "jane@example.com", ""]]
+      [["20A91A0501", "Jane Doe", "CSE", "2022", "8.2", "placed", "Acme Corp", "SDE-1", "6.5", "", "", "", "9999999999", "jane@example.com", ""]]
     );
   }
 
@@ -544,6 +557,16 @@ function AlumniGroup({
                     View offer letter
                   </a>
                 )}
+                {a.joiningReportUrl && (
+                  <a
+                    href={a.joiningReportUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-medium text-brand-600 hover:underline"
+                  >
+                    View joining report
+                  </a>
+                )}
                 <button onClick={() => onEdit(a.alumniId)} className="text-xs font-medium text-brand-700 hover:underline">
                   Edit
                 </button>
@@ -713,6 +736,7 @@ export default function Alumni() {
         a.designation ?? "",
         a.ctc ?? "",
         a.offerLetterUrl ?? "",
+        a.joiningReportUrl ?? "",
         a.higherStudiesDetails ?? "",
         a.contactPhone ?? "",
         a.contactEmail ?? "",

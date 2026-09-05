@@ -669,6 +669,11 @@ export interface AlumniRecord {
   designation?: string;
   ctc?: number;
   offerLetterUrl?: string; // Google Drive share link, same pattern as elsewhere
+  // Proof they actually joined (joining letter / ID card scan) — the alumni
+  // equivalent of JoiningReport.proofUrl for an active student's offer, just
+  // a plain link with no separate verification workflow: alumni records are
+  // added well after the fact, usually already confirmed one way or another.
+  joiningReportUrl?: string;
   higherStudiesDetails?: string; // e.g. "MS Computer Science, ASU"
   contactPhone?: string;
   contactEmail?: string;
