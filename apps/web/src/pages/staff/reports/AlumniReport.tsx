@@ -322,7 +322,7 @@ export default function AlumniReport() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {topCompanies.slice(0, 20).map((c) => (
+                    {topCompanies.map((c) => (
                       <tr key={c.companyName}>
                         <td className="py-2 pr-4 font-medium text-slate-800">{c.companyName}</td>
                         <td className="py-2 pr-4 text-slate-600">{c.count}</td>
@@ -331,9 +331,6 @@ export default function AlumniReport() {
                     ))}
                   </tbody>
                 </table>
-                {topCompanies.length > 20 && (
-                  <p className="mt-2 text-xs text-slate-400">+{topCompanies.length - 20} more companies not shown.</p>
-                )}
               </div>
             </Card>
           )}
