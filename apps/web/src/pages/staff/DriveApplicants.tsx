@@ -40,6 +40,22 @@ const STATUS_BADGE: Record<ApplicationStatus, BadgeVariant> = {
   withdrawn: "neutral",
 };
 
+// Same palette as Badge's own VARIANT_CLASSES (not exported from Badge.tsx),
+// duplicated here because the summary chips below need to be actual
+// <button>s (clickable, with an active-state ring), not the plain <span>
+// Badge renders.
+const CHIP_CLASSES: Record<BadgeVariant, string> = {
+  neutral: "bg-slate-100 text-slate-600 hover:bg-slate-200",
+  brand: "bg-brand-100 text-brand-700 hover:bg-brand-200",
+  success: "bg-emerald-100 text-emerald-700 hover:bg-emerald-200",
+  warning: "bg-amber-100 text-amber-800 hover:bg-amber-200",
+  danger: "bg-red-100 text-red-700 hover:bg-red-200",
+};
+// Status chips skip "in_round" — it's broken out into one chip per actual
+// round name instead (see roundCounts), which is the whole point: "in round"
+// alone doesn't say which one, and that's the exact gap this summary closes.
+const STATUS_CHIP_OPTIONS = STATUS_OPTIONS.filter((s) => s !== "in_round");
+
 // Every column a company placement team's spreadsheet format asks for is
 // already on the Student/Application record — this just lays it out in
 // their exact order instead of retyping it by hand for every drive.
@@ -126,17 +142,52 @@ export default function DriveApplicants() {
   // the status filter still apply (status/roll-no-search work off the
   // application itself where possible), but it can never match a name
   // search since there's no name to check.
-  const filteredRows = useMemo(() => {
+  //
+  // Split out from statusFilter/roundFilter (search-only base, below) so the
+  // status/round summary chips can count "how many at each status/round"
+  // against search alone — counting against the fully-filtered list would
+  // make picking one status/round chip erase every other chip's count.
+  const searchFilteredRows = useMemo(() => {
     if (!rows) return rows;
     const term = search.trim().toLowerCase();
-    return rows.filter((r) => {
+    if (!term) return rows;
+    return rows.filter((r) => r.student && (r.student.rollNo.toLowerCase().includes(term) || r.student.name.toLowerCase().includes(term)));
+  }, [rows, search]);
+
+  const filteredRows = useMemo(() => {
+    if (!searchFilteredRows) return searchFilteredRows;
+    return searchFilteredRows.filter((r) => {
       if (statusFilter && r.application.status !== statusFilter) return false;
       if (roundFilter && r.application.currentRoundId !== roundFilter) return false;
-      if (!term) return true;
-      if (!r.student) return false;
-      return r.student.rollNo.toLowerCase().includes(term) || r.student.name.toLowerCase().includes(term);
+      return true;
     });
-  }, [rows, search, statusFilter, roundFilter]);
+  }, [searchFilteredRows, statusFilter, roundFilter]);
+
+  // Counts behind the summary chips — round counts match whatever's
+  // currently sitting at that round regardless of status (same semantics as
+  // the Round filter dropdown itself: rejected-but-still-tagged applicants
+  // included), not just "in_round" ones.
+  const statusCounts = useMemo(() => {
+    const counts: Partial<Record<ApplicationStatus, number>> = {};
+    for (const r of searchFilteredRows ?? []) counts[r.application.status] = (counts[r.application.status] ?? 0) + 1;
+    return counts;
+  }, [searchFilteredRows]);
+
+  const roundCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of searchFilteredRows ?? []) {
+      if (r.application.currentRoundId) counts[r.application.currentRoundId] = (counts[r.application.currentRoundId] ?? 0) + 1;
+    }
+    return counts;
+  }, [searchFilteredRows]);
+
+  function toggleStatusChip(status: ApplicationStatus) {
+    setStatusFilter((prev) => (prev === status ? "" : status));
+  }
+
+  function toggleRoundChip(roundId: string) {
+    setRoundFilter((prev) => (prev === roundId ? "" : roundId));
+  }
 
   // "Details restricted" rows have no student record to sort by — pinned to
   // the end rather than left in whatever position the unsorted default
@@ -434,6 +485,50 @@ export default function DriveApplicants() {
 
       {rows !== null && rows.length === 0 && (
         <EmptyState icon={Users} title="No applicants yet" />
+      )}
+
+      {/* Summary — status/round counts you'd otherwise have to click through
+          the filters below one at a time to piece together. Click a chip to
+          filter the list to exactly that status/round; click it again to
+          clear. Zero-count chips are hidden rather than shown grey — a drive
+          just starting out shouldn't show five empty buckets. */}
+      {rows !== null && rows.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {STATUS_CHIP_OPTIONS.map((s) => {
+            const count = statusCounts[s] ?? 0;
+            if (count === 0) return null;
+            const active = statusFilter === s;
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => toggleStatusChip(s)}
+                className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${CHIP_CLASSES[STATUS_BADGE[s]]} ${
+                  active ? "ring-2 ring-offset-1 ring-brand-500" : ""
+                }`}
+              >
+                {s.replace("_", " ")} ({count})
+              </button>
+            );
+          })}
+          {drive?.rounds?.map((r) => {
+            const count = roundCounts[r.roundId] ?? 0;
+            if (count === 0) return null;
+            const active = roundFilter === r.roundId;
+            return (
+              <button
+                key={r.roundId}
+                type="button"
+                onClick={() => toggleRoundChip(r.roundId)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${CHIP_CLASSES.warning} ${
+                  active ? "ring-2 ring-offset-1 ring-brand-500" : ""
+                }`}
+              >
+                At {r.name} ({count})
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {rows !== null && rows.length > 0 && (
