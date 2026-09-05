@@ -721,6 +721,36 @@ export default function Alumni() {
     );
   }
 
+  // One row per person instead of one row per record — the flip side of the
+  // duplicate-rollNo situation the callout above flags: someone entered as
+  // multiple rows (one per offer) because they genuinely had multiple offers
+  // is exactly what this consolidates, rather than treating every duplicate
+  // as just a data problem to clean up. Name/department/batch come from
+  // whichever of their rows was updated most recently, same "most recent
+  // wins" rule as the stats/dedupedByRollNo above; the offer count and
+  // company list only ever count "placed" rows with a company on them.
+  function handleDownloadOffersSummary() {
+    if (!filtered) return;
+    const byRollNo = new Map<string, AlumniRecord[]>();
+    for (const a of filtered) {
+      if (!byRollNo.has(a.rollNo)) byRollNo.set(a.rollNo, []);
+      byRollNo.get(a.rollNo)!.push(a);
+    }
+    const rows = Array.from(byRollNo.entries())
+      .map(([rollNo, records]) => {
+        const canonical = records.reduce((best, r) => (r.updatedAt > best.updatedAt ? r : best), records[0]);
+        const offers = records.filter((r) => r.placementStatus === "placed" && r.companyName);
+        const companiesLabel = offers.map((o) => `${o.companyName}${o.ctc != null ? ` (${o.ctc} LPA)` : ""}`).join("; ");
+        return { rollNo, name: canonical.name, offerCount: offers.length, companiesLabel };
+      })
+      .sort((a, b) => b.offerCount - a.offerCount || a.rollNo.localeCompare(b.rollNo));
+    downloadCsv(
+      "alumni-offers-summary.csv",
+      ["Roll No", "Name", "No. of Offers", "Companies (Package)"],
+      rows.map((r) => [r.rollNo, r.name, r.offerCount, r.companiesLabel])
+    );
+  }
+
   const editingRecord = editingId ? alumni?.find((a) => a.alumniId === editingId) : undefined;
 
   return (
@@ -842,12 +872,18 @@ export default function Alumni() {
               ))}
             </select>
           </div>
-          <div className="flex items-end lg:col-span-6">
+          <div className="flex flex-wrap items-end gap-2 lg:col-span-6">
             {filtered && filtered.length > 0 && (
-              <Button variant="secondary" onClick={handleDownload} className="w-full sm:w-auto">
-                <Download className="h-4 w-4" />
-                Download CSV
-              </Button>
+              <>
+                <Button variant="secondary" onClick={handleDownload} className="w-full sm:w-auto">
+                  <Download className="h-4 w-4" />
+                  Download CSV
+                </Button>
+                <Button variant="secondary" onClick={handleDownloadOffersSummary} className="w-full sm:w-auto">
+                  <Download className="h-4 w-4" />
+                  Download Offers Summary
+                </Button>
+              </>
             )}
           </div>
         </div>
