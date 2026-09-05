@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { Check, ChevronDown, ChevronUp, FileText, Plus, Search } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, FileText, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { ref, onValue, get } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -8,7 +8,15 @@ import type { Drive, JoiningReport, Offer, OfferStatus, Student } from "@placeme
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useAllApplications } from "../../lib/applicantsLib";
-import { useAllOffers, useAllJoiningReports, recordOffer, setJoiningReportStatus } from "../../lib/offersManagementLib";
+import {
+  useAllOffers,
+  useAllJoiningReports,
+  recordOffer,
+  setJoiningReportStatus,
+  updateOfferDetails,
+  deleteOffer,
+} from "../../lib/offersManagementLib";
+import type { UpdateOfferInput } from "../../lib/offersManagementLib";
 import { driveRoleSummary } from "../../lib/driveRolesLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
@@ -278,6 +286,69 @@ function RecordOfferForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+// Inline, not a reused RecordOfferForm — that form's student/drive pickers
+// are identity fields baked into the deterministic offerId (studentUid_
+// driveId) and can't change on an existing offer anyway; this only ever
+// touches the three fields that legitimately can be corrected after the
+// fact (a typo'd CTC, a fixed designation, a re-shared offer letter link).
+function EditOfferForm({
+  offer,
+  onSave,
+  onCancel,
+}: {
+  offer: Offer;
+  onSave: (input: UpdateOfferInput) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [designation, setDesignation] = useState(offer.designation);
+  const [ctc, setCtc] = useState(offer.ctc);
+  const [offerLetterUrl, setOfferLetterUrl] = useState(offer.offerLetterUrl ?? "");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await onSave({ designation, ctc, offerLetterUrl });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-2 grid grid-cols-1 gap-3 rounded-lg bg-slate-50 p-3 sm:grid-cols-3">
+      <div>
+        <label className={labelClass}>Designation</label>
+        <input type="text" required value={designation} onChange={(e) => setDesignation(e.target.value)} className={inputClass} />
+      </div>
+      <div>
+        <label className={labelClass}>CTC (LPA)</label>
+        <input
+          type="number"
+          step="0.1"
+          min={0}
+          required
+          value={ctc}
+          onChange={(e) => setCtc(Number(e.target.value))}
+          className={inputClass}
+        />
+      </div>
+      <div>
+        <label className={labelClass}>Offer letter link</label>
+        <input type="url" value={offerLetterUrl} onChange={(e) => setOfferLetterUrl(e.target.value)} className={inputClass} />
+      </div>
+      <div className="flex gap-2 sm:col-span-3">
+        <Button type="submit" loading={submitting} className="!px-3 !py-1.5 text-xs">
+          Save
+        </Button>
+        <Button type="button" variant="secondary" onClick={onCancel} className="!px-3 !py-1.5 text-xs">
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 // Company-first, click-to-expand — a flat list of every offer got unwieldy
 // once a company had 5+ students on it; this groups by drive so the default
 // view is "which companies", and the student-by-student detail (including
@@ -289,6 +360,8 @@ function CompanyOffersGroup({
   students,
   joiningReports,
   onVerifyJoining,
+  onUpdateOffer,
+  onDeleteOffer,
 }: {
   companyName: string;
   roleSummary: string;
@@ -296,8 +369,11 @@ function CompanyOffersGroup({
   students: Record<string, Student | null>;
   joiningReports: Record<string, JoiningReport>;
   onVerifyJoining: (offerId: string) => void;
+  onUpdateOffer: (offerId: string, input: UpdateOfferInput) => Promise<void>;
+  onDeleteOffer: (offer: Offer) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   const acceptedCount = offers.filter((o) => o.status === "accepted").length;
 
   return (
@@ -321,6 +397,7 @@ function CompanyOffersGroup({
           {offers.map((o) => {
             const student = students[o.studentId];
             const report = joiningReports[o.offerId];
+            const isEditing = editingOfferId === o.offerId;
             return (
               <div key={o.offerId} className="rounded-lg border border-slate-200 p-3">
                 <div className="flex items-start justify-between gap-4">
@@ -328,42 +405,74 @@ function CompanyOffersGroup({
                     <p className="font-medium text-slate-900">
                       {student ? `${student.rollNo} — ${student.name}` : o.studentId}
                     </p>
-                    <p className="text-sm text-slate-500">
-                      {o.designation} · {o.ctc} LPA
-                    </p>
+                    {!isEditing && (
+                      <p className="text-sm text-slate-500">
+                        {o.designation} · {o.ctc} LPA
+                      </p>
+                    )}
                   </div>
                   <Badge variant={OFFER_STATUS_BADGE[o.status]}>{o.status}</Badge>
                 </div>
-                {o.offerLetterUrl && (
-                  <a
-                    href={o.offerLetterUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 inline-block text-sm font-medium text-brand-600 hover:underline"
-                  >
-                    View offer letter
-                  </a>
-                )}
-                {report && (
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
-                    <div className="flex flex-wrap items-center gap-2 text-slate-600">
-                      <span>Joining: {new Date(report.joiningDate).toLocaleDateString()}</span>
-                      <Badge variant={report.status === "verified" ? "success" : "warning"}>{report.status}</Badge>
+
+                {isEditing ? (
+                  <EditOfferForm
+                    offer={o}
+                    onCancel={() => setEditingOfferId(null)}
+                    onSave={async (input) => {
+                      await onUpdateOffer(o.offerId, input);
+                      setEditingOfferId(null);
+                    }}
+                  />
+                ) : (
+                  <>
+                    {o.offerLetterUrl && (
                       <a
-                        href={report.proofUrl}
+                        href={o.offerLetterUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="font-medium text-brand-600 hover:underline"
+                        className="mt-2 inline-block text-sm font-medium text-brand-600 hover:underline"
                       >
-                        View joining letter / ID card
+                        View offer letter
                       </a>
-                    </div>
-                    {report.status === "submitted" && (
-                      <Button variant="secondary" onClick={() => onVerifyJoining(o.offerId)}>
-                        Verify joining
-                      </Button>
                     )}
-                  </div>
+                    {report && (
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
+                        <div className="flex flex-wrap items-center gap-2 text-slate-600">
+                          <span>Joining: {new Date(report.joiningDate).toLocaleDateString()}</span>
+                          <Badge variant={report.status === "verified" ? "success" : "warning"}>{report.status}</Badge>
+                          <a
+                            href={report.proofUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium text-brand-600 hover:underline"
+                          >
+                            View joining letter / ID card
+                          </a>
+                        </div>
+                        {report.status === "submitted" && (
+                          <Button variant="secondary" onClick={() => onVerifyJoining(o.offerId)}>
+                            Verify joining
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    <div className="mt-2 flex items-center gap-3">
+                      <button
+                        onClick={() => setEditingOfferId(o.offerId)}
+                        className="flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => onDeleteOffer(o)}
+                        className="flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-red-600"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             );
@@ -459,6 +568,31 @@ export default function StaffOffers() {
     showToast("Joining report verified");
   }
 
+  async function handleUpdateOffer(offerId: string, input: UpdateOfferInput) {
+    try {
+      await updateOfferDetails(offerId, input);
+      showToast("Offer updated");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not update offer");
+    }
+  }
+
+  async function handleDeleteOffer(offer: Offer) {
+    const hasReport = !!joiningReports[offer.offerId];
+    const student = students[offer.studentId];
+    const label = student ? `${student.rollNo} — ${student.name}` : offer.studentId;
+    const message = hasReport
+      ? `Delete ${label}'s offer? This also deletes their joining report — this can't be undone.`
+      : `Delete ${label}'s offer? This can't be undone.`;
+    if (!window.confirm(message)) return;
+    try {
+      await deleteOffer(offer.offerId, offer.department, hasReport);
+      showToast("Offer deleted");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not delete offer");
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -552,6 +686,8 @@ export default function StaffOffers() {
             students={students}
             joiningReports={joiningReports}
             onVerifyJoining={handleVerifyJoining}
+            onUpdateOffer={handleUpdateOffer}
+            onDeleteOffer={handleDeleteOffer}
           />
         ))}
       </div>

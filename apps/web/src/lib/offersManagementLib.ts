@@ -48,3 +48,39 @@ export async function recordOffer(input: RecordOfferInput) {
 export async function setJoiningReportStatus(reportId: string, status: JoiningReport["status"]) {
   await update(ref(db, `${DB_NODES.joiningReports}/${reportId}`), { status });
 }
+
+export interface UpdateOfferInput {
+  ctc: number;
+  designation: string;
+  offerLetterUrl: string;
+}
+
+/** Partial update — deliberately NOT recordOffer() again. recordOffer sets
+ * the whole node (status: "received", createdAt: now included), so reusing
+ * it to "edit" an existing offer would silently reset status back to
+ * received and createdAt to now, wiping out any progression the student
+ * made (verified/accepted/declined) even though only the CTC/designation/
+ * link needed fixing. This only ever touches those three fields. */
+export async function updateOfferDetails(offerId: string, input: UpdateOfferInput) {
+  await update(ref(db, `${DB_NODES.offers}/${offerId}`), {
+    ctc: input.ctc,
+    designation: input.designation,
+    offerLetterUrl: input.offerLetterUrl || null,
+  });
+}
+
+/** Removes the offer and, if one exists, its 1:1 joining report — reportId
+ * === offerId (see JoiningReport doc comment), so leaving it behind would
+ * be an orphaned record nothing else ever looks up again. Same cascading-
+ * cleanup shape as deleteApplication in applicantsLib.ts. */
+export async function deleteOffer(offerId: string, department: Department, hasJoiningReport: boolean) {
+  const updates: Record<string, unknown> = {
+    [`${DB_NODES.offers}/${offerId}`]: null,
+    [`${DB_NODES.offersDeptIndex}/${department}/${offerId}`]: null,
+  };
+  if (hasJoiningReport) {
+    updates[`${DB_NODES.joiningReports}/${offerId}`] = null;
+    updates[`${DB_NODES.joiningReportsDeptIndex}/${department}/${offerId}`] = null;
+  }
+  await update(ref(db), updates);
+}
