@@ -106,13 +106,44 @@ export default function AlumniReport() {
       .sort((a, b) => b.count - a.count || a.companyName.localeCompare(b.companyName));
   }, [deduped]);
 
+  // The batch-year/top-company stats above deliberately collapse a person
+  // with multiple offers to one record (their final outcome) — right for
+  // "how many unique people got placed", wrong for a reference list, which
+  // used to silently drop every offer but the most recently updated one. A
+  // student who had 2 offers should still show 2 offers here, not just
+  // whichever one happened to be saved/edited last.
+  const fullListRows = useMemo(() => {
+    if (!alumni) return null;
+    const scoped = alumni.filter((a) => !deptFilter || a.department === deptFilter);
+    const byRollNo = new Map<string, AlumniRecord[]>();
+    for (const a of scoped) {
+      if (!byRollNo.has(a.rollNo)) byRollNo.set(a.rollNo, []);
+      byRollNo.get(a.rollNo)!.push(a);
+    }
+    return Array.from(byRollNo.entries()).map(([rollNo, records]) => {
+      const canonical = records.reduce((best, r) => (r.updatedAt > best.updatedAt ? r : best), records[0]);
+      const offers = records.filter((r) => r.placementStatus === "placed" && r.companyName);
+      return {
+        rollNo,
+        name: canonical.name,
+        department: canonical.department,
+        batchYear: canonical.batchYear,
+        placementStatus: canonical.placementStatus,
+        offerCount: offers.length,
+        companiesLabel: offers.map((o) => `${o.companyName}${o.ctc != null ? ` (${o.ctc} LPA)` : ""}`).join("; "),
+        higherStudiesDetails: canonical.higherStudiesDetails,
+        notes: canonical.notes,
+      };
+    });
+  }, [alumni, deptFilter]);
+
   const filteredList = useMemo(() => {
-    if (!deduped) return null;
+    if (!fullListRows) return null;
     const term = search.trim().toLowerCase();
-    return deduped
+    return fullListRows
       .filter((a) => !term || a.rollNo.toLowerCase().includes(term) || a.name.toLowerCase().includes(term))
       .sort((a, b) => b.batchYear - a.batchYear || a.rollNo.localeCompare(b.rollNo));
-  }, [deduped, search]);
+  }, [fullListRows, search]);
 
   const loading = deduped === null;
 
@@ -120,16 +151,15 @@ export default function AlumniReport() {
     if (!filteredList) return;
     downloadCsv(
       "alumni-report.csv",
-      ["Roll No", "Name", "Department", "Batch", "Status", "Company", "Designation", "CTC"],
+      ["Roll No", "Name", "Department", "Batch", "Status", "No. of Offers", "Companies (Package)"],
       filteredList.map((a) => [
         a.rollNo,
         a.name,
         a.department,
         a.batchYear,
         STATUS_LABEL[a.placementStatus],
-        a.companyName ?? "",
-        a.designation ?? "",
-        a.ctc ?? "",
+        a.offerCount,
+        a.companiesLabel,
       ])
     );
   }
@@ -279,7 +309,7 @@ export default function AlumniReport() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredList?.map((a) => (
-                    <tr key={a.alumniId}>
+                    <tr key={a.rollNo}>
                       <td className="py-2 pr-4 font-medium text-slate-800">{a.rollNo}</td>
                       <td className="py-2 pr-4 text-slate-600">{a.name}</td>
                       <td className="py-2 pr-4 text-slate-600">{a.department}</td>
@@ -288,7 +318,10 @@ export default function AlumniReport() {
                         <Badge variant={STATUS_BADGE[a.placementStatus]}>{STATUS_LABEL[a.placementStatus]}</Badge>
                       </td>
                       <td className="py-2 pr-4 text-slate-600">
-                        {a.placementStatus === "placed" && (a.companyName ? `${a.companyName}${a.ctc != null ? ` · ${a.ctc} LPA` : ""}` : "—")}
+                        {a.placementStatus === "placed" &&
+                          (a.companiesLabel
+                            ? `${a.offerCount > 1 ? `${a.offerCount} offers: ` : ""}${a.companiesLabel}`
+                            : "—")}
                         {a.placementStatus === "higher_studies" && (a.higherStudiesDetails || "—")}
                         {(a.placementStatus === "unplaced" || a.placementStatus === "entrepreneur") && (a.notes || "—")}
                       </td>
