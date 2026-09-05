@@ -139,9 +139,22 @@ export default function AlumniReport() {
         // somehow being entered against the same company twice (a data
         // slip, not a second real offer) inflating "Alumni Hired".
         const uniqueRollNos = new Set(records.map((r) => r.rollNo));
-        const withCtc = records.filter((a) => a.ctc != null);
-        const avgCtc = withCtc.length > 0 ? withCtc.reduce((sum, a) => sum + (a.ctc ?? 0), 0) / withCtc.length : null;
-        return { companyName, count: uniqueRollNos.size, avgCtc };
+        // Exact packages, not one blended average — a company that hires
+        // for multiple roles (e.g. Infosys SE at 3.6 LPA and Power
+        // Programmer at 9.5 LPA) got averaged into a single number that
+        // matched neither role. Grouping by exact CTC and listing each one
+        // (with a count when more than one alumnus got the same figure)
+        // shows what people actually got instead of a misleading blend.
+        const byCtc = new Map<number, number>();
+        for (const r of records) {
+          if (r.ctc == null) continue;
+          byCtc.set(r.ctc, (byCtc.get(r.ctc) ?? 0) + 1);
+        }
+        const packagesLabel = Array.from(byCtc.entries())
+          .sort((a, b) => b[0] - a[0])
+          .map(([ctc, count]) => `${ctc} LPA${count > 1 ? ` (×${count})` : ""}`)
+          .join(", ");
+        return { companyName, count: uniqueRollNos.size, packagesLabel };
       })
       .sort((a, b) => b.count - a.count || a.companyName.localeCompare(b.companyName));
   }, [allPlacedOffers]);
@@ -318,7 +331,7 @@ export default function AlumniReport() {
                     <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                       <th className="py-2 pr-4">Company</th>
                       <th className="py-2 pr-4">Alumni Hired</th>
-                      <th className="py-2 pr-4">Average CTC</th>
+                      <th className="py-2 pr-4">Packages</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -326,7 +339,7 @@ export default function AlumniReport() {
                       <tr key={c.companyName}>
                         <td className="py-2 pr-4 font-medium text-slate-800">{c.companyName}</td>
                         <td className="py-2 pr-4 text-slate-600">{c.count}</td>
-                        <td className="py-2 pr-4 text-slate-600">{c.avgCtc != null ? `${c.avgCtc.toFixed(1)} LPA` : "—"}</td>
+                        <td className="py-2 pr-4 text-slate-600">{c.packagesLabel || "—"}</td>
                       </tr>
                     ))}
                   </tbody>
