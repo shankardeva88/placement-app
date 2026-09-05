@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Download, GraduationCap, Plus, Trash2, Upload, Users2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, GraduationCap, Plus, Trash2, Upload, Users2 } from "lucide-react";
 import type { AlumniPlacementStatus, AlumniRecord, Department } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import {
@@ -474,6 +474,95 @@ function GraduateBatchSection({ onDone }: { onDone: () => void }) {
   );
 }
 
+function AlumniGroup({
+  title,
+  records,
+  onEdit,
+  onDelete,
+}: {
+  title: string;
+  records: AlumniRecord[];
+  onEdit: (alumniId: string) => void;
+  onDelete: (alumniId: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const placedCount = records.filter((a) => a.placementStatus === "placed").length;
+
+  return (
+    <Card>
+      <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-start justify-between gap-4 text-left">
+        <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge variant="brand">
+            {records.length} alumnus{records.length === 1 ? "" : "es"}
+          </Badge>
+          {placedCount > 0 && placedCount !== records.length && <Badge variant="success">{placedCount} placed</Badge>}
+          {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+          {records.map((a) => (
+            <div key={a.alumniId} className="rounded-lg border border-slate-200 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-slate-900">
+                    {a.rollNo} — {a.name}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    {a.department} · Batch {a.batchYear}
+                    {a.cgpa != null && ` · CGPA ${a.cgpa}`}
+                  </p>
+                  {a.placementStatus === "placed" && (a.designation || a.ctc != null) && (
+                    <p className="text-sm text-slate-500">
+                      {a.designation}
+                      {a.designation && a.ctc != null ? " · " : ""}
+                      {a.ctc != null ? `${a.ctc} LPA` : ""}
+                    </p>
+                  )}
+                  {a.placementStatus === "higher_studies" && a.higherStudiesDetails && (
+                    <p className="text-sm text-slate-500">{a.higherStudiesDetails}</p>
+                  )}
+                  {(a.placementStatus === "unplaced" || a.placementStatus === "entrepreneur") && a.notes && (
+                    <p className="text-sm text-slate-500">{a.notes}</p>
+                  )}
+                  {(a.contactPhone || a.contactEmail) && (
+                    <p className="mt-0.5 text-xs text-slate-400">{[a.contactPhone, a.contactEmail].filter(Boolean).join(" · ")}</p>
+                  )}
+                </div>
+                <Badge variant={STATUS_BADGE[a.placementStatus]}>{STATUS_LABEL[a.placementStatus]}</Badge>
+              </div>
+              <div className="mt-2 flex items-center gap-3">
+                {a.offerLetterUrl && (
+                  <a
+                    href={a.offerLetterUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-medium text-brand-600 hover:underline"
+                  >
+                    View offer letter
+                  </a>
+                )}
+                <button onClick={() => onEdit(a.alumniId)} className="text-xs font-medium text-brand-700 hover:underline">
+                  Edit
+                </button>
+                <button
+                  onClick={() => onDelete(a.alumniId)}
+                  className="flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-red-600"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function Alumni() {
   const { firebaseUser, appUser } = useAuth();
   const { showToast } = useToast();
@@ -538,6 +627,40 @@ export default function Alumni() {
       higherStudies: dedupedByRollNo.filter((a) => a.placementStatus === "higher_studies").length,
     };
   }, [dedupedByRollNo]);
+
+  // Company-wise, click-to-expand — same pattern as the staff Offers page:
+  // a flat table got hard to scan once a batch had 100+ alumni spread across
+  // many companies, and "how many did company X place" meant scrolling and
+  // counting. Placed alumni group under their actual company name; the
+  // three outcomes with no company (unplaced/entrepreneur/higher studies),
+  // plus placed-but-no-company-recorded, get their own fixed buckets so
+  // nobody silently disappears from the list.
+  const NO_COMPANY_BUCKET = "Placed (company not recorded)";
+  const STATUS_BUCKET_ORDER = ["Unplaced", "Entrepreneur", "Higher Studies", NO_COMPANY_BUCKET];
+
+  function groupKeyFor(a: AlumniRecord): string {
+    if (a.placementStatus === "placed") return a.companyName?.trim() || NO_COMPANY_BUCKET;
+    return STATUS_LABEL[a.placementStatus];
+  }
+
+  const grouped = useMemo(() => {
+    if (!filtered) return null;
+    const map = new Map<string, AlumniRecord[]>();
+    for (const a of filtered) {
+      const key = groupKeyFor(a);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(a);
+    }
+    return Array.from(map.entries())
+      .map(([key, records]) => ({ key, records: records.sort((r1, r2) => r1.rollNo.localeCompare(r2.rollNo)) }))
+      .sort((a, b) => {
+        const aIsBucket = STATUS_BUCKET_ORDER.includes(a.key);
+        const bIsBucket = STATUS_BUCKET_ORDER.includes(b.key);
+        if (aIsBucket !== bIsBucket) return aIsBucket ? 1 : -1; // real companies before the fixed buckets
+        if (aIsBucket && bIsBucket) return STATUS_BUCKET_ORDER.indexOf(a.key) - STATUS_BUCKET_ORDER.indexOf(b.key);
+        return a.key.localeCompare(b.key);
+      });
+  }, [filtered]);
 
   async function handleAdd(input: AlumniInput) {
     if (!firebaseUser) return;
@@ -705,53 +828,11 @@ export default function Alumni() {
         </p>
       )}
 
-      {filtered !== null && filtered.length > 0 && (
-        <Card>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-4">Roll No</th>
-                  <th className="py-2 pr-4">Name</th>
-                  <th className="py-2 pr-4">Dept</th>
-                  <th className="py-2 pr-4">Batch</th>
-                  <th className="py-2 pr-4">Status</th>
-                  <th className="py-2 pr-4">Company / Details</th>
-                  <th className="py-2 pr-4"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filtered.map((a) => (
-                  <tr key={a.alumniId}>
-                    <td className="py-2 pr-4 font-medium text-slate-800">{a.rollNo}</td>
-                    <td className="py-2 pr-4 text-slate-600">{a.name}</td>
-                    <td className="py-2 pr-4 text-slate-600">{a.department}</td>
-                    <td className="py-2 pr-4 text-slate-600">{a.batchYear}</td>
-                    <td className="py-2 pr-4">
-                      <Badge variant={STATUS_BADGE[a.placementStatus]}>{STATUS_LABEL[a.placementStatus]}</Badge>
-                    </td>
-                    <td className="py-2 pr-4 text-slate-600">
-                      {a.placementStatus === "placed" && (a.companyName ? `${a.companyName}${a.ctc ? ` · ${a.ctc} LPA` : ""}` : "—")}
-                      {a.placementStatus === "higher_studies" && (a.higherStudiesDetails || "—")}
-                      {(a.placementStatus === "unplaced" || a.placementStatus === "entrepreneur") && (a.notes || "—")}
-                    </td>
-                    <td className="py-2 pr-4">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setEditingId(a.alumniId)} className="text-xs font-medium text-brand-700 hover:underline">
-                          Edit
-                        </button>
-                        <button onClick={() => handleDelete(a.alumniId)} className="text-slate-400 hover:text-red-600" aria-label="Delete">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+      <div className="space-y-4">
+        {grouped?.map((g) => (
+          <AlumniGroup key={g.key} title={g.key} records={g.records} onEdit={setEditingId} onDelete={handleDelete} />
+        ))}
+      </div>
     </div>
   );
 }
