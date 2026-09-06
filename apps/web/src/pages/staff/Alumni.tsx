@@ -600,6 +600,7 @@ export default function Alumni() {
   const [statusFilter, setStatusFilter] = useState<AlumniPlacementStatus | "">("");
   const [companyFilter, setCompanyFilter] = useState("");
   const [duplicatesOnly, setDuplicatesOnly] = useState(false);
+  const [viewMode, setViewMode] = useState<"grouped" | "list">("grouped");
 
   const filtered = useMemo(() => {
     if (!alumni) return null;
@@ -753,21 +754,39 @@ export default function Alumni() {
   // whichever of their rows was updated most recently, same "most recent
   // wins" rule as the stats/dedupedByRollNo above; the offer count and
   // company list only ever count "placed" rows with a company on them.
-  function handleDownloadOffersSummary() {
-    if (!filtered) return;
+  // Shared by the CSV download and the on-screen "Full list" view below —
+  // same shape as the Full list section on the Alumni Report.
+  const fullListRows = useMemo(() => {
+    if (!filtered) return null;
+    const source = duplicatesOnly ? filtered.filter((a) => duplicateRollNoSet.has(a.rollNo)) : filtered;
     const byRollNo = new Map<string, AlumniRecord[]>();
-    for (const a of filtered) {
+    for (const a of source) {
       if (!byRollNo.has(a.rollNo)) byRollNo.set(a.rollNo, []);
       byRollNo.get(a.rollNo)!.push(a);
     }
-    const rows = Array.from(byRollNo.entries())
+    return Array.from(byRollNo.entries())
       .map(([rollNo, records]) => {
         const canonical = records.reduce((best, r) => (r.updatedAt > best.updatedAt ? r : best), records[0]);
         const offers = records.filter((r) => r.placementStatus === "placed" && r.companyName);
-        const companiesLabel = offers.map((o) => `${o.companyName}${o.ctc != null ? ` (${o.ctc} LPA)` : ""}`).join("; ");
-        return { rollNo, name: canonical.name, offerCount: offers.length, companiesLabel };
+        return {
+          rollNo,
+          alumniId: canonical.alumniId,
+          name: canonical.name,
+          department: canonical.department,
+          batchYear: canonical.batchYear,
+          placementStatus: canonical.placementStatus,
+          higherStudiesDetails: canonical.higherStudiesDetails,
+          notes: canonical.notes,
+          offerCount: offers.length,
+          companiesLabel: offers.map((o) => `${o.companyName}${o.ctc != null ? ` (${o.ctc} LPA)` : ""}`).join("; "),
+        };
       })
-      .sort((a, b) => b.offerCount - a.offerCount || a.rollNo.localeCompare(b.rollNo));
+      .sort((a, b) => b.batchYear - a.batchYear || a.rollNo.localeCompare(b.rollNo));
+  }, [filtered, duplicatesOnly, duplicateRollNoSet]);
+
+  function handleDownloadOffersSummary() {
+    if (!fullListRows) return;
+    const rows = fullListRows.slice().sort((a, b) => b.offerCount - a.offerCount || a.rollNo.localeCompare(b.rollNo));
     downloadCsv(
       "alumni-offers-summary.csv",
       ["Roll No", "Name", "No. of Offers", "Companies (Package)"],
@@ -907,6 +926,13 @@ export default function Alumni() {
                   <Download className="h-4 w-4" />
                   Download Offers Summary
                 </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => setViewMode((v) => (v === "grouped" ? "list" : "grouped"))}
+                  className="w-full sm:w-auto"
+                >
+                  {viewMode === "grouped" ? "Full list" : "Company-wise"}
+                </Button>
               </>
             )}
           </div>
@@ -937,11 +963,76 @@ export default function Alumni() {
         </div>
       )}
 
-      <div className="space-y-4">
-        {grouped?.map((g) => (
-          <AlumniGroup key={g.key} title={g.key} records={g.records} onEdit={setEditingId} onDelete={handleDelete} />
-        ))}
-      </div>
+      {viewMode === "grouped" ? (
+        <div className="space-y-4">
+          {grouped?.map((g) => (
+            <AlumniGroup key={g.key} title={g.key} records={g.records} onEdit={setEditingId} onDelete={handleDelete} />
+          ))}
+        </div>
+      ) : (
+        // One row per person, all their offers combined — same shape as the
+        // Full list on the Alumni Report, just with Edit/Delete since this
+        // is the management page. Editing/deleting still act on whichever
+        // of that person's records was most recently updated (the same one
+        // shown here), same as clicking through a company group would.
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[820px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                  <th className="py-2 pr-4">Roll No</th>
+                  <th className="py-2 pr-4">Name</th>
+                  <th className="py-2 pr-4">Dept</th>
+                  <th className="py-2 pr-4">Batch</th>
+                  <th className="py-2 pr-4">Status</th>
+                  <th className="py-2 pr-4">Company / Details</th>
+                  <th className="py-2 pr-4"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {fullListRows?.map((a) => {
+                  return (
+                    <tr key={a.rollNo}>
+                      <td className="py-2 pr-4 font-medium text-slate-800">{a.rollNo}</td>
+                      <td className="py-2 pr-4 text-slate-600">{a.name}</td>
+                      <td className="py-2 pr-4 text-slate-600">{a.department}</td>
+                      <td className="py-2 pr-4 text-slate-600">{a.batchYear}</td>
+                      <td className="py-2 pr-4">
+                        <Badge variant={STATUS_BADGE[a.placementStatus]}>{STATUS_LABEL[a.placementStatus]}</Badge>
+                      </td>
+                      <td className="py-2 pr-4 text-slate-600">
+                        {a.placementStatus === "placed" &&
+                          (a.companiesLabel
+                            ? `${a.offerCount > 1 ? `${a.offerCount} offers: ` : ""}${a.companiesLabel}`
+                            : "—")}
+                        {a.placementStatus === "higher_studies" && (a.higherStudiesDetails || "—")}
+                        {(a.placementStatus === "unplaced" || a.placementStatus === "entrepreneur") && (a.notes || "—")}
+                      </td>
+                      <td className="py-2 pr-4">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setEditingId(a.alumniId)} className="text-xs font-medium text-brand-700 hover:underline">
+                            Edit
+                          </button>
+                          <button onClick={() => handleDelete(a.alumniId)} className="text-slate-400 hover:text-red-600" aria-label="Delete">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {fullListRows?.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-6 text-center text-sm text-slate-400">
+                      No alumni match your search/filters.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
