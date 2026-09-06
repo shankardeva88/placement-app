@@ -4,7 +4,12 @@ import { Link } from "react-router-dom";
 import { Users, Search, Upload, UserPlus, GraduationCap, RefreshCw, Copy, BadgeCheck } from "lucide-react";
 import type { Department, EntranceExamType, Gender, PlacementStatus } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
-import { useStudentsDirectory, setStudentVerified, setStudentsVerifiedBulk } from "../../lib/studentsDirectoryLib";
+import {
+  useStudentsDirectory,
+  setStudentVerified,
+  setStudentsVerifiedBulk,
+  setStudentsSemesterBulk,
+} from "../../lib/studentsDirectoryLib";
 import { createBulkStudent } from "../../lib/bulkImportLib";
 import { useAllTrainingBatches } from "../../lib/trainingManagementLib";
 import { useToast } from "../../components/ui/Toast";
@@ -242,6 +247,8 @@ export default function Students() {
   const [verifyingUid, setVerifyingUid] = useState<string | null>(null);
   const [selectedUids, setSelectedUids] = useState<Set<string>>(new Set());
   const [bulkVerifying, setBulkVerifying] = useState(false);
+  const [semesterInput, setSemesterInput] = useState("");
+  const [bulkSettingSemester, setBulkSettingSemester] = useState(false);
   const canBulkImport = !!appUser && CAN_BULK_IMPORT_ROLES.includes(appUser.role);
 
   const batchYears = useMemo(() => {
@@ -408,6 +415,27 @@ export default function Students() {
       showToast(err instanceof Error ? err.message : "Could not update verification");
     } finally {
       setBulkVerifying(false);
+    }
+  }
+
+  // The actual point of this: filter to Batch 2026 (existing batch filter),
+  // "Select all N visible", type the new semester once — instead of opening
+  // Student Detail for every single student in that batch at the start of
+  // a new term.
+  async function handleBulkSetSemester() {
+    const semester = Number(semesterInput);
+    if (selectedVisibleUids.length === 0 || !semesterInput || !Number.isInteger(semester) || semester < 1 || semester > 12) return;
+    if (!window.confirm(`Set semester to ${semester} for ${selectedVisibleUids.length} selected student(s)?`)) return;
+    setBulkSettingSemester(true);
+    try {
+      await setStudentsSemesterBulk(selectedVisibleUids, semester);
+      showToast(`Semester set to ${semester} for ${selectedVisibleUids.length} student(s)`);
+      setSelectedUids(new Set());
+      setSemesterInput("");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not update semester");
+    } finally {
+      setBulkSettingSemester(false);
     }
   }
 
@@ -707,6 +735,26 @@ export default function Students() {
               >
                 Unverify selected
               </Button>
+              <span className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={1}
+                  max={12}
+                  placeholder="Sem"
+                  value={semesterInput}
+                  onChange={(e) => setSemesterInput(e.target.value)}
+                  className="w-16 rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                />
+                <Button
+                  variant="secondary"
+                  loading={bulkSettingSemester}
+                  onClick={handleBulkSetSemester}
+                  disabled={!semesterInput}
+                  className="!px-2.5 !py-1 text-xs"
+                >
+                  Set semester
+                </Button>
+              </span>
               <button
                 type="button"
                 onClick={() => setSelectedUids(new Set())}

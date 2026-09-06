@@ -79,6 +79,19 @@ export async function setStudentsVerifiedBulk(uids: string[], verified: boolean)
   await update(ref(db), updates);
 }
 
+/** Same batching approach as setStudentsVerifiedBulk — promoting a whole
+ * batch to the next semester (start of a new term) one student at a time
+ * via Student Detail's edit form would be dozens of individual saves.
+ * Filter Students.tsx to the batch (and department, if needed), select
+ * all, set the target semester once. Relies on the currentSemester rule
+ * already allowing dept-matched coordinator/hod on an existing record —
+ * see the StudentProfileUpdate doc comment. */
+export async function setStudentsSemesterBulk(uids: string[], semester: number) {
+  const updates: Record<string, unknown> = {};
+  for (const uid of uids) updates[`${DB_NODES.students}/${uid}/currentSemester`] = semester;
+  await update(ref(db), updates);
+}
+
 /** The "official roster" fields — same set bulkImportLib.ts writes at
  * creation time, the ones a coordinator/hod is the source of truth for
  * (confirmed scope). Personal/self-reported fields (address, skills, social
