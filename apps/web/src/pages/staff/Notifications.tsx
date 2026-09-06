@@ -6,7 +6,7 @@ import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
 import type { Department, Drive, NotificationAudienceType } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
-import { useAllNotifications, sendNotification, deleteNotification } from "../../lib/staffNotificationsLib";
+import { useAllNotifications, sendNotification, deleteNotification, deleteNotificationsBulk } from "../../lib/staffNotificationsLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -145,6 +145,8 @@ export default function StaffNotifications() {
   const [creating, setCreating] = useState(false);
   const [drives, setDrives] = useState<Drive[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   useEffect(() => {
     return onValue(ref(db, DB_NODES.drives), (snap) => {
@@ -164,10 +166,52 @@ export default function StaffNotifications() {
     try {
       await deleteNotification(notificationId);
       showToast("Notification deleted");
+      setSelectedIds((prev) => {
+        if (!prev.has(notificationId)) return prev;
+        const next = new Set(prev);
+        next.delete(notificationId);
+        return next;
+      });
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Could not delete notification");
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  function toggleSelected(notificationId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(notificationId)) next.delete(notificationId);
+      else next.add(notificationId);
+      return next;
+    });
+  }
+
+  const allSelected = !!notifications && notifications.length > 0 && notifications.every((n) => selectedIds.has(n.notificationId));
+
+  function toggleSelectAll() {
+    if (!notifications) return;
+    setSelectedIds(allSelected ? new Set() : new Set(notifications.map((n) => n.notificationId)));
+  }
+
+  // Individual deletes stay one at a time (a mistaken single send), but
+  // clearing out a pile of old/outdated ones one-by-one was the actual
+  // complaint — one confirm, one write, whatever's checked.
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.size} notification(s)? This removes them for everyone they were sent to — this can't be undone.`)) {
+      return;
+    }
+    setBulkDeleting(true);
+    try {
+      await deleteNotificationsBulk(Array.from(selectedIds));
+      showToast(`${selectedIds.size} notification(s) deleted`);
+      setSelectedIds(new Set());
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not delete notifications");
+    } finally {
+      setBulkDeleting(false);
     }
   }
 
@@ -200,6 +244,31 @@ export default function StaffNotifications() {
         <EmptyState icon={Bell} title="No notifications sent yet" />
       )}
 
+      {notifications !== null && notifications.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-1.5 text-sm text-slate-600">
+            <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
+            Select all {notifications.length}
+          </label>
+          {selectedIds.size > 0 && (
+            <>
+              <span className="text-sm text-slate-400">{selectedIds.size} selected</span>
+              <Button variant="danger" onClick={handleBulkDelete} loading={bulkDeleting} className="!px-2.5 !py-1 text-xs">
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete selected
+              </Button>
+              <button
+                type="button"
+                onClick={() => setSelectedIds(new Set())}
+                className="text-xs font-medium text-slate-500 hover:text-slate-700"
+              >
+                Clear selection
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="space-y-3">
         {notifications?.map((n) => {
           // filterValue is a raw driveId for eligible_list/selected_students
@@ -219,7 +288,15 @@ export default function StaffNotifications() {
           return (
             <Card key={n.notificationId}>
               <div className="flex items-start justify-between gap-3">
-                <h3 className="text-sm font-semibold text-slate-900">{n.title}</h3>
+                <div className="flex min-w-0 items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(n.notificationId)}
+                    onChange={() => toggleSelected(n.notificationId)}
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                  />
+                  <h3 className="text-sm font-semibold text-slate-900">{n.title}</h3>
+                </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Badge variant="neutral">
                     {AUDIENCE_LABEL[n.audience.type] ?? n.audience.type}

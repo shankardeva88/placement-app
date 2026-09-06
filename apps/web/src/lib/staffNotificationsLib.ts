@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ref, push, set, remove, onValue, serverTimestamp } from "firebase/database";
+import { ref, push, set, remove, update, onValue, serverTimestamp } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
 import type { AppNotification, NotificationAudienceType } from "@placement-app/types";
@@ -45,4 +45,14 @@ export async function sendNotification(input: SendNotificationInput) {
  * retract a mistaken or now-outdated one. */
 export async function deleteNotification(notificationId: string) {
   await remove(ref(db, `${DB_NODES.notifications}/${notificationId}`));
+}
+
+/** Same effect as calling deleteNotification once per id, but as one
+ * multi-path update() — same batching approach as setStudentsVerifiedBulk —
+ * so clearing out a pile of old/mistaken notifications one at a time isn't
+ * the only option. */
+export async function deleteNotificationsBulk(notificationIds: string[]) {
+  const updates: Record<string, null> = {};
+  for (const id of notificationIds) updates[`${DB_NODES.notifications}/${id}`] = null;
+  await update(ref(db), updates);
 }
