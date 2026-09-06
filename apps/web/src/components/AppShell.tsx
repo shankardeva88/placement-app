@@ -140,7 +140,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         <main className="flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">
-          <div className="mx-auto max-w-4xl">{children}</div>
+          {/* max-w-6xl — was max-w-4xl, noticeably narrower than the
+              coordinator/mentor shell (StaffShell.tsx) at the same
+              breakpoint, which left a lot of empty space on both sides on a
+              big monitor. Matched to the same width now. */}
+          <div className="mx-auto max-w-6xl">{children}</div>
         </main>
       </div>
     </div>
