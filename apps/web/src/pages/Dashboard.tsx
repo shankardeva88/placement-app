@@ -10,6 +10,8 @@ import {
   Bell,
   Gauge,
   ArrowRight,
+  Building2,
+  ClipboardCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DB_NODES } from "@placement-app/types";
@@ -63,6 +65,13 @@ const QUICK_LINKS: { to: string; label: string; icon: LucideIcon; description: s
     gradient: "from-emerald-500 to-teal-600",
   },
   {
+    to: "/internships",
+    label: "Internships",
+    icon: Building2,
+    description: "Browse & track internships",
+    gradient: "from-cyan-500 to-blue-600",
+  },
+  {
     to: "/training",
     label: "Training",
     icon: BookOpen,
@@ -75,6 +84,13 @@ const QUICK_LINKS: { to: string; label: string; icon: LucideIcon; description: s
     icon: Users,
     description: "Mock interviews & reviews",
     gradient: "from-pink-500 to-rose-600",
+  },
+  {
+    to: "/mock-performance",
+    label: "Mock Performance",
+    icon: ClipboardCheck,
+    description: "Your mock interview trends",
+    gradient: "from-indigo-500 to-purple-600",
   },
   {
     to: "/notifications",
