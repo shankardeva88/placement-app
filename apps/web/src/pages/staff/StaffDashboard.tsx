@@ -90,9 +90,16 @@ const PLACEMENT_STATUS_LABEL: Record<PlacementStatus, string> = {
   opted_out: "Opted out",
 };
 
-const ALUMNI_STATUS_ORDER = ["placed", "unplaced", "entrepreneur", "higher_studies"] as const;
+// "multiple_offers" isn't a real AlumniPlacementStatus value — it's derived
+// here from a rollNo having 2+ placed records with a company on them (the
+// same multi-offer situation the Alumni page/report already surface). Kept
+// as its own segment rather than folded into "placed" so the two questions
+// "how many got placed" and "how many had more than one offer" don't need
+// separate charts.
+const ALUMNI_STATUS_ORDER = ["placed", "multiple_offers", "unplaced", "entrepreneur", "higher_studies"] as const;
 const ALUMNI_STATUS_LABEL: Record<(typeof ALUMNI_STATUS_ORDER)[number], string> = {
   placed: "Placed",
+  multiple_offers: "Multiple offers",
   unplaced: "Unplaced",
   entrepreneur: "Entrepreneur",
   higher_studies: "Higher studies",
@@ -275,19 +282,47 @@ function CoordinatorDashboard() {
     color: CATEGORICAL[i],
   }));
 
+  // AlumniRecord has no uid — rollNo is the only real identity a person has
+  // (same fact the Alumni page/report both had to account for). This used
+  // to count raw records per batchYear+status, so a rollNo entered as one
+  // row per offer (multiple offers, same person) got counted once per row
+  // — inflating "Placed" past the real number of people. Deduped to one
+  // person per rollNo here too, and a person with 2+ placed offers goes to
+  // "Multiple offers" instead of double-counting "Placed".
   const alumniByYear = useMemo(() => {
     if (!alumni) return null;
     const years = Array.from(new Set(alumni.map((a) => a.batchYear))).sort((a, b) => a - b);
-    return years.map((year) => ({
-      key: String(year),
-      label: String(year),
-      segments: ALUMNI_STATUS_ORDER.map((status, i) => ({
-        key: status,
-        label: ALUMNI_STATUS_LABEL[status],
-        value: alumni.filter((a) => a.batchYear === year && a.placementStatus === status).length,
-        color: CATEGORICAL[i],
-      })),
-    }));
+    return years.map((year) => {
+      const byRollNo = new Map<string, typeof alumni>();
+      for (const a of alumni) {
+        if (a.batchYear !== year) continue;
+        if (!byRollNo.has(a.rollNo)) byRollNo.set(a.rollNo, []);
+        byRollNo.get(a.rollNo)!.push(a);
+      }
+      const counts: Record<(typeof ALUMNI_STATUS_ORDER)[number], number> = {
+        placed: 0,
+        multiple_offers: 0,
+        unplaced: 0,
+        entrepreneur: 0,
+        higher_studies: 0,
+      };
+      for (const records of byRollNo.values()) {
+        const canonical = records.reduce((best, r) => (r.updatedAt > best.updatedAt ? r : best), records[0]);
+        const offerCount = records.filter((r) => r.placementStatus === "placed" && r.companyName).length;
+        const category = canonical.placementStatus === "placed" && offerCount >= 2 ? "multiple_offers" : canonical.placementStatus;
+        counts[category]++;
+      }
+      return {
+        key: String(year),
+        label: String(year),
+        segments: ALUMNI_STATUS_ORDER.map((status, i) => ({
+          key: status,
+          label: ALUMNI_STATUS_LABEL[status],
+          value: counts[status],
+          color: CATEGORICAL[i],
+        })),
+      };
+    });
   }, [alumni]);
 
   return (

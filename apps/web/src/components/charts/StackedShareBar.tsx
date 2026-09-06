@@ -40,6 +40,13 @@ export function StackedShareBar({ segments, height = 32 }: { segments: ShareSegm
           cursor += widthPct;
           const isHovered = hovered === s.key;
           const pct = Math.round((s.value / total) * 100);
+          // Wide enough for "value (pct%)" together, not just the bare
+          // percentage — a coordinator reading this had no way to see the
+          // actual count without hovering. Narrower segments fall back to
+          // just the percentage rather than overflowing into a neighboring
+          // segment's own colored fill (unlike the corner-clipping case,
+          // this overlap would be onto another rect, not blank space).
+          const showsCount = widthPct >= 18;
           const labelFits = widthPct >= 10;
           return (
             <g key={s.key}>
@@ -69,7 +76,7 @@ export function StackedShareBar({ segments, height = 32 }: { segments: ShareSegm
                   fontWeight={600}
                   fill="#ffffff"
                 >
-                  {pct}%
+                  {showsCount ? `${s.value} (${pct}%)` : `${pct}%`}
                 </text>
               )}
             </g>
