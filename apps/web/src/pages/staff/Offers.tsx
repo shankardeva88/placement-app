@@ -483,105 +483,6 @@ function CompanyOffersGroup({
   );
 }
 
-// Student-wise counterpart to CompanyOffersGroup, for the view toggle below
-// — same row content (status, offer letter, joining report, edit/delete),
-// just one flat card per offer sorted by roll number instead of grouped
-// under a company you'd have to expand first. Manages its own edit-mode
-// toggle since there's no parent group to hold it.
-function StudentOfferRow({
-  offer,
-  student,
-  companyName,
-  roleSummary,
-  report,
-  onVerifyJoining,
-  onUpdateOffer,
-  onDeleteOffer,
-}: {
-  offer: Offer;
-  student: Student | null;
-  companyName: string;
-  roleSummary: string;
-  report: JoiningReport | undefined;
-  onVerifyJoining: (offerId: string) => void;
-  onUpdateOffer: (offerId: string, input: UpdateOfferInput) => Promise<void>;
-  onDeleteOffer: (offer: Offer) => void;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-
-  return (
-    <Card>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="font-medium text-slate-900">{student ? `${student.rollNo} — ${student.name}` : offer.studentId}</p>
-          <p className="text-sm text-slate-500">
-            {companyName}
-            {roleSummary ? ` · ${roleSummary}` : ""}
-          </p>
-          {!isEditing && (
-            <p className="text-sm text-slate-500">
-              {offer.designation} · {offer.ctc} LPA
-            </p>
-          )}
-        </div>
-        <Badge variant={OFFER_STATUS_BADGE[offer.status]}>{offer.status}</Badge>
-      </div>
-
-      {isEditing ? (
-        <EditOfferForm
-          offer={offer}
-          onCancel={() => setIsEditing(false)}
-          onSave={async (input) => {
-            await onUpdateOffer(offer.offerId, input);
-            setIsEditing(false);
-          }}
-        />
-      ) : (
-        <>
-          {offer.offerLetterUrl && (
-            <a
-              href={offer.offerLetterUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-2 inline-block text-sm font-medium text-brand-600 hover:underline"
-            >
-              View offer letter
-            </a>
-          )}
-          {report && (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
-              <div className="flex flex-wrap items-center gap-2 text-slate-600">
-                <span>Joining: {new Date(report.joiningDate).toLocaleDateString()}</span>
-                <Badge variant={report.status === "verified" ? "success" : "warning"}>{report.status}</Badge>
-                <a href={report.proofUrl} target="_blank" rel="noreferrer" className="font-medium text-brand-600 hover:underline">
-                  View joining letter / ID card
-                </a>
-              </div>
-              {report.status === "submitted" && (
-                <Button variant="secondary" onClick={() => onVerifyJoining(offer.offerId)}>
-                  Verify joining
-                </Button>
-              )}
-            </div>
-          )}
-          <div className="mt-2 flex items-center gap-3">
-            <button onClick={() => setIsEditing(true)} className="flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline">
-              <Pencil className="h-3.5 w-3.5" />
-              Edit
-            </button>
-            <button
-              onClick={() => onDeleteOffer(offer)}
-              className="flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-red-600"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Delete
-            </button>
-          </div>
-        </>
-      )}
-    </Card>
-  );
-}
 
 export default function StaffOffers() {
   const { appUser } = useAuth();
@@ -597,6 +498,7 @@ export default function StaffOffers() {
   const [statusFilter, setStatusFilter] = useState<OfferStatus | "">("");
   const [batchFilter, setBatchFilter] = useState<number | "">("");
   const [viewMode, setViewMode] = useState<"company" | "student">("company");
+  const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
 
   useEffect(() => {
     return onValue(ref(db, DB_NODES.drives), (snap) => {
@@ -664,6 +566,11 @@ export default function StaffOffers() {
       .sort((a, b) => (drives[a.driveId]?.companyName ?? a.driveId).localeCompare(drives[b.driveId]?.companyName ?? b.driveId));
   }, [filteredOffers, drives, students]);
 
+  // Searches the unfiltered list, not filteredOffers — editing shouldn't
+  // stop working just because a filter change happened to exclude this
+  // offer while the edit card was still open.
+  const editingOffer = editingOfferId ? offers?.find((o) => o.offerId === editingOfferId) ?? null : null;
+
   async function handleVerifyJoining(offerId: string) {
     await setJoiningReportStatus(offerId, "verified");
     showToast("Joining report verified");
@@ -673,6 +580,7 @@ export default function StaffOffers() {
     try {
       await updateOfferDetails(offerId, input);
       showToast("Offer updated");
+      setEditingOfferId(null);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Could not update offer");
     }
@@ -689,6 +597,7 @@ export default function StaffOffers() {
     try {
       await deleteOffer(offer.offerId, offer.department, hasReport);
       showToast("Offer deleted");
+      if (editingOfferId === offer.offerId) setEditingOfferId(null);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Could not delete offer");
     }
@@ -723,6 +632,17 @@ export default function StaffOffers() {
         <Card className="mb-6">
           <h3 className="mb-4 text-base font-semibold text-slate-900">Record offer</h3>
           <RecordOfferForm onDone={() => setCreating(false)} />
+        </Card>
+      )}
+
+      {editingOffer && (
+        <Card className="mb-6">
+          <h3 className="mb-1 text-base font-semibold text-slate-900">
+            Edit offer — {students[editingOffer.studentId]?.rollNo ?? editingOffer.studentId} —{" "}
+            {students[editingOffer.studentId]?.name ?? ""}
+          </h3>
+          <p className="mb-4 text-sm text-slate-500">{drives[editingOffer.driveId]?.companyName ?? editingOffer.driveId}</p>
+          <EditOfferForm offer={editingOffer} onCancel={() => setEditingOfferId(null)} onSave={(input) => handleUpdateOffer(editingOffer.offerId, input)} />
         </Card>
       )}
 
@@ -800,23 +720,85 @@ export default function StaffOffers() {
             />
           ))}
         </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredOffers?.map((o) => (
-            <StudentOfferRow
-              key={o.offerId}
-              offer={o}
-              student={students[o.studentId] ?? null}
-              companyName={drives[o.driveId]?.companyName ?? o.driveId}
-              roleSummary={drives[o.driveId] ? driveRoleSummary(drives[o.driveId]) : ""}
-              report={joiningReports[o.offerId]}
-              onVerifyJoining={handleVerifyJoining}
-              onUpdateOffer={handleUpdateOffer}
-              onDeleteOffer={handleDeleteOffer}
-            />
-          ))}
-        </div>
-      )}
+      ) : filteredOffers && filteredOffers.length > 0 ? (
+        // Editing opens the card above (same pattern as Alumni's Full list)
+        // rather than turning a row into a multi-field form — keeps the
+        // table itself plain data, one line per offer.
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                  <th className="py-2 pr-4">Roll No</th>
+                  <th className="py-2 pr-4">Name</th>
+                  <th className="py-2 pr-4">Dept</th>
+                  <th className="py-2 pr-4">Batch</th>
+                  <th className="py-2 pr-4">Status</th>
+                  <th className="py-2 pr-4">Role</th>
+                  <th className="py-2 pr-4">Company / Details</th>
+                  <th className="py-2 pr-4"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredOffers?.map((o) => {
+                  const student = students[o.studentId];
+                  const report = joiningReports[o.offerId];
+                  return (
+                    <tr key={o.offerId}>
+                      <td className="py-2 pr-4 font-medium text-slate-800">{student?.rollNo ?? o.studentId}</td>
+                      <td className="py-2 pr-4 text-slate-600">{student?.name ?? "—"}</td>
+                      <td className="py-2 pr-4 text-slate-600">{student?.department ?? "—"}</td>
+                      <td className="py-2 pr-4 text-slate-600">{student?.batchYear ?? "—"}</td>
+                      <td className="py-2 pr-4">
+                        <Badge variant={OFFER_STATUS_BADGE[o.status]}>{o.status}</Badge>
+                      </td>
+                      <td className="py-2 pr-4 text-slate-600">{o.designation}</td>
+                      <td className="py-2 pr-4 text-slate-600">
+                        <div>
+                          {drives[o.driveId]?.companyName ?? o.driveId} · {o.ctc} LPA
+                        </div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
+                          {o.offerLetterUrl && (
+                            <a href={o.offerLetterUrl} target="_blank" rel="noreferrer" className="font-medium text-brand-600 hover:underline">
+                              Offer letter
+                            </a>
+                          )}
+                          {report && (
+                            <>
+                              <Badge variant={report.status === "verified" ? "success" : "warning"}>Joining: {report.status}</Badge>
+                              <a href={report.proofUrl} target="_blank" rel="noreferrer" className="font-medium text-brand-600 hover:underline">
+                                Proof
+                              </a>
+                              {report.status === "submitted" && (
+                                <button
+                                  onClick={() => handleVerifyJoining(o.offerId)}
+                                  className="font-medium text-brand-700 hover:underline"
+                                >
+                                  Verify
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2 pr-4">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setEditingOfferId(o.offerId)} className="text-xs font-medium text-brand-700 hover:underline">
+                            Edit
+                          </button>
+                          <button onClick={() => handleDeleteOffer(o)} className="text-slate-400 hover:text-red-600" aria-label="Delete">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }
