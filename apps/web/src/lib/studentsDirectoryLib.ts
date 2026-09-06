@@ -82,7 +82,13 @@ export async function setStudentsVerifiedBulk(uids: string[], verified: boolean)
 /** The "official roster" fields — same set bulkImportLib.ts writes at
  * creation time, the ones a coordinator/hod is the source of truth for
  * (confirmed scope). Personal/self-reported fields (address, skills, social
- * links, parent contact) stay student-editable only, unchanged from before. */
+ * links, parent contact) stay student-editable only, unchanged from before.
+ * cgpa/activeBacklogs/currentSemester used to be writable here only when
+ * the record didn't exist yet (database.rules.json) — meaning a coordinator
+ * "editing" one of these for an EXISTING student silently hit
+ * PERMISSION_DENIED despite this form offering the field. The rule now
+ * allows dept-matched coordinator/hod on existing records too, matching
+ * every other roster field's access. */
 // The optional fields are `| null`, not just `?`, because the caller needs a
 // way to say "this is genuinely blank" — Firebase's update() throws
 // synchronously if any property is literally `undefined` (as opposed to
@@ -96,6 +102,7 @@ export interface StudentProfileUpdate {
   batchYear?: number;
   cgpa?: number;
   activeBacklogs?: number;
+  currentSemester?: number;
   gender?: Gender;
   studentPhone?: string | null;
   personalEmail?: string | null;

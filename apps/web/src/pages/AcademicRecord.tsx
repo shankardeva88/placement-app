@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, GraduationCap } from "lucide-react";
+import { Plus, Minus, GraduationCap } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { updateAcademicRecord } from "../lib/academicActions";
 import { useToast } from "../components/ui/Toast";
@@ -47,6 +47,22 @@ export default function AcademicRecord() {
     const next = semesterCount + 1;
     setSemesterCount(next);
     setSgpaMap((prev) => ({ ...prev, [`sem${next}`]: "" }));
+  }
+
+  // The only way to fix an accidental "I've started semester N+1" click —
+  // there was no way to undo it before, only add more. A coordinator/mentor
+  // can't fix this on the student's behalf either (currentSemester is
+  // student-only in the rules), so this has to live here.
+  function removeSemester() {
+    if (semesterCount <= 1) return;
+    const key = `sem${semesterCount}`;
+    if (sgpaMap[key] && !window.confirm(`Remove Semester ${semesterCount}? Its SGPA (${sgpaMap[key]}) will be discarded.`)) return;
+    setSemesterCount(semesterCount - 1);
+    setSgpaMap((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -125,16 +141,28 @@ export default function AcademicRecord() {
             })}
           </div>
 
-          {semesterCount < MAX_SEMESTERS && (
-            <button
-              type="button"
-              onClick={addSemester}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-800"
-            >
-              <Plus className="h-4 w-4" />
-              I've started semester {semesterCount + 1}
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-4">
+            {semesterCount < MAX_SEMESTERS && (
+              <button
+                type="button"
+                onClick={addSemester}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-800"
+              >
+                <Plus className="h-4 w-4" />
+                I've started semester {semesterCount + 1}
+              </button>
+            )}
+            {semesterCount > 1 && (
+              <button
+                type="button"
+                onClick={removeSemester}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-red-600"
+              >
+                <Minus className="h-4 w-4" />
+                Remove semester {semesterCount} (entered by mistake)
+              </button>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-5">
             <div>

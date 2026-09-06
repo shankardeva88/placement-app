@@ -10,9 +10,15 @@ const INSTITUTION_ROLES = new Set(["dean", "principal", "cpo", "admin"]);
  * the placement team's roster commonly carries beyond what bulk import
  * already seeds. Deliberately smaller than the full Student type: fields
  * with their own side effects (skills, certifications, resumeUrl, ...) stay
- * student-self-edit-only (see PersonalDetails.tsx / database.rules.json),
- * and cgpa/activeBacklogs/currentSemester already have a dedicated
- * "recently updated" flow via the student's own Academic Record page. */
+ * student-self-edit-only (see PersonalDetails.tsx / database.rules.json).
+ * cgpa/activeBacklogs are excluded here too — Academic Record is the
+ * intended flow for those. currentSemester is the odd one out: it's kept
+ * in this list (and used to silently fail for coordinator/hod on an
+ * existing record until the rule was loosened — see the
+ * StudentProfileUpdate doc comment in studentsDirectoryLib.ts) since a
+ * student mis-clicking through several semesters has no other correction
+ * path besides fixing it themselves or a coordinator batch-correcting a
+ * whole sheet at once. */
 export const UPDATABLE_FIELDS = [
   "name",
   "email",

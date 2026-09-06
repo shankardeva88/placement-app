@@ -68,6 +68,7 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
     batchYear: student.batchYear,
     cgpa: student.cgpa,
     activeBacklogs: student.activeBacklogs,
+    currentSemester: student.currentSemester,
     gender: student.gender ?? "prefer_not_to_say",
     studentPhone: student.studentPhone ?? "",
     personalEmail: student.personalEmail ?? "",
@@ -104,6 +105,7 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
         batchYear: form.batchYear,
         cgpa: form.cgpa,
         activeBacklogs: form.activeBacklogs,
+        currentSemester: form.currentSemester,
         gender: form.gender,
         studentPhone: form.studentPhone || null,
         personalEmail: form.personalEmail || null,
@@ -161,6 +163,17 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
           <div>
             <label className={labelClass}>Active backlogs</label>
             <input type="number" min={0} value={form.activeBacklogs} onChange={(e) => set("activeBacklogs", Number(e.target.value))} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Current semester</label>
+            <input
+              type="number"
+              min={1}
+              max={12}
+              value={form.currentSemester}
+              onChange={(e) => set("currentSemester", Number(e.target.value))}
+              className={inputClass}
+            />
           </div>
           <div>
             <label className={labelClass}>Gender</label>

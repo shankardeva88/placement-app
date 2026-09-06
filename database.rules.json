@@ -124,16 +124,21 @@
         // Academic numbers stay student-editable every semester even after
         // verifiedByFaculty locks the rest of the record (identity fields
         // like name/rollNo/department are meant to freeze on verification;
-        // CGPA/backlogs are recurring self-reported facts, not identity) —
-        // EXCEPT at creation time, when staff bulk-importing an official
-        // roster (see bulkImportLib.ts) need to seed these from source data.
-        // The !data.exists() guard means this only ever applies to a brand
-        // new record; once it exists, only the student can change these.
-        "cgpa": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( !data.exists() && root.child('users').child(auth.uid).child('department').val() === newData.parent().child('department').val() ) )" },
+        // CGPA/backlogs are recurring self-reported facts, not identity).
+        // Originally staff could only seed these at creation (!data.exists())
+        // — bulk-importing an official roster (bulkImportLib.ts) — which
+        // meant a coordinator/hod could never correct a student's own typo
+        // afterward (a wrong currentSemester, a stale CGPA) despite Student
+        // Detail's "Edit roster info" already offering CGPA/backlogs as
+        // editable fields there — that write silently failed. Now
+        // dept-matched coordinator/hod can write these on an EXISTING record
+        // too, same department-match condition as the parent $studentId
+        // rule uses for every other roster field.
+        "cgpa": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && root.child('users').child(auth.uid).child('department').val() === (data.exists() ? data.child('department') : newData.parent().child('department')).val() ) )" },
         "semesterWiseSgpa": { ".write": "auth != null && $studentId === auth.uid" },
-        "currentSemester": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( !data.exists() && root.child('users').child(auth.uid).child('department').val() === newData.parent().child('department').val() ) )" },
-        "activeBacklogs": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( !data.exists() && root.child('users').child(auth.uid).child('department').val() === newData.parent().child('department').val() ) )" },
-        "updatedAt": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( !data.exists() && root.child('users').child(auth.uid).child('department').val() === newData.parent().child('department').val() ) )" },
+        "currentSemester": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && root.child('users').child(auth.uid).child('department').val() === (data.exists() ? data.child('department') : newData.parent().child('department')).val() ) )" },
+        "activeBacklogs": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && root.child('users').child(auth.uid).child('department').val() === (data.exists() ? data.child('department') : newData.parent().child('department')).val() ) )" },
+        "updatedAt": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && root.child('users').child(auth.uid).child('department').val() === (data.exists() ? data.child('department') : newData.parent().child('department')).val() ) )" },
 
         // Contact/address/education-history/links/skills stay student-editable
         // even after verifiedByFaculty locks the rest of the record, same
