@@ -483,6 +483,106 @@ function CompanyOffersGroup({
   );
 }
 
+// Student-wise counterpart to CompanyOffersGroup, for the view toggle below
+// — same row content (status, offer letter, joining report, edit/delete),
+// just one flat card per offer sorted by roll number instead of grouped
+// under a company you'd have to expand first. Manages its own edit-mode
+// toggle since there's no parent group to hold it.
+function StudentOfferRow({
+  offer,
+  student,
+  companyName,
+  roleSummary,
+  report,
+  onVerifyJoining,
+  onUpdateOffer,
+  onDeleteOffer,
+}: {
+  offer: Offer;
+  student: Student | null;
+  companyName: string;
+  roleSummary: string;
+  report: JoiningReport | undefined;
+  onVerifyJoining: (offerId: string) => void;
+  onUpdateOffer: (offerId: string, input: UpdateOfferInput) => Promise<void>;
+  onDeleteOffer: (offer: Offer) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+
+  return (
+    <Card>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-medium text-slate-900">{student ? `${student.rollNo} — ${student.name}` : offer.studentId}</p>
+          <p className="text-sm text-slate-500">
+            {companyName}
+            {roleSummary ? ` · ${roleSummary}` : ""}
+          </p>
+          {!isEditing && (
+            <p className="text-sm text-slate-500">
+              {offer.designation} · {offer.ctc} LPA
+            </p>
+          )}
+        </div>
+        <Badge variant={OFFER_STATUS_BADGE[offer.status]}>{offer.status}</Badge>
+      </div>
+
+      {isEditing ? (
+        <EditOfferForm
+          offer={offer}
+          onCancel={() => setIsEditing(false)}
+          onSave={async (input) => {
+            await onUpdateOffer(offer.offerId, input);
+            setIsEditing(false);
+          }}
+        />
+      ) : (
+        <>
+          {offer.offerLetterUrl && (
+            <a
+              href={offer.offerLetterUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-block text-sm font-medium text-brand-600 hover:underline"
+            >
+              View offer letter
+            </a>
+          )}
+          {report && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2 text-slate-600">
+                <span>Joining: {new Date(report.joiningDate).toLocaleDateString()}</span>
+                <Badge variant={report.status === "verified" ? "success" : "warning"}>{report.status}</Badge>
+                <a href={report.proofUrl} target="_blank" rel="noreferrer" className="font-medium text-brand-600 hover:underline">
+                  View joining letter / ID card
+                </a>
+              </div>
+              {report.status === "submitted" && (
+                <Button variant="secondary" onClick={() => onVerifyJoining(offer.offerId)}>
+                  Verify joining
+                </Button>
+              )}
+            </div>
+          )}
+          <div className="mt-2 flex items-center gap-3">
+            <button onClick={() => setIsEditing(true)} className="flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline">
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </button>
+            <button
+              onClick={() => onDeleteOffer(offer)}
+              className="flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-red-600"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </button>
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
 export default function StaffOffers() {
   const { appUser } = useAuth();
   const offers = useAllOffers(appUser);
@@ -496,6 +596,7 @@ export default function StaffOffers() {
   const [driveFilter, setDriveFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<OfferStatus | "">("");
   const [batchFilter, setBatchFilter] = useState<number | "">("");
+  const [viewMode, setViewMode] = useState<"company" | "student">("company");
 
   useEffect(() => {
     return onValue(ref(db, DB_NODES.drives), (snap) => {
@@ -667,6 +768,13 @@ export default function StaffOffers() {
               ))}
             </select>
           )}
+          <Button
+            variant="secondary"
+            onClick={() => setViewMode((v) => (v === "company" ? "student" : "company"))}
+            className="w-full sm:w-auto"
+          >
+            {viewMode === "company" ? "Student-wise" : "Company-wise"}
+          </Button>
         </div>
       )}
 
@@ -676,21 +784,39 @@ export default function StaffOffers() {
         <EmptyState icon={Search} title="No offers match your filters" />
       )}
 
-      <div className="space-y-4">
-        {groupedByDrive?.map((g) => (
-          <CompanyOffersGroup
-            key={g.driveId}
-            companyName={drives[g.driveId]?.companyName ?? g.driveId}
-            roleSummary={drives[g.driveId] ? driveRoleSummary(drives[g.driveId]) : ""}
-            offers={g.offers}
-            students={students}
-            joiningReports={joiningReports}
-            onVerifyJoining={handleVerifyJoining}
-            onUpdateOffer={handleUpdateOffer}
-            onDeleteOffer={handleDeleteOffer}
-          />
-        ))}
-      </div>
+      {viewMode === "company" ? (
+        <div className="space-y-4">
+          {groupedByDrive?.map((g) => (
+            <CompanyOffersGroup
+              key={g.driveId}
+              companyName={drives[g.driveId]?.companyName ?? g.driveId}
+              roleSummary={drives[g.driveId] ? driveRoleSummary(drives[g.driveId]) : ""}
+              offers={g.offers}
+              students={students}
+              joiningReports={joiningReports}
+              onVerifyJoining={handleVerifyJoining}
+              onUpdateOffer={handleUpdateOffer}
+              onDeleteOffer={handleDeleteOffer}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredOffers?.map((o) => (
+            <StudentOfferRow
+              key={o.offerId}
+              offer={o}
+              student={students[o.studentId] ?? null}
+              companyName={drives[o.driveId]?.companyName ?? o.driveId}
+              roleSummary={drives[o.driveId] ? driveRoleSummary(drives[o.driveId]) : ""}
+              report={joiningReports[o.offerId]}
+              onVerifyJoining={handleVerifyJoining}
+              onUpdateOffer={handleUpdateOffer}
+              onDeleteOffer={handleDeleteOffer}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
