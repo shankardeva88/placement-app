@@ -106,7 +106,12 @@ function ChartCard({ title, subtitle, children }: { title: string; subtitle?: st
     <Card>
       <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
       {subtitle && <p className="mb-3 text-xs text-slate-500">{subtitle}</p>}
-      <div className={subtitle ? "" : "mt-3"}>{children}</div>
+      {/* These charts size their own SVG from the data (more departments,
+          more weeks, more alumni batches → a wider chart) with no upper
+          bound — inside a 2-up grid that overflowed the card instead of
+          scrolling, breaking the whole page's layout once there was enough
+          data. Scrolls within the card now instead. */}
+      <div className={`overflow-x-auto ${subtitle ? "" : "mt-3"}`}>{children}</div>
     </Card>
   );
 }
@@ -274,17 +279,17 @@ function CoordinatorDashboard() {
 
   return (
     <div>
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600 p-6 text-white shadow-lg shadow-brand-200 sm:p-8">
-        <div className="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-        <div className="pointer-events-none absolute -bottom-16 left-1/3 h-48 w-48 rounded-full bg-purple-400/20 blur-2xl" />
-        <div className="relative">
-          <p className="text-sm font-medium text-white/80">Welcome back</p>
-          <h1 className="mt-1 text-2xl font-semibold">{appUser?.name}</h1>
-          <p className="mt-2 text-sm text-white/70">
+      <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600 px-5 py-4 text-white shadow-md shadow-brand-200">
+        <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+        <div className="relative flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <p className="text-sm font-medium text-white/80">Welcome back,</p>
+          <h1 className="text-lg font-semibold">{appUser?.name}</h1>
+          <span className="text-sm text-white/70">
+            ·{" "}
             {appUser && "department" in appUser && appUser.department
               ? `${appUser.department} department`
               : "Institution-wide access"}
-          </p>
+          </span>
         </div>
       </div>
 
@@ -317,7 +322,11 @@ function CoordinatorDashboard() {
       </div>
 
       <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Overview</h2>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* xl, not lg — these charts size themselves off the data (see the
+          ChartCard comment) and a two-up grid at lg's ~1024px was too
+          narrow for most of them not to need the scroll-within-card
+          fallback; xl gives each card enough room that it usually doesn't. */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <ChartCard title="Students by department" subtitle="Current students in your scope.">
           {byDepartment ? <SimpleBarChart data={byDepartment} hue={SEQUENTIAL_BLUE} /> : <p className="py-8 text-center text-sm text-slate-400">Loading…</p>}
         </ChartCard>
