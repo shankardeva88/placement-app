@@ -25,7 +25,13 @@ export function StackedShareBar({ segments, height = 32 }: { segments: ShareSegm
 
   return (
     <div>
-      <svg width="100%" height={height} role="img" aria-label="Share of total">
+      {/* overflow visible — the %-label text is centered on its own segment,
+          and a segment right at the left/right edge of the bar (the "corner")
+          centers its label close enough to 0%/100% that part of the text
+          fell outside the SVG's own box and got clipped by the default
+          overflow:hidden. There's padding around this in the Card, so
+          letting it spill a few px past the bar's own bounds is safe. */}
+      <svg width="100%" height={height} role="img" aria-label="Share of total" style={{ overflow: "visible" }}>
         {segments.map((s) => {
           if (s.value === 0) return null;
           const widthPct = (s.value / total) * 100;

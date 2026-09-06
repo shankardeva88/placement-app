@@ -44,6 +44,19 @@ import { TrendLineChart } from "../../components/charts/TrendLineChart";
 
 const INSTITUTION_ROLES = new Set(["dean", "principal", "cpo", "admin"]);
 
+// Same labels as the sidebar profile in StaffShell.tsx (not shared from
+// there — that map is local to that file too) — "Coordinator" reads as
+// "Placement Coordinator" in context here, no need to spell it out.
+const ROLE_LABEL: Record<string, string> = {
+  admin: "Admin",
+  dean: "Dean",
+  principal: "Principal",
+  cpo: "CPO",
+  hod: "HOD",
+  coordinator: "Coordinator",
+  faculty_mentor: "Faculty Mentor",
+};
+
 const DRIVE_TYPE_LABEL: Record<DriveType, string> = {
   full_time: "Full-time",
   internship: "Internship",
@@ -281,15 +294,22 @@ function CoordinatorDashboard() {
     <div>
       <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600 px-5 py-4 text-white shadow-md shadow-brand-200">
         <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
-        <div className="relative flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <p className="text-sm font-medium text-white/80">Welcome back,</p>
-          <h1 className="text-lg font-semibold">{appUser?.name}</h1>
-          <span className="text-sm text-white/70">
-            ·{" "}
+        {/* Two lines on the left (name kept off the department line so a
+            long name can't crowd it out), department pushed to the right —
+            everything text-sm, no line bigger/bolder than another. */}
+        <div className="relative flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <div>
+            <p className="text-sm text-white/80">Welcome back</p>
+            <p className="text-sm text-white">
+              {appUser?.name}
+              {appUser && ROLE_LABEL[appUser.role] ? ` · ${ROLE_LABEL[appUser.role]}` : ""}
+            </p>
+          </div>
+          <p className="text-sm text-white/80">
             {appUser && "department" in appUser && appUser.department
               ? `${appUser.department} department`
               : "Institution-wide access"}
-          </span>
+          </p>
         </div>
       </div>
 

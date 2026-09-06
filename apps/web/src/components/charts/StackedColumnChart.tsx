@@ -29,7 +29,13 @@ export function StackedColumnChart({
   const [hovered, setHovered] = useState<{ colKey: string; segKey: string } | null>(null);
 
   const width = Math.max(320, columns.length * 90);
-  const padding = { top: 12, right: 12, bottom: 28, left: 12 };
+  // top: 12 wasn't enough headroom for the count label above a column that
+  // reaches the very top of the plot (common — niceMax rounds up to a
+  // multiple of 5, so a column whose total already is one sits flush with
+  // the top). The label's y is padding.top - 6, and an 11px bold label's
+  // ascender extends further above its own baseline than that, pushing it
+  // past y=0 and getting clipped by the SVG's own bounds. 12 -> 22 clears it.
+  const padding = { top: 22, right: 12, bottom: 28, left: 12 };
   const plotHeight = height - padding.top - padding.bottom;
   const plotWidth = width - padding.left - padding.right;
 
