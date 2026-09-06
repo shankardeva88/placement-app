@@ -98,7 +98,7 @@ const PLACEMENT_STATUS_LABEL: Record<PlacementStatus, string> = {
 // separate charts.
 const ALUMNI_STATUS_ORDER = ["placed", "multiple_offers", "unplaced", "entrepreneur", "higher_studies"] as const;
 const ALUMNI_STATUS_LABEL: Record<(typeof ALUMNI_STATUS_ORDER)[number], string> = {
-  placed: "Placed",
+  placed: "Unique placed",
   multiple_offers: "Multiple offers",
   unplaced: "Unplaced",
   entrepreneur: "Entrepreneur",
@@ -331,16 +331,24 @@ function CoordinatorDashboard() {
         <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
         {/* Two lines on the left (name kept off the department line so a
             long name can't crowd it out), department pushed to the right —
-            everything text-sm, no line bigger/bolder than another. */}
+            everything the same size, no line bigger/bolder than another.
+            Role suffix skipped when the account's own name already says it
+            (many coordinator accounts are literally named "Placement
+            Coordinator" rather than a person's name) — otherwise this
+            printed "Placement Coordinator · Coordinator". */}
         <div className="relative flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <div>
-            <p className="text-sm text-white/80">Welcome back</p>
-            <p className="text-sm text-white">
+            <p className="text-base text-white/80">Welcome back</p>
+            <p className="text-base text-white">
               {appUser?.name}
-              {appUser && ROLE_LABEL[appUser.role] ? ` · ${ROLE_LABEL[appUser.role]}` : ""}
+              {appUser &&
+              ROLE_LABEL[appUser.role] &&
+              !appUser.name?.toLowerCase().includes(ROLE_LABEL[appUser.role].toLowerCase())
+                ? ` · ${ROLE_LABEL[appUser.role]}`
+                : ""}
             </p>
           </div>
-          <p className="text-sm text-white/80">
+          <p className="text-base text-white/80">
             {appUser && "department" in appUser && appUser.department
               ? `${appUser.department} department`
               : "Institution-wide access"}
