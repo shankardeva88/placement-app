@@ -194,6 +194,9 @@ export default function Dashboard() {
               <Badge variant={PLACEMENT_BADGE[student.placementStatus]}>
                 {student.placementStatus.replace("_", " ")}
               </Badge>
+              <Badge variant={student.verifiedByFaculty ? "success" : "danger"}>
+                {student.verifiedByFaculty ? "Profile verified" : "Profile pending"}
+              </Badge>
             </div>
           )}
         </div>
