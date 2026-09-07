@@ -418,6 +418,7 @@ function CompanyInternshipsGroup({
 
 export default function StaffInternships() {
   const { appUser } = useAuth();
+  const { showToast } = useToast();
   const internships = useAllInternships(appUser);
   const students = useStudentsDirectory(appUser);
   const [creating, setCreating] = useState(false);
@@ -425,6 +426,9 @@ export default function StaffInternships() {
   const [statusFilter, setStatusFilter] = useState<InternshipStatus | "">("");
   const [batchFilter, setBatchFilter] = useState<number | "">("");
   const [durationFilter, setDurationFilter] = useState<number | "">("");
+  const [viewMode, setViewMode] = useState<"company" | "student">("company");
+  const [editingInternshipId, setEditingInternshipId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const studentsByUid = useMemo(() => Object.fromEntries((students ?? []).map((s) => [s.uid, s])), [students]);
 
@@ -479,6 +483,48 @@ export default function StaffInternships() {
       .sort((a, b) => a.companyName.localeCompare(b.companyName));
   }, [rows]);
 
+  // `rows` itself stays sorted by startDate (most recent first) — that's
+  // what feeds groupedByCompany, and each company's own group already sorts
+  // its members by roll no internally. The flat Student-wise view needs its
+  // own top-level roll-no order instead of inheriting the by-date one.
+  const studentWiseRows = useMemo(() => {
+    if (!rows) return null;
+    return rows.slice().sort((a, b) => (a.student?.rollNo ?? "").localeCompare(b.student?.rollNo ?? ""));
+  }, [rows]);
+
+  const editingInternship = editingInternshipId ? internships?.find((i) => i.internshipId === editingInternshipId) ?? null : null;
+
+  async function handleUpdateInternship(values: InternshipFormValues) {
+    if (!editingInternship) return;
+    await updateInternship(editingInternship.internshipId, {
+      companyName: values.companyName,
+      role: values.role,
+      durationMonths: values.durationMonths,
+      startDate: new Date(values.startDate).getTime(),
+      stipend: values.stipend === "" ? null : Number(values.stipend),
+      mode: values.mode || null,
+      status: values.status,
+      offerLetterUrl: values.offerLetterUrl || null,
+      completionCertificateUrl: values.completionCertificateUrl || null,
+    });
+    showToast("Internship updated");
+    setEditingInternshipId(null);
+  }
+
+  async function handleDeleteInternshipRow(internship: Internship, student: Student | null) {
+    if (!window.confirm(`Delete this internship record for ${student?.name ?? internship.studentId}? This can't be undone.`)) return;
+    setDeletingId(internship.internshipId);
+    try {
+      await deleteInternship(internship.internshipId, internship.studentId, internship.department);
+      showToast("Internship deleted");
+      if (editingInternshipId === internship.internshipId) setEditingInternshipId(null);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not delete");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -504,6 +550,22 @@ export default function StaffInternships() {
         <Card className="mb-6">
           <h3 className="mb-4 text-base font-semibold text-slate-900">Record internship</h3>
           <AddInternshipForm onDone={() => setCreating(false)} />
+        </Card>
+      )}
+
+      {editingInternship && (
+        <Card className="mb-6">
+          <h3 className="mb-1 text-base font-semibold text-slate-900">
+            Edit internship — {studentsByUid[editingInternship.studentId]?.rollNo ?? editingInternship.studentId} —{" "}
+            {studentsByUid[editingInternship.studentId]?.name ?? ""}
+          </h3>
+          <p className="mb-4 text-sm text-slate-500">{editingInternship.companyName}</p>
+          <InternshipForm
+            initial={editingInternship}
+            submitLabel="Save changes"
+            onCancel={() => setEditingInternshipId(null)}
+            onSubmit={handleUpdateInternship}
+          />
         </Card>
       )}
 
@@ -559,6 +621,13 @@ export default function StaffInternships() {
               </select>
             </div>
           </div>
+          <Button
+            variant="secondary"
+            onClick={() => setViewMode((v) => (v === "company" ? "student" : "company"))}
+            className="w-full sm:w-auto"
+          >
+            {viewMode === "company" ? "Student-wise" : "Company-wise"}
+          </Button>
         </Card>
       )}
 
@@ -574,11 +643,92 @@ export default function StaffInternships() {
         <EmptyState icon={Search} title="No internships match your filters" />
       )}
 
-      <div className="space-y-4">
-        {groupedByCompany?.map((g) => (
-          <CompanyInternshipsGroup key={g.companyName} companyName={g.companyName} rows={g.rows} />
-        ))}
-      </div>
+      {viewMode === "company" ? (
+        <div className="space-y-4">
+          {groupedByCompany?.map((g) => (
+            <CompanyInternshipsGroup key={g.companyName} companyName={g.companyName} rows={g.rows} />
+          ))}
+        </div>
+      ) : studentWiseRows && studentWiseRows.length > 0 ? (
+        // Editing opens the card above (same pattern as Offers' Student-wise
+        // table) instead of turning a row into a multi-field form — keeps
+        // the table itself plain data, sorted by roll no by default.
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                  <th className="py-2 pr-4">Roll No</th>
+                  <th className="py-2 pr-4">Name</th>
+                  <th className="py-2 pr-4">Dept</th>
+                  <th className="py-2 pr-4">Batch</th>
+                  <th className="py-2 pr-4">Status</th>
+                  <th className="py-2 pr-4">Role</th>
+                  <th className="py-2 pr-4">Company / Details</th>
+                  <th className="py-2 pr-4"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {studentWiseRows.map(({ internship, student }) => (
+                  <tr key={internship.internshipId}>
+                    <td className="py-2 pr-4 font-medium text-slate-800">{student?.rollNo ?? internship.studentId}</td>
+                    <td className="py-2 pr-4 text-slate-600">{student?.name ?? "—"}</td>
+                    <td className="py-2 pr-4 text-slate-600">{student?.department ?? internship.department}</td>
+                    <td className="py-2 pr-4 text-slate-600">{student?.batchYear ?? "—"}</td>
+                    <td className="py-2 pr-4">
+                      <Badge variant={STATUS_BADGE[internship.status]}>{internship.status}</Badge>
+                    </td>
+                    <td className="py-2 pr-4 text-slate-600">{internship.role}</td>
+                    <td className="py-2 pr-4 text-slate-600">
+                      <div>
+                        {internship.companyName} · {durationLabel(internship.durationMonths)}
+                        {internship.stipend != null && ` · ₹${internship.stipend}/mo`}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
+                        <span>{new Date(internship.startDate).toLocaleDateString()}</span>
+                        {internship.mode && <span>· {MODE_LABEL[internship.mode]}</span>}
+                        {internship.offerLetterUrl && (
+                          <a href={internship.offerLetterUrl} target="_blank" rel="noreferrer" className="font-medium text-brand-600 hover:underline">
+                            Offer letter
+                          </a>
+                        )}
+                        {internship.completionCertificateUrl && (
+                          <a
+                            href={internship.completionCertificateUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium text-brand-600 hover:underline"
+                          >
+                            Certificate
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-2 pr-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setEditingInternshipId(internship.internshipId)}
+                          className="text-xs font-medium text-brand-700 hover:underline"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteInternshipRow(internship, student)}
+                          disabled={deletingId === internship.internshipId}
+                          className="text-slate-400 hover:text-red-600"
+                          aria-label="Delete"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }
