@@ -312,6 +312,12 @@ export interface Application {
   resumeUrlSnapshot: string; // resume as it was at time of applying
   appliedAt: Timestamp;
   updatedAt: Timestamp;
+  // Whole-drive, not per-round — did this applicant actually show up, since
+  // "applied" doesn't mean "attended" (a real gap: some students apply and
+  // then just don't come). Undefined means not marked either way yet.
+  // Purely a record, not coupled to `status` — marking someone absent
+  // doesn't touch their application status, that stays a manual call.
+  attendance?: "present" | "absent";
 }
 
 // ----------------------------------------------------------------------------

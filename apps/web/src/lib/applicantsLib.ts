@@ -135,3 +135,20 @@ export async function deleteApplication(applicationId: string, department: Depar
     [`${DB_NODES.applicationsDeptIndex}/${department}/${applicationId}`]: null,
   });
 }
+
+/** Whole-drive attendance — see Application.attendance doc comment. `null`
+ * clears it back to "not marked" rather than leaving a stale value once
+ * someone's fixed a mis-click. */
+export async function setApplicationAttendance(applicationId: string, attendance: "present" | "absent" | null) {
+  await update(ref(db, `${DB_NODES.applications}/${applicationId}`), { attendance });
+}
+
+/** Same multi-path update() batching as the other bulk actions on this
+ * page (status, notifications) — marking a whole drive's worth of
+ * applicants present/absent one at a time would be the exact
+ * "some students not coming for drive" problem this exists to solve. */
+export async function setApplicationsAttendanceBulk(applicationIds: string[], attendance: "present" | "absent" | null) {
+  const updates: Record<string, unknown> = {};
+  for (const id of applicationIds) updates[`${DB_NODES.applications}/${id}/attendance`] = attendance;
+  await update(ref(db), updates);
+}

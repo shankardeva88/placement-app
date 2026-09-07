@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Download, Search, Trash2, UserPlus, Users } from "lucide-react";
+import { ArrowLeft, Check, Download, Search, Trash2, UserPlus, Users, X } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
 import type { Application, ApplicationStatus, Drive, Gender, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
-import { useDriveApplicants, updateApplicationStatus, deleteApplication } from "../../lib/applicantsLib";
+import {
+  useDriveApplicants,
+  updateApplicationStatus,
+  deleteApplication,
+  setApplicationAttendance,
+  setApplicationsAttendanceBulk,
+} from "../../lib/applicantsLib";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { applyToDrive, checkEligibility } from "../../lib/driveActions";
 import { applicationRoleLabel, driveRoleSummary, isMultiRole } from "../../lib/driveRolesLib";
@@ -127,7 +133,10 @@ export default function DriveApplicants() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "">("");
   const [roundFilter, setRoundFilter] = useState("");
+  const [attendanceFilter, setAttendanceFilter] = useState<"present" | "absent" | "unmarked" | "">("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [markingAttendanceId, setMarkingAttendanceId] = useState<string | null>(null);
+  const [bulkMarkingAttendance, setBulkMarkingAttendance] = useState(false);
   const [bulkStatusValue, setBulkStatusValue] = useState<ApplicationStatus>("shortlisted");
   const [bulkRoundValue, setBulkRoundValue] = useState("");
   const [bulkUpdating, setBulkUpdating] = useState(false);
@@ -159,9 +168,12 @@ export default function DriveApplicants() {
     return searchFilteredRows.filter((r) => {
       if (statusFilter && r.application.status !== statusFilter) return false;
       if (roundFilter && r.application.currentRoundId !== roundFilter) return false;
+      if (attendanceFilter === "unmarked" ? !!r.application.attendance : attendanceFilter && r.application.attendance !== attendanceFilter) {
+        return false;
+      }
       return true;
     });
-  }, [searchFilteredRows, statusFilter, roundFilter]);
+  }, [searchFilteredRows, statusFilter, roundFilter, attendanceFilter]);
 
   // Counts behind the summary chips — round counts match whatever's
   // currently sitting at that round regardless of status (same semantics as
@@ -180,6 +192,25 @@ export default function DriveApplicants() {
     }
     return counts;
   }, [searchFilteredRows]);
+
+  // "Some students didn't come" — attendance is separate from status/round
+  // entirely (see Application.attendance doc comment), so it gets its own
+  // three-way count rather than folding into the status chips above.
+  const attendanceCounts = useMemo(() => {
+    let present = 0;
+    let absent = 0;
+    let unmarked = 0;
+    for (const r of searchFilteredRows ?? []) {
+      if (r.application.attendance === "present") present++;
+      else if (r.application.attendance === "absent") absent++;
+      else unmarked++;
+    }
+    return { present, absent, unmarked };
+  }, [searchFilteredRows]);
+
+  function toggleAttendanceChip(value: "present" | "absent" | "unmarked") {
+    setAttendanceFilter((prev) => (prev === value ? "" : value));
+  }
 
   function toggleStatusChip(status: ApplicationStatus) {
     setStatusFilter((prev) => (prev === status ? "" : status));
@@ -230,6 +261,33 @@ export default function DriveApplicants() {
       showToast(err instanceof Error ? err.message : "Could not update status");
     } finally {
       setUpdatingId(null);
+    }
+  }
+
+  // Clicking the mark that's already set clears it back to "not marked" —
+  // toggle, not a one-way switch, so fixing a mis-click doesn't need a
+  // third state.
+  async function handleMarkAttendance(applicationId: string, current: Application["attendance"], value: "present" | "absent") {
+    setMarkingAttendanceId(applicationId);
+    try {
+      await setApplicationAttendance(applicationId, current === value ? null : value);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not update attendance");
+    } finally {
+      setMarkingAttendanceId(null);
+    }
+  }
+
+  async function handleBulkMarkAttendance(value: "present" | "absent") {
+    if (selectedIds.size === 0) return;
+    setBulkMarkingAttendance(true);
+    try {
+      await setApplicationsAttendanceBulk(Array.from(selectedIds), value);
+      showToast(`${selectedIds.size} applicant(s) marked ${value}`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not update attendance");
+    } finally {
+      setBulkMarkingAttendance(false);
     }
   }
 
@@ -528,6 +586,39 @@ export default function DriveApplicants() {
               </button>
             );
           })}
+          {attendanceCounts.present > 0 && (
+            <button
+              type="button"
+              onClick={() => toggleAttendanceChip("present")}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${CHIP_CLASSES.success} ${
+                attendanceFilter === "present" ? "ring-2 ring-offset-1 ring-brand-500" : ""
+              }`}
+            >
+              Present ({attendanceCounts.present})
+            </button>
+          )}
+          {attendanceCounts.absent > 0 && (
+            <button
+              type="button"
+              onClick={() => toggleAttendanceChip("absent")}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${CHIP_CLASSES.danger} ${
+                attendanceFilter === "absent" ? "ring-2 ring-offset-1 ring-brand-500" : ""
+              }`}
+            >
+              Absent ({attendanceCounts.absent})
+            </button>
+          )}
+          {attendanceCounts.unmarked > 0 && (
+            <button
+              type="button"
+              onClick={() => toggleAttendanceChip("unmarked")}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${CHIP_CLASSES.neutral} ${
+                attendanceFilter === "unmarked" ? "ring-2 ring-offset-1 ring-brand-500" : ""
+              }`}
+            >
+              Attendance not marked ({attendanceCounts.unmarked})
+            </button>
+          )}
         </div>
       )}
 
@@ -642,6 +733,25 @@ export default function DriveApplicants() {
                 <Trash2 className="h-4 w-4" />
                 {bulkDeleting ? `Deleting ${bulkDeleteProgress}/${selectedIds.size}…` : `Delete ${selectedIds.size}`}
               </Button>
+              <span className="text-xs text-slate-400">Attendance</span>
+              <Button
+                variant="secondary"
+                onClick={() => handleBulkMarkAttendance("present")}
+                loading={bulkMarkingAttendance}
+                className="!bg-emerald-100 !text-emerald-700 hover:!bg-emerald-200"
+              >
+                <Check className="h-4 w-4" />
+                Present
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => handleBulkMarkAttendance("absent")}
+                loading={bulkMarkingAttendance}
+                className="!bg-red-100 !text-red-700 hover:!bg-red-200"
+              >
+                <X className="h-4 w-4" />
+                Absent
+              </Button>
               <Button variant="secondary" onClick={() => setSelectedIds(new Set())} disabled={bulkUpdating || bulkDeleting}>
                 Clear
               </Button>
@@ -734,6 +844,31 @@ export default function DriveApplicants() {
                   ))}
                 </select>
               )}
+              {/* Toggle, not a one-way mark — clicking the already-active one
+                  clears it back to "not marked" (see handleMarkAttendance).
+                  Separate from status/round entirely: attendance just
+                  records who showed up, it doesn't move anyone forward or
+                  reject them on its own. */}
+              <Button
+                variant="secondary"
+                onClick={() => handleMarkAttendance(application.applicationId, application.attendance, "present")}
+                loading={markingAttendanceId === application.applicationId}
+                className={`!px-2 !py-1.5 ${
+                  application.attendance === "present" ? "!bg-emerald-500 !text-white" : "!bg-emerald-50 !text-emerald-700"
+                }`}
+                title="Present"
+              >
+                <Check className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => handleMarkAttendance(application.applicationId, application.attendance, "absent")}
+                loading={markingAttendanceId === application.applicationId}
+                className={`!px-2 !py-1.5 ${application.attendance === "absent" ? "!bg-red-500 !text-white" : "!bg-red-50 !text-red-700"}`}
+                title="Absent"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
               <Button
                 variant="danger"
                 onClick={() =>
