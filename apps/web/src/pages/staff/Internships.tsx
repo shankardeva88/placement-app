@@ -570,57 +570,50 @@ export default function StaffInternships() {
       )}
 
       {internships !== null && internships.length > 0 && (
-        <Card className="mb-4 space-y-4">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
               type="text"
               placeholder="Search by student, roll number, company, or role"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className={`${inputClass} py-2.5 pl-9`}
+              className={`${inputClass} pl-9`}
             />
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div>
-              <label className={labelClass}>Status</label>
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as InternshipStatus | "")} className={inputClass}>
-                <option value="">All statuses</option>
-                <option value="ongoing">Ongoing</option>
-                <option value="completed">Completed</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>Batch</label>
-              <select
-                value={batchFilter}
-                onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
-                className={inputClass}
-              >
-                <option value="">All batches</option>
-                {batchYears.map((y) => (
-                  <option key={y} value={y}>
-                    Batch {y}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>Duration</label>
-              <select
-                value={durationFilter}
-                onChange={(e) => setDurationFilter(e.target.value ? Number(e.target.value) : "")}
-                className={inputClass}
-              >
-                <option value="">All durations</option>
-                {durationOptions.map((d) => (
-                  <option key={d} value={d}>
-                    {durationLabel(d)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as InternshipStatus | "")} className={`${inputClass} sm:w-40`}>
+            <option value="">All statuses</option>
+            <option value="ongoing">Ongoing</option>
+            <option value="completed">Completed</option>
+          </select>
+          {batchYears.length > 0 && (
+            <select
+              value={batchFilter}
+              onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
+              className={`${inputClass} sm:w-40`}
+            >
+              <option value="">All batches</option>
+              {batchYears.map((y) => (
+                <option key={y} value={y}>
+                  Batch {y}
+                </option>
+              ))}
+            </select>
+          )}
+          {durationOptions.length > 0 && (
+            <select
+              value={durationFilter}
+              onChange={(e) => setDurationFilter(e.target.value ? Number(e.target.value) : "")}
+              className={`${inputClass} sm:w-40`}
+            >
+              <option value="">All durations</option>
+              {durationOptions.map((d) => (
+                <option key={d} value={d}>
+                  {durationLabel(d)}
+                </option>
+              ))}
+            </select>
+          )}
           <Button
             variant="secondary"
             onClick={() => setViewMode((v) => (v === "company" ? "student" : "company"))}
@@ -628,7 +621,7 @@ export default function StaffInternships() {
           >
             {viewMode === "company" ? "Student-wise" : "Company-wise"}
           </Button>
-        </Card>
+        </div>
       )}
 
       {internships === null && <Skeleton className="h-24" />}
