@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { FileText } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -114,6 +114,12 @@ function OfferCard({ drive, offer, studentUid }: { drive: Drive; offer: Offer; s
   const [savingLetter, setSavingLetter] = useState(false);
   const [responding, setResponding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Collapsed by default — same fix as Drives/Alumni/Offers-on-the-staff-
+  // side: a student with several offers had every card's full detail (offer
+  // letter input, accept/decline, joining proof form) open at once. Status
+  // stays visible in the header even collapsed, since that's the one thing
+  // worth seeing at a glance.
+  const [expanded, setExpanded] = useState(false);
 
   const pendingResponse = offer.status === "received" || offer.status === "verified";
 
@@ -145,47 +151,54 @@ function OfferCard({ drive, offer, studentUid }: { drive: Drive; offer: Offer; s
 
   return (
     <Card>
-      <div className="flex items-start justify-between gap-4">
+      <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-start justify-between gap-4 text-left">
         <div>
           <h3 className="text-base font-semibold text-slate-900">{drive.companyName}</h3>
           <p className="text-sm text-slate-500">{offer.designation}</p>
         </div>
-        <Badge variant={OFFER_BADGE[offer.status]}>{offer.status}</Badge>
-      </div>
-
-      <p className="mt-3 text-sm text-slate-600">
-        CTC: <span className="font-medium text-slate-900">{offer.ctc} LPA</span>
-      </p>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <input
-          type="url"
-          placeholder="Offer letter link (Google Drive)"
-          value={letterUrl}
-          onChange={(e) => setLetterUrl(e.target.value)}
-          className={inputClass}
-        />
-        <Button variant="secondary" onClick={handleSaveLetter} loading={savingLetter}>
-          Save
-        </Button>
-      </div>
-
-      {pendingResponse && (
-        <div className="mt-4 flex gap-2 border-t border-slate-100 pt-4">
-          <Button onClick={() => handleRespond("accepted")} loading={responding}>
-            Accept
-          </Button>
-          <Button variant="secondary" onClick={() => handleRespond("declined")} loading={responding}>
-            Decline
-          </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge variant={OFFER_BADGE[offer.status]}>{offer.status}</Badge>
+          {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
         </div>
-      )}
+      </button>
 
-      {offer.status === "accepted" && (
-        <JoiningProofForm offerId={offer.offerId} studentId={studentUid} department={offer.department} />
-      )}
+      {expanded && (
+        <>
+          <p className="mt-3 text-sm text-slate-600">
+            CTC: <span className="font-medium text-slate-900">{offer.ctc} LPA</span>
+          </p>
 
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <input
+              type="url"
+              placeholder="Offer letter link (Google Drive)"
+              value={letterUrl}
+              onChange={(e) => setLetterUrl(e.target.value)}
+              className={inputClass}
+            />
+            <Button variant="secondary" onClick={handleSaveLetter} loading={savingLetter}>
+              Save
+            </Button>
+          </div>
+
+          {pendingResponse && (
+            <div className="mt-4 flex gap-2 border-t border-slate-100 pt-4">
+              <Button onClick={() => handleRespond("accepted")} loading={responding}>
+                Accept
+              </Button>
+              <Button variant="secondary" onClick={() => handleRespond("declined")} loading={responding}>
+                Decline
+              </Button>
+            </div>
+          )}
+
+          {offer.status === "accepted" && (
+            <JoiningProofForm offerId={offer.offerId} studentId={studentUid} department={offer.department} />
+          )}
+
+          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        </>
+      )}
     </Card>
   );
 }
