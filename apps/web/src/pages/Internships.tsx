@@ -1,4 +1,5 @@
-import { Building2 } from "lucide-react";
+import { useState } from "react";
+import { Building2, ChevronDown, ChevronUp } from "lucide-react";
 import type { Internship, InternshipMode, InternshipStatus } from "@placement-app/types";
 import { DB_NODES } from "@placement-app/types";
 import { useAuth } from "../auth/AuthContext";
@@ -25,48 +26,60 @@ function durationLabel(months: number): string {
 }
 
 function InternshipCard({ internship }: { internship: Internship }) {
+  // Collapsed by default — same fix as Offers/Drives: several internships
+  // (or a longer academic history of them) had every card's full detail
+  // open at once. Status stays visible in the header even collapsed.
+  const [expanded, setExpanded] = useState(false);
+
   return (
     <Card>
-      <div className="flex items-start justify-between gap-4">
+      <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-start justify-between gap-4 text-left">
         <div>
           <h3 className="text-base font-semibold text-slate-900">{internship.companyName}</h3>
           <p className="text-sm text-slate-500">{internship.role}</p>
         </div>
-        <Badge variant={STATUS_BADGE[internship.status]}>{internship.status}</Badge>
-      </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge variant={STATUS_BADGE[internship.status]}>{internship.status}</Badge>
+          {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+        </div>
+      </button>
 
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-        <div>
-          <dt className="text-slate-500">Duration</dt>
-          <dd className="font-medium text-slate-900">{durationLabel(internship.durationMonths)}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Start date</dt>
-          <dd className="font-medium text-slate-900">{new Date(internship.startDate).toLocaleDateString()}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Mode</dt>
-          <dd className="font-medium text-slate-900">{internship.mode ? MODE_LABEL[internship.mode] : "—"}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Stipend</dt>
-          <dd className="font-medium text-slate-900">{internship.stipend != null ? `₹${internship.stipend}/mo` : "—"}</dd>
-        </div>
-      </dl>
+      {expanded && (
+        <>
+          <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            <div>
+              <dt className="text-slate-500">Duration</dt>
+              <dd className="font-medium text-slate-900">{durationLabel(internship.durationMonths)}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Start date</dt>
+              <dd className="font-medium text-slate-900">{new Date(internship.startDate).toLocaleDateString()}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Mode</dt>
+              <dd className="font-medium text-slate-900">{internship.mode ? MODE_LABEL[internship.mode] : "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Stipend</dt>
+              <dd className="font-medium text-slate-900">{internship.stipend != null ? `₹${internship.stipend}/mo` : "—"}</dd>
+            </div>
+          </dl>
 
-      {(internship.offerLetterUrl || internship.completionCertificateUrl) && (
-        <div className="mt-3 flex flex-wrap gap-4 border-t border-slate-100 pt-3 text-sm">
-          {internship.offerLetterUrl && (
-            <a href={internship.offerLetterUrl} target="_blank" rel="noreferrer" className="font-medium text-brand-600 hover:underline">
-              Offer letter
-            </a>
+          {(internship.offerLetterUrl || internship.completionCertificateUrl) && (
+            <div className="mt-3 flex flex-wrap gap-4 border-t border-slate-100 pt-3 text-sm">
+              {internship.offerLetterUrl && (
+                <a href={internship.offerLetterUrl} target="_blank" rel="noreferrer" className="font-medium text-brand-600 hover:underline">
+                  Offer letter
+                </a>
+              )}
+              {internship.completionCertificateUrl && (
+                <a href={internship.completionCertificateUrl} target="_blank" rel="noreferrer" className="font-medium text-brand-600 hover:underline">
+                  Completion certificate
+                </a>
+              )}
+            </div>
           )}
-          {internship.completionCertificateUrl && (
-            <a href={internship.completionCertificateUrl} target="_blank" rel="noreferrer" className="font-medium text-brand-600 hover:underline">
-              Completion certificate
-            </a>
-          )}
-        </div>
+        </>
       )}
     </Card>
   );
