@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Briefcase, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { Briefcase, ChevronDown, ChevronUp, ExternalLink, Search } from "lucide-react";
 import type { Application, Drive } from "@placement-app/types";
 import { useAuth } from "../auth/AuthContext";
 import { applyToDrive, checkEligibility, isDriveVisibleToStudent } from "../lib/driveActions";
@@ -186,8 +186,10 @@ function DriveCard({ drive, application }: { drive: Drive; application: Applicat
 export default function Drives() {
   const { student } = useAuth();
   const [tab, setTab] = useState<"all" | "mine">("all");
+  const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Drive["status"] | "">("");
   const [roundFilter, setRoundFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"recent" | "date">("recent");
   const results = useMyApplications(student?.uid);
 
   // Already-applied drives always stay visible under "My Applications"
@@ -207,14 +209,32 @@ export default function Drives() {
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [baseVisible]);
 
+  // With 20+ drives, scrolling to find one by eye (or re-scrolling back to
+  // whichever one just changed status) got slow — search narrows by company/
+  // role, and "Recently updated" (the default) surfaces whatever just
+  // changed for you — an application status/round update, or a newly
+  // posted drive you haven't applied to yet — right at the top instead of
+  // wherever it happens to fall in an otherwise arbitrary order.
   const visible = useMemo(() => {
     if (!baseVisible) return baseVisible;
-    return baseVisible.filter((r) => {
-      if (statusFilter && r.drive.status !== statusFilter) return false;
-      if (roundFilter && currentRoundName(r.drive) !== roundFilter) return false;
-      return true;
-    });
-  }, [baseVisible, statusFilter, roundFilter]);
+    const term = search.trim().toLowerCase();
+    return baseVisible
+      .filter((r) => {
+        if (statusFilter && r.drive.status !== statusFilter) return false;
+        if (roundFilter && currentRoundName(r.drive) !== roundFilter) return false;
+        if (!term) return true;
+        return (
+          r.drive.companyName.toLowerCase().includes(term) ||
+          allDriveRoles(r.drive).some((role) => role.jobRole.toLowerCase().includes(term))
+        );
+      })
+      .sort((a, b) => {
+        if (sortBy === "date") return b.drive.driveDate - a.drive.driveDate;
+        const aRecent = a.record?.updatedAt ?? a.drive.createdAt;
+        const bRecent = b.record?.updatedAt ?? b.drive.createdAt;
+        return bRecent - aRecent;
+      });
+  }, [baseVisible, statusFilter, roundFilter, search, sortBy]);
 
   return (
     <div>
@@ -224,6 +244,17 @@ export default function Drives() {
         icon={Briefcase}
         gradient="from-blue-500 to-indigo-600"
       />
+
+      <div className="relative mb-4">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input
+          type="text"
+          placeholder="Search by company or role"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 sm:max-w-sm"
+        />
+      </div>
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 rounded-lg bg-slate-100 p-1 w-fit">
@@ -267,6 +298,14 @@ export default function Drives() {
                 ))}
               </select>
             )}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as "recent" | "date")}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
+              <option value="recent">Recently updated</option>
+              <option value="date">Drive date</option>
+            </select>
           </div>
         )}
       </div>
