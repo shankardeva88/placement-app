@@ -1,9 +1,10 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { BookOpen, KeyRound } from "lucide-react";
-import type { AttendanceStatus } from "@placement-app/types";
+import { BookOpen, ChevronDown, ChevronUp, KeyRound } from "lucide-react";
+import type { AttendanceStatus, TrainingBatch } from "@placement-app/types";
 import { useAuth } from "../auth/AuthContext";
 import { useMyTraining } from "../lib/trainingLib";
+import type { SessionWithAttendance } from "../lib/trainingLib";
 import { selfCheckIn } from "../lib/checkInLib";
 import { useToast } from "../components/ui/Toast";
 import { Card } from "../components/ui/Card";
@@ -74,6 +75,62 @@ function CheckInAction({ sessionId }: { sessionId: string }) {
   );
 }
 
+function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions: SessionWithAttendance[] }) {
+  // Collapsed by default — same fix as Offers/Drives/Internships: a
+  // student in several training batches (or one batch with a long session
+  // history) had every session list open at once. Session count stays
+  // visible in the header even collapsed, and a pending check-in gets its
+  // own badge so a student doesn't have to expand every batch just to see
+  // whether they still need to check in somewhere.
+  const [expanded, setExpanded] = useState(false);
+  const pendingCheckIn = sessions.some((s) => !s.attendance);
+
+  return (
+    <Card>
+      <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-start justify-between gap-4 text-left">
+        <div>
+          <h3 className="text-base font-semibold text-slate-900">{batch.name}</h3>
+          <p className="text-sm capitalize text-slate-500">{batch.skillTrack.replace("_", " ")}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge variant="neutral">
+            {sessions.length} session{sessions.length === 1 ? "" : "s"}
+          </Badge>
+          {pendingCheckIn && <Badge variant="warning">Check-in pending</Badge>}
+          {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+        </div>
+      </button>
+
+      {expanded &&
+        (sessions.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-500">No sessions scheduled yet.</p>
+        ) : (
+          <ul className="mt-4 divide-y divide-slate-100">
+            {sessions
+              .slice()
+              .sort((a, b) => a.session.date - b.session.date)
+              .map(({ session, attendance }) => (
+                <li key={session.sessionId} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                  <div>
+                    <p className="font-medium text-slate-800">{session.topic}</p>
+                    <p className="text-xs text-slate-500">
+                      {new Date(session.date).toLocaleDateString()} · {session.startTime}–
+                      {session.endTime} · {session.mode}
+                    </p>
+                  </div>
+                  {attendance ? (
+                    <Badge variant={ATTENDANCE_BADGE[attendance.status]}>{attendance.status}</Badge>
+                  ) : (
+                    <CheckInAction sessionId={session.sessionId} />
+                  )}
+                </li>
+              ))}
+          </ul>
+        ))}
+    </Card>
+  );
+}
+
 export default function Training() {
   const { student } = useAuth();
   const batches = useMyTraining(student?.uid);
@@ -95,39 +152,7 @@ export default function Training() {
 
       <div className="space-y-4">
         {batches?.map(({ batch, sessions }) => (
-          <Card key={batch.batchId}>
-            <h3 className="text-base font-semibold text-slate-900">{batch.name}</h3>
-            <p className="text-sm capitalize text-slate-500">{batch.skillTrack.replace("_", " ")}</p>
-
-            {sessions.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">No sessions scheduled yet.</p>
-            ) : (
-              <ul className="mt-4 divide-y divide-slate-100">
-                {sessions
-                  .slice()
-                  .sort((a, b) => a.session.date - b.session.date)
-                  .map(({ session, attendance }) => (
-                    <li
-                      key={session.sessionId}
-                      className="flex items-center justify-between gap-3 py-2.5 text-sm"
-                    >
-                      <div>
-                        <p className="font-medium text-slate-800">{session.topic}</p>
-                        <p className="text-xs text-slate-500">
-                          {new Date(session.date).toLocaleDateString()} · {session.startTime}–
-                          {session.endTime} · {session.mode}
-                        </p>
-                      </div>
-                      {attendance ? (
-                        <Badge variant={ATTENDANCE_BADGE[attendance.status]}>{attendance.status}</Badge>
-                      ) : (
-                        <CheckInAction sessionId={session.sessionId} />
-                      )}
-                    </li>
-                  ))}
-              </ul>
-            )}
-          </Card>
+          <TrainingBatchCard key={batch.batchId} batch={batch} sessions={sessions} />
         ))}
       </div>
     </div>
