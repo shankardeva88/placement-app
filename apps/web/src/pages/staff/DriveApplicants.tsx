@@ -586,16 +586,24 @@ export default function DriveApplicants() {
             const count = roundCounts[r.roundId] ?? 0;
             if (count === 0) return null;
             const active = roundFilter === r.roundId;
+            // The round marked in_progress on the drive is the one actually
+            // happening right now — without a marker, "At Technical 1 (45)"
+            // and "At Coding & Technical 2 (11)" look identical and you
+            // can't tell which is the live round vs. one people already
+            // moved past.
+            const running = r.status === "in_progress";
             return (
               <button
                 key={r.roundId}
                 type="button"
                 onClick={() => toggleRoundChip(r.roundId)}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors ${
                   ROUND_CHIP_COLORS[i % ROUND_CHIP_COLORS.length]
-                } ${active ? "ring-2 ring-offset-1 ring-brand-500" : ""}`}
+                } ${running ? "font-semibold" : "font-medium"} ${active ? "ring-2 ring-offset-1 ring-brand-500" : ""}`}
               >
+                {running && <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" />}
                 At {r.name} ({count})
+                {running && <span className="text-[10px] font-normal opacity-70">· now</span>}
               </button>
             );
           })}
