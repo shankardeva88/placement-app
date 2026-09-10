@@ -564,7 +564,8 @@ export default function DriveApplicants() {
           clear. Zero-count chips are hidden rather than shown grey — a drive
           just starting out shouldn't show five empty buckets. */}
       {rows !== null && rows.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
+          <div className="flex flex-wrap items-center gap-2">
           {STATUS_CHIP_OPTIONS.map((s) => {
             const count = statusCounts[s] ?? 0;
             if (count === 0) return null;
@@ -607,38 +608,47 @@ export default function DriveApplicants() {
               </button>
             );
           })}
-          {attendanceCounts.present > 0 && (
-            <button
-              type="button"
-              onClick={() => toggleAttendanceChip("present")}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${CHIP_CLASSES.success} ${
-                attendanceFilter === "present" ? "ring-2 ring-offset-1 ring-brand-500" : ""
-              }`}
-            >
-              Present ({attendanceCounts.present})
-            </button>
-          )}
-          {attendanceCounts.absent > 0 && (
-            <button
-              type="button"
-              onClick={() => toggleAttendanceChip("absent")}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${CHIP_CLASSES.danger} ${
-                attendanceFilter === "absent" ? "ring-2 ring-offset-1 ring-brand-500" : ""
-              }`}
-            >
-              Absent ({attendanceCounts.absent})
-            </button>
-          )}
-          {attendanceCounts.unmarked > 0 && (
-            <button
-              type="button"
-              onClick={() => toggleAttendanceChip("unmarked")}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${CHIP_CLASSES.neutral} ${
-                attendanceFilter === "unmarked" ? "ring-2 ring-offset-1 ring-brand-500" : ""
-              }`}
-            >
-              Attendance not marked ({attendanceCounts.unmarked})
-            </button>
+          </div>
+
+          {/* Attendance is a different question from where someone is in the
+              pipeline — kept in its own group on the right so it doesn't
+              read as just another status. */}
+          {(attendanceCounts.present > 0 || attendanceCounts.absent > 0 || attendanceCounts.unmarked > 0) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {attendanceCounts.present > 0 && (
+                <button
+                  type="button"
+                  onClick={() => toggleAttendanceChip("present")}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${CHIP_CLASSES.success} ${
+                    attendanceFilter === "present" ? "ring-2 ring-offset-1 ring-brand-500" : ""
+                  }`}
+                >
+                  Present ({attendanceCounts.present})
+                </button>
+              )}
+              {attendanceCounts.absent > 0 && (
+                <button
+                  type="button"
+                  onClick={() => toggleAttendanceChip("absent")}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${CHIP_CLASSES.danger} ${
+                    attendanceFilter === "absent" ? "ring-2 ring-offset-1 ring-brand-500" : ""
+                  }`}
+                >
+                  Absent ({attendanceCounts.absent})
+                </button>
+              )}
+              {attendanceCounts.unmarked > 0 && (
+                <button
+                  type="button"
+                  onClick={() => toggleAttendanceChip("unmarked")}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${CHIP_CLASSES.neutral} ${
+                    attendanceFilter === "unmarked" ? "ring-2 ring-offset-1 ring-brand-500" : ""
+                  }`}
+                >
+                  Attendance not marked ({attendanceCounts.unmarked})
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -869,29 +879,33 @@ export default function DriveApplicants() {
               )}
               {/* Toggle, not a one-way mark — clicking the already-active one
                   clears it back to "not marked" (see handleMarkAttendance).
-                  Separate from status/round entirely: attendance just
-                  records who showed up, it doesn't move anyone forward or
-                  reject them on its own. */}
-              <Button
-                variant="secondary"
-                onClick={() => handleMarkAttendance(application.applicationId, application.attendance, "present")}
-                loading={markingAttendanceId === application.applicationId}
-                className={`!px-2 !py-1.5 ${
-                  application.attendance === "present" ? "!bg-emerald-500 !text-white" : "!bg-emerald-50 !text-emerald-700"
-                }`}
-                title="Present"
-              >
-                <Check className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => handleMarkAttendance(application.applicationId, application.attendance, "absent")}
-                loading={markingAttendanceId === application.applicationId}
-                className={`!px-2 !py-1.5 ${application.attendance === "absent" ? "!bg-red-500 !text-white" : "!bg-red-50 !text-red-700"}`}
-                title="Absent"
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
+                  Kept in its own group with a divider: attendance is a
+                  different question from where someone is in the pipeline —
+                  it just records who showed up, it doesn't move anyone
+                  forward or reject them on its own. */}
+              <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+                <span className="text-xs text-slate-400">Attendance</span>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleMarkAttendance(application.applicationId, application.attendance, "present")}
+                  loading={markingAttendanceId === application.applicationId}
+                  className={`!px-2 !py-1.5 ${
+                    application.attendance === "present" ? "!bg-emerald-500 !text-white" : "!bg-emerald-50 !text-emerald-700"
+                  }`}
+                  title="Present"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleMarkAttendance(application.applicationId, application.attendance, "absent")}
+                  loading={markingAttendanceId === application.applicationId}
+                  className={`!px-2 !py-1.5 ${application.attendance === "absent" ? "!bg-red-500 !text-white" : "!bg-red-50 !text-red-700"}`}
+                  title="Absent"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
               <Button
                 variant="danger"
                 onClick={() =>
