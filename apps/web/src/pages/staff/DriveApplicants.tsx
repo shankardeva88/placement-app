@@ -62,6 +62,19 @@ const CHIP_CLASSES: Record<BadgeVariant, string> = {
 // alone doesn't say which one, and that's the exact gap this summary closes.
 const STATUS_CHIP_OPTIONS = STATUS_OPTIONS.filter((s) => s !== "in_round");
 
+// Every round chip used to be the same amber — with 3-4 rounds you
+// couldn't tell at a glance which chip (or which filtered list) was which.
+// One distinct hue per round position instead, cycled if a drive somehow
+// has more rounds than colors.
+const ROUND_CHIP_COLORS = [
+  "bg-indigo-100 text-indigo-700 hover:bg-indigo-200",
+  "bg-cyan-100 text-cyan-700 hover:bg-cyan-200",
+  "bg-violet-100 text-violet-700 hover:bg-violet-200",
+  "bg-teal-100 text-teal-700 hover:bg-teal-200",
+  "bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200",
+  "bg-sky-100 text-sky-700 hover:bg-sky-200",
+];
+
 // Every column a company placement team's spreadsheet format asks for is
 // already on the Student/Application record — this just lays it out in
 // their exact order instead of retyping it by hand for every drive.
@@ -569,7 +582,7 @@ export default function DriveApplicants() {
               </button>
             );
           })}
-          {drive?.rounds?.map((r) => {
+          {drive?.rounds?.map((r, i) => {
             const count = roundCounts[r.roundId] ?? 0;
             if (count === 0) return null;
             const active = roundFilter === r.roundId;
@@ -578,9 +591,9 @@ export default function DriveApplicants() {
                 key={r.roundId}
                 type="button"
                 onClick={() => toggleRoundChip(r.roundId)}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${CHIP_CLASSES.warning} ${
-                  active ? "ring-2 ring-offset-1 ring-brand-500" : ""
-                }`}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  ROUND_CHIP_COLORS[i % ROUND_CHIP_COLORS.length]
+                } ${active ? "ring-2 ring-offset-1 ring-brand-500" : ""}`}
               >
                 At {r.name} ({count})
               </button>
