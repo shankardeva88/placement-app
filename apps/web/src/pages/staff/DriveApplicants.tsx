@@ -129,7 +129,7 @@ export default function DriveApplicants() {
   const [bulkApplying, setBulkApplying] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(0);
   const [bulkTotal, setBulkTotal] = useState(0);
-  const [sortBy, setSortBy] = useState<"default" | "rollNo" | "cgpa">("default");
+  const [sortBy, setSortBy] = useState<"default" | "rollNo" | "cgpa">("rollNo");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "">("");
   const [roundFilter, setRoundFilter] = useState("");
