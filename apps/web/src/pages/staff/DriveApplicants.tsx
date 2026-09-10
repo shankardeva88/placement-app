@@ -794,7 +794,8 @@ export default function DriveApplicants() {
                       {student.rollNo} — {student.name}
                     </p>
                     <p className="text-sm text-slate-500">
-                      {student.department} · CGPA {student.cgpa}
+                      {student.department} · CGPA {student.cgpa} · Backlogs {student.activeBacklogs}
+                      {student.entranceRank && ` · ${student.entranceType ? `${student.entranceType}: ` : ""}${student.entranceRank}`}
                       {drive && isMultiRole(drive) && ` · Applied for ${applicationRoleLabel(drive, application)}`}
                     </p>
                   </>
