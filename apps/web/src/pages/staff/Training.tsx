@@ -720,6 +720,13 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
     const s = students?.find((x) => x.uid === uid);
     return s ? `${s.rollNo} — ${s.name}` : uid;
   };
+  // Sorted here rather than trusting stored order — a batch saved before
+  // students were added, or edited via an older build, can still have
+  // studentIds in whatever order they were checked in, not roll-no order.
+  const rosterIds = useMemo(() => {
+    const rollNoOf = new Map((students ?? []).map((s) => [s.uid, s.rollNo]));
+    return [...batch.studentIds].sort((a, b) => (rollNoOf.get(a) ?? "").localeCompare(rollNoOf.get(b) ?? ""));
+  }, [batch.studentIds, students]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<AttendanceStatus>("present");
@@ -729,11 +736,11 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
   // where they just finished marking, rather than making them go find this
   // same session again on a separate report page.
   async function handleCopySummary() {
-    const present = batch.studentIds.filter((uid) => attendance[uid] === "present");
-    const late = batch.studentIds.filter((uid) => attendance[uid] === "late");
-    const absent = batch.studentIds.filter((uid) => attendance[uid] === "absent");
-    const unmarked = batch.studentIds.filter((uid) => !attendance[uid]);
-    const total = batch.studentIds.length;
+    const present = rosterIds.filter((uid) => attendance[uid] === "present");
+    const late = rosterIds.filter((uid) => attendance[uid] === "late");
+    const absent = rosterIds.filter((uid) => attendance[uid] === "absent");
+    const unmarked = rosterIds.filter((uid) => !attendance[uid]);
+    const total = rosterIds.length;
     const pct = total > 0 ? Math.round(((present.length + late.length) / total) * 100) : 0;
 
     const lines = [
@@ -772,14 +779,14 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
   }
 
   function toggleSelectAll() {
-    setSelectedIds((prev) => (prev.size === batch.studentIds.length ? new Set() : new Set(batch.studentIds)));
+    setSelectedIds((prev) => (prev.size === rosterIds.length ? new Set() : new Set(rosterIds)));
   }
 
   async function handleMarkAllPresent() {
     if (!firebaseUser) return;
     setBulkBusy(true);
     try {
-      await markAllPresent(session.sessionId, batch.studentIds, batch.department, firebaseUser.uid);
+      await markAllPresent(session.sessionId, rosterIds, batch.department, firebaseUser.uid);
     } finally {
       setBulkBusy(false);
     }
@@ -790,7 +797,7 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
     setBulkBusy(true);
     try {
       const already = new Set(Object.entries(attendance).filter(([, v]) => v != null).map(([uid]) => uid));
-      await markRemainingAbsent(session.sessionId, batch.studentIds, batch.department, already, firebaseUser.uid);
+      await markRemainingAbsent(session.sessionId, rosterIds, batch.department, already, firebaseUser.uid);
     } finally {
       setBulkBusy(false);
     }
@@ -833,9 +840,9 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
         <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
           <input
             type="checkbox"
-            checked={selectedIds.size > 0 && selectedIds.size === batch.studentIds.length}
+            checked={selectedIds.size > 0 && selectedIds.size === rosterIds.length}
             ref={(el) => {
-              if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < batch.studentIds.length;
+              if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < rosterIds.length;
             }}
             onChange={toggleSelectAll}
           />
@@ -860,7 +867,7 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
       </div>
 
       <div className="space-y-1">
-        {batch.studentIds.map((uid) => (
+        {rosterIds.map((uid) => (
           <div key={uid} className="flex items-center justify-between gap-3 py-1 text-sm">
             <label className="flex items-center gap-2 text-slate-700">
               <input type="checkbox" checked={selectedIds.has(uid)} onChange={() => toggleSelected(uid)} />
