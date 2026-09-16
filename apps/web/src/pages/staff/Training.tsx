@@ -87,12 +87,14 @@ function CreateBatchForm({ onDone }: { onDone: () => void }) {
     setError(null);
     setSubmitting(true);
     try {
+      const rollNoOf = new Map((students ?? []).map((s) => [s.uid, s.rollNo]));
+      const sortedIds = [...selectedIds].sort((a, b) => (rollNoOf.get(a) ?? "").localeCompare(rollNoOf.get(b) ?? ""));
       await createTrainingBatch({
         name,
         skillTrack,
         department,
         batchYear,
-        studentIds: selectedIds,
+        studentIds: sortedIds,
         trainerId: firebaseUser.uid,
       });
       showToast("Batch created");
@@ -222,7 +224,9 @@ function EditBatchForm({ batch, onDone }: { batch: TrainingBatch; onDone: () => 
     setError(null);
     setSubmitting(true);
     try {
-      await updateTrainingBatch(batch.batchId, { name, skillTrack, department, batchYear, studentIds: selectedIds });
+      const rollNoOf = new Map((students ?? []).map((s) => [s.uid, s.rollNo]));
+      const sortedIds = [...selectedIds].sort((a, b) => (rollNoOf.get(a) ?? "").localeCompare(rollNoOf.get(b) ?? ""));
+      await updateTrainingBatch(batch.batchId, { name, skillTrack, department, batchYear, studentIds: sortedIds });
       showToast("Batch updated");
       onDone();
     } catch (err) {
