@@ -38,6 +38,11 @@ import { TrendLineChart } from "../../components/charts/TrendLineChart";
 const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
 const CAN_CREATE_MODULE_ROLES = ["coordinator", "hod", "dean", "cpo", "admin"];
 const CAN_LOG_EVAL_ROLES = ["faculty_mentor", "coordinator", "hod", "dean", "cpo", "admin"];
+// Coordinator/hod/dean/cpo/admin have no mentees of their own — the
+// mentee-scoped LogEvaluationsSection below always hides itself for them
+// (see its comment). This gives them a way to log a one-off evaluation for
+// any student instead, without needing a mentor relationship set up.
+const CAN_LOG_EVAL_FOR_ANY_ROLES = ["coordinator", "hod", "dean", "cpo", "admin"];
 
 // "Advanced" in the linked drive's process — cleared at least the first
 // round, not just applied. This is what a module linked to a drive filters
@@ -614,6 +619,104 @@ function LogEvaluationsSection({
   );
 }
 
+function LogEvalForAnyStudentSection({
+  moduleId,
+  moduleStart,
+  moduleEnd,
+  driveId,
+  driveName,
+}: {
+  moduleId: string;
+  moduleStart: number;
+  moduleEnd: number;
+  driveId?: string;
+  driveName?: string;
+}) {
+  const { appUser, firebaseUser } = useAuth();
+  const students = useStudentsDirectory(appUser);
+  const evaluations = useMockEvaluations(appUser);
+  const applications = useAllApplications(appUser);
+  const [search, setSearch] = useState("");
+
+  // Same "cleared at least round 1" gate as LogEvaluationsSection, so a
+  // coordinator picking a random student for a linked module still only
+  // finds students that module is actually meant to cover.
+  const advancedIds = useMemo(() => {
+    if (!driveId || !applications) return null;
+    return new Set(
+      applications.filter((a) => a.driveId === driveId && ADVANCED_STATUSES.includes(a.status)).map((a) => a.studentId)
+    );
+  }, [driveId, applications]);
+
+  const evalsByStudent = useMemo(() => {
+    const map: Record<string, (EvalRatingFields & { date: number; notes?: string })[]> = {};
+    for (const e of evaluations ?? []) {
+      if (e.moduleId !== moduleId) continue;
+      map[e.studentId] ??= [];
+      map[e.studentId].push(e);
+    }
+    return map;
+  }, [evaluations, moduleId]);
+
+  const eligibleStudents = useMemo(() => {
+    let pool = (students ?? []).filter((s) => !s.isAlumni);
+    if (driveId && advancedIds) pool = pool.filter((s) => advancedIds.has(s.uid));
+    return pool;
+  }, [students, driveId, advancedIds]);
+
+  // Unlike LogEvaluationsSection's fixed mentee roster, this is meant for a
+  // coordinator/hod dipping into the whole department — showing everyone at
+  // once would be a wall of hundreds of names, so nothing renders until the
+  // search actually narrows it down.
+  const matches = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    return eligibleStudents
+      .filter((s) => s.rollNo.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
+      .sort((a, b) => a.rollNo.localeCompare(b.rollNo))
+      .slice(0, 20);
+  }, [eligibleStudents, search]);
+
+  if (!firebaseUser) return null;
+
+  const stillLoading = students === null || (!!driveId && advancedIds === null);
+
+  return (
+    <Card className="mb-4">
+      <h3 className="mb-1 text-base font-semibold text-slate-900">Conduct a mock interview for any student</h3>
+      <p className="mb-3 text-sm text-slate-500">
+        Not limited to your mentees — search any {driveId ? `student who's cleared at least the first round of ${driveName ?? "the linked drive"}` : "student in your department"} to log a one-off evaluation.
+      </p>
+      <input
+        type="text"
+        placeholder="Search by roll no or name…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className={inputClass}
+      />
+      {stillLoading ? (
+        <Skeleton className="mt-3 h-12" />
+      ) : search.trim() === "" ? null : matches.length === 0 ? (
+        <p className="mt-3 text-sm text-slate-400">No matching student found.</p>
+      ) : (
+        <ul className="mt-3 divide-y divide-slate-100">
+          {matches.map((s) => (
+            <MenteeEvalRow
+              key={s.studentId}
+              student={s}
+              moduleId={moduleId}
+              moduleStart={moduleStart}
+              moduleEnd={moduleEnd}
+              evaluations={evalsByStudent[s.uid] ?? []}
+              mentorId={firebaseUser.uid}
+            />
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 function StudentProgressPanel({
   student,
   evaluations,
@@ -1022,6 +1125,7 @@ export default function MockEvaluations() {
 
   const canCreateModule = !!appUser && CAN_CREATE_MODULE_ROLES.includes(appUser.role);
   const canLogEval = !!appUser && CAN_LOG_EVAL_ROLES.includes(appUser.role);
+  const canLogEvalForAny = !!appUser && CAN_LOG_EVAL_FOR_ANY_ROLES.includes(appUser.role);
 
   const sortedModules = useMemo(() => (modules ?? []).slice().sort((a, b) => b.startDate - a.startDate), [modules]);
   const selectedModule = sortedModules.find((m) => m.moduleId === selectedModuleId) ?? sortedModules[0];
@@ -1095,6 +1199,15 @@ export default function MockEvaluations() {
             <>
               {canLogEval && (
                 <LogEvaluationsSection
+                  moduleId={selectedModule.moduleId}
+                  moduleStart={selectedModule.startDate}
+                  moduleEnd={selectedModule.endDate}
+                  driveId={selectedModule.driveId}
+                  driveName={selectedModule.driveId ? drives[selectedModule.driveId]?.companyName : undefined}
+                />
+              )}
+              {canLogEvalForAny && (
+                <LogEvalForAnyStudentSection
                   moduleId={selectedModule.moduleId}
                   moduleStart={selectedModule.startDate}
                   moduleEnd={selectedModule.endDate}
