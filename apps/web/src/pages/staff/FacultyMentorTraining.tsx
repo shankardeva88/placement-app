@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight } from "lucide-react";
 import type { AttendanceStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
@@ -133,28 +133,46 @@ export default function FacultyMentorTraining() {
     () => Array.from(new Set(menteeStudents.map((s) => s.batchYear))).sort((a, b) => a - b),
     [menteeStudents]
   );
-  // Which training batches actually have a mentee in them — a mentor's
-  // mentees are typically split across several training batches (aptitude,
-  // coding, etc.), and without this every mentee shows collapsed in one long
-  // list with no way to jump to "just the ones in Batch X".
+  // Scoped to the selected batch year first — otherwise the Training
+  // dropdown below kept listing trainings that only had, say, Batch 2028
+  // mentees in them while Batch 2027 was selected, since it was built from
+  // every mentee regardless of the batch filter.
+  const batchYearFilteredMentees = useMemo(
+    () => (batchFilter ? menteeStudents.filter((s) => s.batchYear === batchFilter) : menteeStudents),
+    [menteeStudents, batchFilter]
+  );
+
+  // Which training batches actually have a (batch-year-filtered) mentee in
+  // them — a mentor's mentees are typically split across several training
+  // batches (aptitude, coding, etc.), and without this every mentee shows
+  // collapsed in one long list with no way to jump to "just the ones in
+  // Batch X".
   const menteeTrainingBatches = useMemo(() => {
     if (!allBatches) return [];
-    const menteeUids = new Set(menteeStudents.map((s) => s.uid));
+    const menteeUids = new Set(batchYearFilteredMentees.map((s) => s.uid));
     return allBatches
       .filter((b) => b.studentIds.some((uid) => menteeUids.has(uid)))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [allBatches, menteeStudents]);
+  }, [allBatches, batchYearFilteredMentees]);
+
+  // If the batch-year filter changes and the previously-picked training no
+  // longer applies to it, clear it rather than leaving a stale selection
+  // that no longer matches any option in the (now-narrower) dropdown.
+  useEffect(() => {
+    if (trainingFilter && !menteeTrainingBatches.some((b) => b.batchId === trainingFilter)) {
+      setTrainingFilter("");
+    }
+  }, [trainingFilter, menteeTrainingBatches]);
 
   const visibleMentees = useMemo(() => {
-    let list = menteeStudents;
-    if (batchFilter) list = list.filter((s) => s.batchYear === batchFilter);
+    let list = batchYearFilteredMentees;
     if (trainingFilter) {
       const batch = menteeTrainingBatches.find((b) => b.batchId === trainingFilter);
       const ids = new Set(batch?.studentIds ?? []);
       list = list.filter((s) => ids.has(s.uid));
     }
     return list;
-  }, [menteeStudents, batchFilter, trainingFilter, menteeTrainingBatches]);
+  }, [batchYearFilteredMentees, trainingFilter, menteeTrainingBatches]);
 
   // "What's going on" — sessions in the last day through the next 7 days,
   // same window the coordinator dashboard widget uses, scoped to this
