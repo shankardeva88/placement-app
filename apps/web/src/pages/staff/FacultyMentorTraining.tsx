@@ -35,13 +35,20 @@ function MenteeTrainingRow({ student, trainingFilter }: { student: Student; trai
   // mentee can still be in several training batches at once — without this,
   // expanding a card after filtering to one training showed every batch's
   // sessions mixed together, not just the one being filtered on.
+  // Sessions scheduled for later still show up in useMyTraining (the
+  // student's own page wants to see what's coming), but there's nothing to
+  // report on a session that hasn't happened yet — for a training running
+  // over many days, including them turned this into a very long list of
+  // mostly "Not marked" future dates. Cut it off at today.
+  const now = Date.now();
   const allSessions = useMemo(() => {
     if (!batches) return [];
     return batches
       .filter((b) => !trainingFilter || b.batch.batchId === trainingFilter)
       .flatMap((b) => b.sessions.map((s) => ({ ...s, batchName: b.batch.name })))
+      .filter((s) => s.session.date <= now)
       .sort((a, b) => b.session.date - a.session.date);
-  }, [batches, trainingFilter]);
+  }, [batches, trainingFilter, now]);
 
   const marked = allSessions.filter((s) => s.attendance !== null);
   const present = marked.filter((s) => s.attendance?.status === "present" || s.attendance?.status === "late");
@@ -109,6 +116,7 @@ export default function FacultyMentorTraining() {
 
   const [batchFilter, setBatchFilter] = useState<number | "">("");
   const [trainingFilter, setTrainingFilter] = useState("");
+  const [weekExpanded, setWeekExpanded] = useState(false);
 
   const menteeStudents = useMemo(() => {
     if (!mentees) return [];
@@ -163,6 +171,22 @@ export default function FacultyMentorTraining() {
       .map((s) => ({ session: s, batch: batchById.get(s.batchId) }));
   }, [allBatches, allSessions, myDept]);
 
+  // A multi-day training (10 daily sessions, say) filled this whole widget
+  // with the entire week at once. Show just today by default — that's what
+  // "what's currently running" actually means day to day — and let the rest
+  // of the week's sessions expand on request instead of always taking the
+  // space.
+  const { todaySessions, restOfWeekSessions } = useMemo(() => {
+    if (!currentSessions) return { todaySessions: [], restOfWeekSessions: [] };
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    const today = currentSessions.filter((s) => s.session.date >= todayStart.getTime() && s.session.date <= todayEnd.getTime());
+    const rest = currentSessions.filter((s) => s.session.date < todayStart.getTime() || s.session.date > todayEnd.getTime());
+    return { todaySessions: today, restOfWeekSessions: rest };
+  }, [currentSessions]);
+
   const loading = mentees === null || students === null;
 
   return (
@@ -181,17 +205,46 @@ export default function FacultyMentorTraining() {
         <Card className="mb-6 text-sm text-slate-400">No training sessions in the last day or next 7 days.</Card>
       ) : (
         <Card className="mb-6">
-          <ul className="divide-y divide-slate-100">
-            {currentSessions.map(({ session, batch }) => (
-              <li key={session.sessionId} className="py-2.5 text-sm">
-                <p className="font-medium text-slate-800">{session.topic}</p>
-                <p className="text-xs text-slate-500">
-                  {batch?.name ?? session.batchId} · {new Date(session.date).toLocaleDateString()} · {session.startTime}–{session.endTime} ·{" "}
-                  {session.mode}
-                </p>
-              </li>
-            ))}
-          </ul>
+          {todaySessions.length === 0 ? (
+            <p className="text-sm text-slate-400">No sessions today.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {todaySessions.map(({ session, batch }) => (
+                <li key={session.sessionId} className="py-2.5 text-sm">
+                  <p className="font-medium text-slate-800">{session.topic}</p>
+                  <p className="text-xs text-slate-500">
+                    {batch?.name ?? session.batchId} · {new Date(session.date).toLocaleDateString()} · {session.startTime}–{session.endTime} ·{" "}
+                    {session.mode}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+          {restOfWeekSessions.length > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={() => setWeekExpanded((v) => !v)}
+                className="mt-3 flex items-center gap-1 border-t border-slate-100 pt-3 text-xs font-medium text-brand-700 hover:text-brand-800"
+              >
+                {weekExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                {weekExpanded ? "Hide" : "Show"} {restOfWeekSessions.length} more session{restOfWeekSessions.length === 1 ? "" : "s"} this week
+              </button>
+              {weekExpanded && (
+                <ul className="mt-2 divide-y divide-slate-100">
+                  {restOfWeekSessions.map(({ session, batch }) => (
+                    <li key={session.sessionId} className="py-2.5 text-sm">
+                      <p className="font-medium text-slate-800">{session.topic}</p>
+                      <p className="text-xs text-slate-500">
+                        {batch?.name ?? session.batchId} · {new Date(session.date).toLocaleDateString()} · {session.startTime}–
+                        {session.endTime} · {session.mode}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
         </Card>
       )}
 
