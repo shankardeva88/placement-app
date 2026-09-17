@@ -50,6 +50,7 @@ export function MenteeRow({ student }: { student: Student }) {
             <p className="text-sm text-slate-500">
               {student.department} · Batch {student.batchYear} · CGPA {student.cgpa} · Backlogs {student.activeBacklogs}
               {student.entranceRank && ` · ${student.entranceType ? `${student.entranceType}: ` : ""}${student.entranceRank}`}
+              {student.studentPhone && ` · Mobile: ${student.studentPhone}`}
             </p>
             {(student.skills ?? []).length > 0 && (
               <p className="mt-0.5 truncate text-xs text-slate-400">{(student.skills ?? []).join(", ")}</p>
