@@ -282,7 +282,7 @@ export default function FacultyMentorTraining() {
             ))}
           </select>
         )}
-        {menteeTrainingBatches.length > 1 && (
+        {menteeTrainingBatches.length > 0 && (
           <select
             value={trainingFilter}
             onChange={(e) => setTrainingFilter(e.target.value)}
