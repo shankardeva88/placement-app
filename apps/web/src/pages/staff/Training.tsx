@@ -731,6 +731,14 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<AttendanceStatus>("present");
 
+  const attendanceCounts = useMemo(() => {
+    const present = rosterIds.filter((uid) => attendance[uid] === "present").length;
+    const late = rosterIds.filter((uid) => attendance[uid] === "late").length;
+    const absent = rosterIds.filter((uid) => attendance[uid] === "absent").length;
+    const unmarked = rosterIds.length - present - late - absent;
+    return { present, late, absent, unmarked };
+  }, [rosterIds, attendance]);
+
   // A coordinator's actual workflow after finishing attendance is "paste
   // this into the faculty group" — a ready-to-share text summary right
   // where they just finished marking, rather than making them go find this
@@ -822,6 +830,13 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
   return (
     <div className="mt-2 space-y-3 rounded-lg bg-slate-50 p-3">
       <CheckInPanel session={session} />
+
+      <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3 text-xs">
+        <Badge variant="success">Present ({attendanceCounts.present})</Badge>
+        <Badge variant="warning">Late ({attendanceCounts.late})</Badge>
+        <Badge variant="danger">Absent ({attendanceCounts.absent})</Badge>
+        {attendanceCounts.unmarked > 0 && <Badge variant="neutral">Not marked ({attendanceCounts.unmarked})</Badge>}
+      </div>
 
       <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
         <Button variant="secondary" onClick={handleMarkAllPresent} loading={bulkBusy} className="!px-2 !py-1 text-xs">
