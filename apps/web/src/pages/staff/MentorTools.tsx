@@ -714,6 +714,7 @@ function AssignMentorSection() {
   const [rosterMentorFilter, setRosterMentorFilter] = useState("");
   const [assignBatchFilter, setAssignBatchFilter] = useState<number | "">("");
   const [rosterBatchFilter, setRosterBatchFilter] = useState<number | "">("");
+  const [rosterSearch, setRosterSearch] = useState("");
 
   const batchYears = useMemo(
     () => Array.from(new Set((students ?? []).map((s) => s.batchYear))).sort((a, b) => a - b),
@@ -757,6 +758,7 @@ function AssignMentorSection() {
   // "mentor: comma-separated names" text it used to be.
   const rosterRows = useMemo(() => {
     const rows: { mentorUid: string; mentorName: string; student: Student }[] = [];
+    const q = rosterSearch.trim().toLowerCase();
     for (const [mentorUid, menteeUids] of menteesByMentor.entries()) {
       if (rosterMentorFilter && mentorUid !== rosterMentorFilter) continue;
       const mentorName = mentorsByUid[mentorUid]?.name ?? mentorUid;
@@ -764,11 +766,14 @@ function AssignMentorSection() {
         const student = studentsByUid[uid];
         if (!student) continue;
         if (rosterBatchFilter && student.batchYear !== rosterBatchFilter) continue;
+        if (q && !student.rollNo.toLowerCase().includes(q) && !student.name.toLowerCase().includes(q) && !mentorName.toLowerCase().includes(q)) {
+          continue;
+        }
         rows.push({ mentorUid, mentorName, student });
       }
     }
     return rows.sort((a, b) => a.mentorName.localeCompare(b.mentorName) || a.student.rollNo.localeCompare(b.student.rollNo));
-  }, [menteesByMentor, mentorsByUid, studentsByUid, rosterMentorFilter, rosterBatchFilter]);
+  }, [menteesByMentor, mentorsByUid, studentsByUid, rosterMentorFilter, rosterBatchFilter, rosterSearch]);
 
   function handleMentorChange(uid: string) {
     setFacultyId(uid);
@@ -880,6 +885,13 @@ function AssignMentorSection() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Current mentor assignments</h4>
           <div className="flex flex-wrap gap-2">
+            <input
+              type="text"
+              placeholder="Search roll no, name, or mentor…"
+              value={rosterSearch}
+              onChange={(e) => setRosterSearch(e.target.value)}
+              className={`${inputClass} sm:w-56`}
+            />
             <select
               value={rosterBatchFilter}
               onChange={(e) => setRosterBatchFilter(e.target.value ? Number(e.target.value) : "")}
