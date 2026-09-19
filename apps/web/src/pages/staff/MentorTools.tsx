@@ -933,6 +933,7 @@ function AssignMentorSection() {
                   <th className="py-2 pr-4">Mentor</th>
                   <th className="py-2 pr-4">Roll No</th>
                   <th className="py-2 pr-4">Name</th>
+                  <th className="py-2 pr-4">Mobile</th>
                   <th className="py-2 pr-4">Dept</th>
                   <th className="py-2 pr-4">CGPA</th>
                   <th className="py-2 pr-4">Backlogs</th>
@@ -945,6 +946,7 @@ function AssignMentorSection() {
                     <td className="py-2 pr-4 font-medium text-slate-800">{mentorName}</td>
                     <td className="py-2 pr-4 text-slate-600">{student.rollNo}</td>
                     <td className="py-2 pr-4 text-slate-600">{student.name}</td>
+                    <td className="py-2 pr-4 text-slate-600">{student.studentPhone ?? "—"}</td>
                     <td className="py-2 pr-4 text-slate-600">{student.department}</td>
                     <td className="py-2 pr-4 text-slate-600">{student.cgpa}</td>
                     <td className="py-2 pr-4 text-slate-600">{student.activeBacklogs}</td>
@@ -957,7 +959,7 @@ function AssignMentorSection() {
                 ))}
                 {rosterRows.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-sm text-slate-400">
+                    <td colSpan={8} className="py-6 text-center text-sm text-slate-400">
                       No assignments match this filter.
                     </td>
                   </tr>
