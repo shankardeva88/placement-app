@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { BookOpen, ChevronDown, ChevronUp, KeyRound } from "lucide-react";
 import type { AttendanceStatus, TrainingBatch } from "@placement-app/types";
@@ -85,6 +85,23 @@ function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions
   const [expanded, setExpanded] = useState(false);
   const pendingCheckIn = sessions.some((s) => !s.attendance);
 
+  // Grouped by calendar day instead of one flat list — a multi-day training
+  // (say 10 straight days of morning/evening sessions) repeated the same
+  // date on every row and made it hard to tell at a glance which sessions
+  // belonged to which day.
+  const sessionsByDate = useMemo(() => {
+    const dateKey = (ts: number) => new Date(ts).toDateString();
+    const sorted = sessions.slice().sort((a, b) => a.session.date - b.session.date);
+    const groups: { dateKey: string; date: number; sessions: SessionWithAttendance[] }[] = [];
+    for (const s of sorted) {
+      const key = dateKey(s.session.date);
+      const last = groups[groups.length - 1];
+      if (last && last.dateKey === key) last.sessions.push(s);
+      else groups.push({ dateKey: key, date: s.session.date, sessions: [s] });
+    }
+    return groups;
+  }, [sessions]);
+
   return (
     <Card>
       <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-start justify-between gap-4 text-left">
@@ -105,27 +122,30 @@ function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions
         (sessions.length === 0 ? (
           <p className="mt-3 text-sm text-slate-500">No sessions scheduled yet.</p>
         ) : (
-          <ul className="mt-4 divide-y divide-slate-100">
-            {sessions
-              .slice()
-              .sort((a, b) => a.session.date - b.session.date)
-              .map(({ session, attendance }) => (
-                <li key={session.sessionId} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                  <div>
-                    <p className="font-medium text-slate-800">{session.topic}</p>
-                    <p className="text-xs text-slate-500">
-                      {new Date(session.date).toLocaleDateString()} · {session.startTime}–
-                      {session.endTime} · {session.mode}
-                    </p>
-                  </div>
-                  {attendance ? (
-                    <Badge variant={ATTENDANCE_BADGE[attendance.status]}>{attendance.status}</Badge>
-                  ) : (
-                    <CheckInAction sessionId={session.sessionId} />
-                  )}
-                </li>
-              ))}
-          </ul>
+          sessionsByDate.map((group) => (
+            <div key={group.dateKey} className="mt-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {new Date(group.date).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}
+              </h4>
+              <ul className="mt-1 divide-y divide-slate-100">
+                {group.sessions.map(({ session, attendance }) => (
+                  <li key={session.sessionId} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                    <div>
+                      <p className="font-medium text-slate-800">{session.topic}</p>
+                      <p className="text-xs text-slate-500">
+                        {session.startTime}–{session.endTime} · {session.mode}
+                      </p>
+                    </div>
+                    {attendance ? (
+                      <Badge variant={ATTENDANCE_BADGE[attendance.status]}>{attendance.status}</Badge>
+                    ) : (
+                      <CheckInAction sessionId={session.sessionId} />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
         ))}
     </Card>
   );
