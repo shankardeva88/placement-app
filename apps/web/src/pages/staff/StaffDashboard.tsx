@@ -17,6 +17,8 @@ import {
   Award,
   Building2,
   ListChecks,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ref, onValue } from "firebase/database";
@@ -562,6 +564,11 @@ function FacultyMentorDashboard() {
     () => (batchFilter ? menteeStudents.filter((s) => s.batchYear === batchFilter) : menteeStudents),
     [menteeStudents, batchFilter]
   );
+  // Collapsed by default — listing every mentee (even with each row itself
+  // collapsed) still pushed Quick Links well down the page. A mentor lands
+  // on stat tiles + quick links first, and opens the roster when they
+  // actually want it.
+  const [menteesExpanded, setMenteesExpanded] = useState(false);
 
   // Named, not just the "Verified" stat tile's count — a mentor asking "who
   // do I need to follow up with" can't act on a number alone. Scoped to the
@@ -605,7 +612,19 @@ function FacultyMentorDashboard() {
       </div>
 
       <div className="mb-3 mt-8 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">My mentees</h2>
+        <button
+          type="button"
+          onClick={() => setMenteesExpanded((v) => !v)}
+          className="flex items-center gap-2 text-left"
+        >
+          {menteesExpanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            My mentees ({menteeStudents.length})
+          </h2>
+          {!menteesExpanded && !loading && unverifiedMentees.length > 0 && (
+            <Badge variant="warning">{unverifiedMentees.length} not verified</Badge>
+          )}
+        </button>
         {byBatch.length > 1 && (
           <select
             value={batchFilter}
@@ -621,29 +640,33 @@ function FacultyMentorDashboard() {
           </select>
         )}
       </div>
-      {!loading && unverifiedMentees.length > 0 && (
-        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Profile not verified ({unverifiedMentees.length}):{" "}
-          {unverifiedMentees
-            .map((s) => `${s.rollNo} — ${s.name}${s.verificationRequestedAt ? " (requested)" : ""}`)
-            .join(", ")}
-        </p>
-      )}
-      {loading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-16" />
-          <Skeleton className="h-16" />
-        </div>
-      ) : menteeStudents.length === 0 ? (
-        <EmptyState icon={Users} title="No mentees assigned to you yet" />
-      ) : visibleMentees.length === 0 ? (
-        <Card className="text-sm text-slate-400">No mentees in batch {batchFilter}.</Card>
-      ) : (
-        <div className="space-y-3">
-          {visibleMentees.map((s) => (
-            <MenteeRow key={s.studentId} student={s} />
-          ))}
-        </div>
+      {menteesExpanded && (
+        <>
+          {!loading && unverifiedMentees.length > 0 && (
+            <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Profile not verified ({unverifiedMentees.length}):{" "}
+              {unverifiedMentees
+                .map((s) => `${s.rollNo} — ${s.name}${s.verificationRequestedAt ? " (requested)" : ""}`)
+                .join(", ")}
+            </p>
+          )}
+          {loading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
+            </div>
+          ) : menteeStudents.length === 0 ? (
+            <EmptyState icon={Users} title="No mentees assigned to you yet" />
+          ) : visibleMentees.length === 0 ? (
+            <Card className="text-sm text-slate-400">No mentees in batch {batchFilter}.</Card>
+          ) : (
+            <div className="space-y-3">
+              {visibleMentees.map((s) => (
+                <MenteeRow key={s.studentId} student={s} />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Quick links</h2>
