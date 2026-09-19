@@ -362,11 +362,19 @@ export default function StudentDetail() {
     ? Object.entries(student.semesterWiseSgpa).sort(([a], [b]) => a.localeCompare(b))
     : [];
 
+  // faculty_mentor never had the full department directory (/staff/students
+  // isn't even on their nav — see StaffShell.tsx) — they got here from
+  // Mentee Info's "View Full Profile", so that's where "back" should return
+  // them, not the whole-batch roster only coordinator/hod actually have.
+  const isMentor = appUser?.role === "faculty_mentor";
+  const backTo = isMentor ? "/staff/mentee-info" : "/staff/students";
+  const backLabel = isMentor ? "Back to mentee info" : "Back to students";
+
   return (
     <div>
-      <Link to="/staff/students" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700">
+      <Link to={backTo} className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700">
         <ArrowLeft className="h-4 w-4" />
-        Back to students
+        {backLabel}
       </Link>
 
       {student === undefined && <Skeleton className="h-40" />}
