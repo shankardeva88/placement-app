@@ -147,6 +147,28 @@ function DriveCard({ drive, applicantCount }: { drive: Drive; applicantCount: nu
               <dt className="text-slate-500">Drive date</dt>
               <dd className="font-medium text-slate-900">{new Date(drive.driveDate).toLocaleDateString()}</dd>
             </div>
+            <div className="col-span-2 sm:col-span-4">
+              <dt className="text-slate-500">Eligibility</dt>
+              <dd className="mt-1">
+                {drive.selectedStudentIds && drive.selectedStudentIds.length > 0 ? (
+                  <span className="text-sm text-slate-600">
+                    Restricted to {drive.selectedStudentIds.length} hand-picked student(s) — criteria below don't apply.
+                  </span>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="neutral">CGPA ≥ {drive.eligibility.minCgpa}</Badge>
+                    <Badge variant="neutral">Backlogs ≤ {drive.eligibility.maxBacklogsAllowed}</Badge>
+                    <Badge variant="neutral">Batch {(drive.eligibility.batchYears ?? []).join(", ")}</Badge>
+                    {drive.eligibility.requiredSkills && drive.eligibility.requiredSkills.length > 0 && (
+                      <Badge variant="neutral">Skills: {drive.eligibility.requiredSkills.join(", ")}</Badge>
+                    )}
+                    {drive.eligibility.gender && drive.eligibility.gender !== "any" && (
+                      <Badge variant="neutral">{drive.eligibility.gender} only</Badge>
+                    )}
+                  </div>
+                )}
+              </dd>
+            </div>
           </dl>
 
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
