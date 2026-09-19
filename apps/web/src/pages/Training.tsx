@@ -85,13 +85,25 @@ function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions
   const [expanded, setExpanded] = useState(false);
   const pendingCheckIn = sessions.some((s) => !s.attendance);
 
+  // Same date filter as the coordinator-side batch view — jump straight to
+  // one day instead of scrolling a multi-day training's full session list.
+  const [dateFilter, setDateFilter] = useState("");
+  const dateKey = (ts: number) => new Date(ts).toDateString();
+  const dateOptions = useMemo(
+    () => Array.from(new Set(sessions.map((s) => dateKey(s.session.date)))),
+    [sessions]
+  );
+  const visibleSessions = useMemo(
+    () => (dateFilter ? sessions.filter((s) => dateKey(s.session.date) === dateFilter) : sessions),
+    [sessions, dateFilter]
+  );
+
   // Grouped by calendar day instead of one flat list — a multi-day training
   // (say 10 straight days of morning/evening sessions) repeated the same
   // date on every row and made it hard to tell at a glance which sessions
   // belonged to which day.
   const sessionsByDate = useMemo(() => {
-    const dateKey = (ts: number) => new Date(ts).toDateString();
-    const sorted = sessions.slice().sort((a, b) => a.session.date - b.session.date);
+    const sorted = visibleSessions.slice().sort((a, b) => a.session.date - b.session.date);
     const groups: { dateKey: string; date: number; sessions: SessionWithAttendance[] }[] = [];
     for (const s of sorted) {
       const key = dateKey(s.session.date);
@@ -100,7 +112,7 @@ function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions
       else groups.push({ dateKey: key, date: s.session.date, sessions: [s] });
     }
     return groups;
-  }, [sessions]);
+  }, [visibleSessions]);
 
   return (
     <Card>
@@ -122,7 +134,22 @@ function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions
         (sessions.length === 0 ? (
           <p className="mt-3 text-sm text-slate-500">No sessions scheduled yet.</p>
         ) : (
-          sessionsByDate.map((group) => (
+          <>
+            {dateOptions.length > 1 && (
+              <select
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="mt-4 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              >
+                <option value="">All dates ({sessions.length} sessions)</option>
+                {dateOptions.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            )}
+            {sessionsByDate.map((group) => (
             <div key={group.dateKey} className="mt-4">
               <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 {new Date(group.date).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}
@@ -145,7 +172,8 @@ function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions
                 ))}
               </ul>
             </div>
-          ))
+            ))}
+          </>
         ))}
     </Card>
   );
