@@ -16,6 +16,7 @@ import {
   ClipboardCheck,
   Award,
   Building2,
+  ListChecks,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ref, onValue } from "firebase/database";
@@ -502,9 +503,18 @@ function CoordinatorDashboard() {
   );
 }
 
+// Every item on FACULTY_MENTOR_NAV_ITEMS (StaffShell.tsx) besides Dashboard
+// itself — a mentor's whole menu is short enough that there's no reason to
+// leave any of it off the dashboard's quick-access grid.
 const FACULTY_MENTOR_QUICK_LINKS: { to: string; label: string; icon: LucideIcon; description: string; gradient: string }[] = [
   { to: "/staff/mentee-info", label: "Mentee Info", icon: Users, description: "Full profile for each mentee", gradient: "from-emerald-500 to-teal-600" },
+  { to: "/staff/mentee-drive-status", label: "Mentee Drive Status", icon: ListChecks, description: "Every drive each mentee has applied to", gradient: "from-fuchsia-500 to-pink-600" },
+  { to: "/staff/mentor-drives", label: "Drives", icon: Briefcase, description: "Every drive, read-only", gradient: "from-blue-500 to-indigo-600" },
+  { to: "/staff/mentor-internships", label: "Internships", icon: Building2, description: "Your mentees' recorded internships", gradient: "from-cyan-500 to-blue-600" },
+  { to: "/staff/mentor-training", label: "Training", icon: BookOpen, description: "What's running, and your mentees' attendance", gradient: "from-amber-500 to-orange-600" },
   { to: "/staff/mentor-tools", label: "Mentor Tools", icon: GraduationCap, description: "Follow-ups, mock interviews, reviews", gradient: "from-pink-500 to-rose-600" },
+  { to: "/staff/mock-evaluations", label: "Mock Interview Modules", icon: ClipboardCheck, description: "Log or review mock interview evaluations", gradient: "from-indigo-500 to-purple-600" },
+  { to: "/staff/mentor-reports", label: "Reports", icon: FileBarChart, description: "Mentee-scoped reports", gradient: "from-lime-500 to-green-600" },
   { to: "/staff/mock-evaluations", label: "Mock Interview Modules", icon: ClipboardCheck, description: "Daily evaluations for a company drive", gradient: "from-indigo-500 to-purple-600" },
 ];
 
