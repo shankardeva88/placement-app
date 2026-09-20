@@ -66,6 +66,7 @@ function detailLabel(entry: MenteeFollowUp, drives: Record<string, Drive>): stri
     case "placement":
       if (entry.driveId) parts.push(drives[entry.driveId]?.companyName ?? entry.driveId);
       if (entry.readiness) parts.push(READINESS_LABEL[entry.readiness] ?? entry.readiness);
+      if (entry.placementRatings) parts.push("Ratings logged");
       break;
     case "attendance":
       if (entry.subject) parts.push(entry.subject);

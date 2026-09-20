@@ -493,6 +493,22 @@ export type FollowUpConcernLevel = "minor" | "moderate" | "serious";
 export type PlacementReadiness = "ready" | "needs_prep" | "not_ready";
 export type ActivityType = "hackathon" | "coding_club" | "sports" | "cultural" | "ncc_nss" | "other";
 
+// A lightweight, ad-hoc rating a mentor can fill in while logging a
+// placement follow-up — distinct from MockEvaluation (which needs a
+// company-linked module created first and is meant for a structured daily
+// mock-interview series). This is for the "quick 1:1 chat" case: rate a
+// mentee's readiness on the spot without any setup. Reuses MockEvalRating
+// for the same word-scale mentors already know from Mock Interview Modules.
+export interface FollowUpPlacementRatings {
+  selfIntroduction: MockEvalRating;
+  projectExplanation: MockEvalRating;
+  communication: MockEvalRating;
+  coding: MockEvalRating;
+  technical: MockEvalRating;
+  hr: MockEvalRating;
+  confidence: MockEvalRating;
+}
+
 export interface MenteeFollowUp {
   followUpId: string;
   studentId: string;
@@ -505,6 +521,7 @@ export interface MenteeFollowUp {
   concernLevel?: FollowUpConcernLevel; // academics
   driveId?: string; // placement — which drive this note is about
   readiness?: PlacementReadiness; // placement
+  placementRatings?: FollowUpPlacementRatings; // placement — optional quick readiness ratings
   attendancePercent?: number; // attendance
   activityType?: ActivityType; // activities
   activityName?: string; // activities

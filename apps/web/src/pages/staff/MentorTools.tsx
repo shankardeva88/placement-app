@@ -11,7 +11,9 @@ import type {
   FacultyDesignation,
   FollowUpCategory,
   FollowUpConcernLevel,
+  FollowUpPlacementRatings,
   MentorMapping,
+  MockEvalRating,
   MockInterview,
   MockInterviewType,
   ParentContactMode,
@@ -48,7 +50,7 @@ import {
   STALE_FOLLOW_UP_DAYS,
 } from "../../lib/menteeFollowUpLib";
 import { sortedSgpaEntries, useIndexedList } from "../../lib/mentorProgressLib";
-import { useMockEvaluations } from "../../lib/mockEvaluationLib";
+import { useMockEvaluations, RATING_OPTIONS, RATING_LABEL } from "../../lib/mockEvaluationLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -104,6 +106,29 @@ const CATEGORY_LABEL: Record<FollowUpCategory, string> = {
   parent_communication: "Parent communication",
 };
 const PARENT_CONTACT_MODES: ParentContactMode[] = ["call", "meeting", "message"];
+
+// "Absent" (from the same MockEvalRating scale) doesn't apply to a quick
+// 1:1 chat the way it does to a scheduled mock-interview day, so it's left
+// out here.
+const PLACEMENT_RATING_OPTIONS: MockEvalRating[] = RATING_OPTIONS.filter((r) => r !== "absent");
+const PLACEMENT_RATING_CATEGORIES: { key: keyof FollowUpPlacementRatings; label: string }[] = [
+  { key: "selfIntroduction", label: "Self Introduction" },
+  { key: "projectExplanation", label: "Project Explanation" },
+  { key: "communication", label: "Communication" },
+  { key: "coding", label: "Coding" },
+  { key: "technical", label: "Technical" },
+  { key: "hr", label: "HR" },
+  { key: "confidence", label: "Confidence" },
+];
+const DEFAULT_PLACEMENT_RATINGS: FollowUpPlacementRatings = {
+  selfIntroduction: "good",
+  projectExplanation: "good",
+  communication: "good",
+  coding: "good",
+  technical: "good",
+  hr: "good",
+  confidence: "good",
+};
 
 const CONCERN_LEVELS: FollowUpConcernLevel[] = ["minor", "moderate", "serious"];
 const CONCERN_LEVEL_LABEL: Record<FollowUpConcernLevel, string> = {
@@ -242,6 +267,7 @@ function FollowUpForm({
   const [concernLevel, setConcernLevel] = useState<FollowUpConcernLevel>("minor");
   const [driveId, setDriveId] = useState("");
   const [readiness, setReadiness] = useState<PlacementReadiness>("needs_prep");
+  const [placementRatings, setPlacementRatings] = useState<FollowUpPlacementRatings>(DEFAULT_PLACEMENT_RATINGS);
   const [attendancePercent, setAttendancePercent] = useState("");
   const [activityType, setActivityType] = useState<ActivityType>("hackathon");
   const [activityName, setActivityName] = useState("");
@@ -256,9 +282,14 @@ function FollowUpForm({
     setConcernLevel("minor");
     setDriveId("");
     setReadiness("needs_prep");
+    setPlacementRatings(DEFAULT_PLACEMENT_RATINGS);
     setAttendancePercent("");
     setActivityType("hackathon");
     setActivityName("");
+  }
+
+  function setPlacementRating(key: keyof FollowUpPlacementRatings, value: MockEvalRating) {
+    setPlacementRatings((prev) => ({ ...prev, [key]: value }));
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -278,6 +309,7 @@ function FollowUpForm({
         concernLevel: category === "academics" ? concernLevel : undefined,
         driveId: category === "placement" ? driveId || undefined : undefined,
         readiness: category === "placement" ? readiness : undefined,
+        placementRatings: category === "placement" ? placementRatings : undefined,
         attendancePercent: category === "attendance" && attendancePercent !== "" ? Number(attendancePercent) : undefined,
         activityType: category === "activities" ? activityType : undefined,
         activityName: category === "activities" ? activityName.trim() || undefined : undefined,
@@ -350,22 +382,49 @@ function FollowUpForm({
       )}
 
       {category === "placement" && (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <select value={driveId} onChange={(e) => setDriveId(e.target.value)} className={inputClass}>
-            <option value="">Not tied to a specific drive</option>
-            {sortedDrives.map((d) => (
-              <option key={d.driveId} value={d.driveId}>
-                {d.companyName}
-              </option>
-            ))}
-          </select>
-          <select value={readiness} onChange={(e) => setReadiness(e.target.value as PlacementReadiness)} className={inputClass}>
-            {READINESS_OPTIONS.map((r) => (
-              <option key={r} value={r}>
-                {READINESS_LABEL[r]}
-              </option>
-            ))}
-          </select>
+        <div className="space-y-2">
+          <div>
+            <label className={`${labelClass} mb-0.5 text-xs`}>Quick readiness check (optional — defaults to "Good")</label>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {PLACEMENT_RATING_CATEGORIES.map(({ key, label }) => (
+                <select
+                  key={key}
+                  value={placementRatings[key]}
+                  onChange={(e) => setPlacementRating(key, e.target.value as MockEvalRating)}
+                  className={inputClass}
+                  aria-label={label}
+                >
+                  <optgroup label={label}>
+                    {PLACEMENT_RATING_OPTIONS.map((r) => (
+                      <option key={r} value={r}>
+                        {label}: {RATING_LABEL[r]}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className={`${labelClass} mb-0.5 text-xs`}>Status</label>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <select value={driveId} onChange={(e) => setDriveId(e.target.value)} className={inputClass}>
+                <option value="">Not tied to a specific drive</option>
+                {sortedDrives.map((d) => (
+                  <option key={d.driveId} value={d.driveId}>
+                    {d.companyName}
+                  </option>
+                ))}
+              </select>
+              <select value={readiness} onChange={(e) => setReadiness(e.target.value as PlacementReadiness)} className={inputClass}>
+                {READINESS_OPTIONS.map((r) => (
+                  <option key={r} value={r}>
+                    {READINESS_LABEL[r]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
       )}
 
@@ -533,6 +592,15 @@ function MenteeDetailPanel({
                   {f.attendancePercent != null && <Badge variant={f.attendancePercent < 75 ? "danger" : "neutral"}>{f.attendancePercent}%</Badge>}
                   {f.activityType && <Badge variant="neutral">{ACTIVITY_TYPE_LABEL[f.activityType]}</Badge>}
                   {f.activityName && <Badge variant="neutral">{f.activityName}</Badge>}
+                </div>
+              )}
+              {f.placementRatings && (
+                <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                  {PLACEMENT_RATING_CATEGORIES.map(({ key, label }) => (
+                    <Badge key={key} variant="neutral">
+                      {label}: {RATING_LABEL[f.placementRatings![key]]}
+                    </Badge>
+                  ))}
                 </div>
               )}
               <p className="text-slate-600">{f.note}</p>

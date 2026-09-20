@@ -8,6 +8,7 @@ import type {
   Department,
   FollowUpCategory,
   FollowUpConcernLevel,
+  FollowUpPlacementRatings,
   MentorMapping,
   MenteeFollowUp,
   ParentContactMode,
@@ -75,6 +76,7 @@ export interface RecordFollowUpInput {
   concernLevel?: FollowUpConcernLevel;
   driveId?: string;
   readiness?: PlacementReadiness;
+  placementRatings?: FollowUpPlacementRatings;
   attendancePercent?: number;
   activityType?: ActivityType;
   activityName?: string;
@@ -102,6 +104,7 @@ export async function recordFollowUp(input: RecordFollowUpInput) {
   if (input.category === "placement") {
     if (input.driveId) record.driveId = input.driveId;
     if (input.readiness) record.readiness = input.readiness;
+    if (input.placementRatings) record.placementRatings = input.placementRatings;
   }
   if (input.category === "attendance") {
     if (input.subject) record.subject = input.subject;
