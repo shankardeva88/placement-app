@@ -16,6 +16,7 @@ import {
   UserCheck,
   Briefcase,
   GraduationCap,
+  ListChecks,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card } from "../../../components/ui/Card";
@@ -55,6 +56,13 @@ const REPORTS: { to: string; label: string; description: string; icon: LucideIco
     label: "Drive-wise Summary",
     description: "Applied → shortlisted → selected funnel, per drive.",
     icon: GraduationCap,
+    gradient: "from-violet-500 to-purple-600",
+  },
+  {
+    to: "/staff/reports/drives-student-wise",
+    label: "Student-wise Drive Summary",
+    description: "Every application, one row per student per drive — trace one student across every drive, or export the whole history.",
+    icon: ListChecks,
     gradient: "from-violet-500 to-purple-600",
   },
   {
