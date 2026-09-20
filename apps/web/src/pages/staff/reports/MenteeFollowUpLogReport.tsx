@@ -61,7 +61,7 @@ function detailLabel(entry: MenteeFollowUp, drives: Record<string, Drive>): stri
   switch (entry.category) {
     case "academics":
       if (entry.subject) parts.push(entry.subject);
-      if (entry.concernLevel) parts.push(`${entry.concernLevel} concern`);
+      if (entry.concernLevel) parts.push(entry.concernLevel === "good" ? "no concern" : `${entry.concernLevel} concern`);
       break;
     case "placement":
       if (entry.driveId) parts.push(drives[entry.driveId]?.companyName ?? entry.driveId);

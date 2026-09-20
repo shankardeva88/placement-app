@@ -130,8 +130,9 @@ const DEFAULT_PLACEMENT_RATINGS: FollowUpPlacementRatings = {
   confidence: "good",
 };
 
-const CONCERN_LEVELS: FollowUpConcernLevel[] = ["minor", "moderate", "serious"];
+const CONCERN_LEVELS: FollowUpConcernLevel[] = ["good", "minor", "moderate", "serious"];
 const CONCERN_LEVEL_LABEL: Record<FollowUpConcernLevel, string> = {
+  good: "Good — doing well, no concern",
   minor: "Minor — small dip, easy fix",
   moderate: "Moderate — needs regular check-ins",
   serious: "Serious — urgent, may need parent/HOD involvement",
@@ -264,7 +265,7 @@ function FollowUpForm({
   // Category-specific fields — each only sent when its matching category is
   // picked, same convention as parentContactMode above.
   const [subject, setSubject] = useState("");
-  const [concernLevel, setConcernLevel] = useState<FollowUpConcernLevel>("minor");
+  const [concernLevel, setConcernLevel] = useState<FollowUpConcernLevel>("good");
   const [driveId, setDriveId] = useState("");
   const [readiness, setReadiness] = useState<PlacementReadiness>("needs_prep");
   const [placementRatings, setPlacementRatings] = useState<FollowUpPlacementRatings>(DEFAULT_PLACEMENT_RATINGS);
@@ -279,7 +280,7 @@ function FollowUpForm({
 
   function resetCategoryFields() {
     setSubject("");
-    setConcernLevel("minor");
+    setConcernLevel("good");
     setDriveId("");
     setReadiness("needs_prep");
     setPlacementRatings(DEFAULT_PLACEMENT_RATINGS);
@@ -579,7 +580,17 @@ function MenteeDetailPanel({
                 <div className="mb-1 flex flex-wrap items-center gap-1.5">
                   {f.subject && <Badge variant="neutral">{f.subject}</Badge>}
                   {f.concernLevel && (
-                    <Badge variant={f.concernLevel === "serious" ? "danger" : f.concernLevel === "moderate" ? "warning" : "neutral"}>
+                    <Badge
+                      variant={
+                        f.concernLevel === "serious"
+                          ? "danger"
+                          : f.concernLevel === "moderate"
+                            ? "warning"
+                            : f.concernLevel === "good"
+                              ? "success"
+                              : "neutral"
+                      }
+                    >
                       {f.concernLevel}
                     </Badge>
                   )}

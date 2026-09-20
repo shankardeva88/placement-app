@@ -489,7 +489,11 @@ export type FollowUpCategory =
   | "parent_communication";
 
 export type ParentContactMode = "call" | "meeting" | "message";
-export type FollowUpConcernLevel = "minor" | "moderate" | "serious";
+// "good" was added because every Academics note used to be forced into a
+// concern level even when there wasn't one — a mentor logging "topped the
+// internal exam" had to pick "minor" anyway. It's the default now, sitting
+// before the actual concern scale.
+export type FollowUpConcernLevel = "good" | "minor" | "moderate" | "serious";
 export type PlacementReadiness = "ready" | "needs_prep" | "not_ready";
 export type ActivityType = "hackathon" | "coding_club" | "sports" | "cultural" | "ncc_nss" | "other";
 
