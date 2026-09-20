@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { AlertTriangle, CalendarClock, GraduationCap, MessageCircleMore, Pencil, Phone, Upload, UserPlus, Users } from "lucide-react";
+import { AlertTriangle, CalendarClock, FileText, GraduationCap, MessageCircleMore, Pencil, Phone, Upload, UserPlus, Users } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -228,11 +228,13 @@ function FollowUpForm({
   studentId,
   department,
   mentorId,
+  resumeUrl,
   onDone,
 }: {
   studentId: string;
   department: Department;
   mentorId: string;
+  resumeUrl?: string;
   onDone: () => void;
 }) {
   const { showToast } = useToast();
@@ -336,6 +338,21 @@ function FollowUpForm({
           </select>
         )}
       </div>
+
+      {(category === "academics" || category === "placement") &&
+        (resumeUrl ? (
+          <a
+            href={resumeUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            View resume
+          </a>
+        ) : (
+          <p className="text-xs text-slate-400">No resume on file</p>
+        ))}
 
       {category === "academics" && (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -538,7 +555,7 @@ function MenteeDetailPanel({
         )}
       </div>
 
-      <FollowUpForm studentId={studentId} department={department} mentorId={mentorId} onDone={() => {}} />
+      <FollowUpForm studentId={studentId} department={department} mentorId={mentorId} resumeUrl={student?.resumeUrl} onDone={() => {}} />
 
       {followUps === null ? (
         <Skeleton className="h-16" />
@@ -1266,6 +1283,7 @@ function ResumeReviewSection({ batchFilter }: { batchFilter: number | "" }) {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const pastRecords = useIndexedList<ResumeReview>(studentId || undefined, DB_NODES.resumeReviews);
+  const selectedStudent = students?.find((s) => s.uid === studentId);
 
   if (!recordableLoading && recordable.length === 0) return null;
 
@@ -1346,7 +1364,23 @@ function ResumeReviewSection({ batchFilter }: { batchFilter: number | "" }) {
           </div>
         </div>
         <div>
-          <label className={labelClass}>Resume file link</label>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <label className={`${labelClass} mb-0`}>Resume file link</label>
+            {studentId &&
+              (selectedStudent?.resumeUrl ? (
+                <a
+                  href={selectedStudent.resumeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  View current resume on file
+                </a>
+              ) : (
+                <span className="text-xs text-slate-400">No resume on file</span>
+              ))}
+          </div>
           <input type="url" value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} className={inputClass} />
         </div>
         <div>
