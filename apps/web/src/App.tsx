@@ -63,6 +63,10 @@ import ResumeReviewReport from "./pages/staff/reports/ResumeReviewReport";
 import SkillAssessmentReport from "./pages/staff/reports/SkillAssessmentReport";
 import MentorReportsHome from "./pages/staff/reports/MentorReportsHome";
 import MenteeMasterReport from "./pages/staff/reports/MenteeMasterReport";
+import MenteeFullReport from "./pages/staff/reports/MenteeFullReport";
+import MenteeOffersInternshipsReport from "./pages/staff/reports/MenteeOffersInternshipsReport";
+import MenteeTrainingReport from "./pages/staff/reports/MenteeTrainingReport";
+import MenteeDriveSummaryReport from "./pages/staff/reports/MenteeDriveSummaryReport";
 import MenteeFollowUpReport from "./pages/staff/reports/MenteeFollowUpReport";
 import MenteeFollowUpLogReport from "./pages/staff/reports/MenteeFollowUpLogReport";
 import MenteeMockEvaluationReport from "./pages/staff/reports/MenteeMockEvaluationReport";
@@ -522,6 +526,38 @@ export default function App() {
             element={
               <StaffLayoutRoute>
                 <MenteeMasterReport />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/mentor-reports/mentees-full"
+            element={
+              <StaffLayoutRoute>
+                <MenteeFullReport />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/mentor-reports/offers-internships"
+            element={
+              <StaffLayoutRoute>
+                <MenteeOffersInternshipsReport />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/mentor-reports/training"
+            element={
+              <StaffLayoutRoute>
+                <MenteeTrainingReport />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/mentor-reports/drives"
+            element={
+              <StaffLayoutRoute>
+                <MenteeDriveSummaryReport />
               </StaffLayoutRoute>
             }
           />

@@ -1,5 +1,16 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, FileBarChart, FileText, Users, MessageCircleMore, ClipboardCheck } from "lucide-react";
+import {
+  ArrowRight,
+  FileBarChart,
+  FileText,
+  Users,
+  MessageCircleMore,
+  ClipboardCheck,
+  FileSpreadsheet,
+  Building2,
+  BookOpen,
+  ListChecks,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card } from "../../../components/ui/Card";
 import { PageHeader } from "../../../components/ui/PageHeader";
@@ -11,6 +22,34 @@ const REPORTS: { to: string; label: string; description: string; icon: LucideIco
     description: "Your mentees — CGPA, backlogs, SGPA trend, placement status, trainings, at-risk flags.",
     icon: Users,
     gradient: "from-emerald-500 to-teal-600",
+  },
+  {
+    to: "/staff/mentor-reports/mentees-full",
+    label: "Mentee Full Report",
+    description: "Every field on the profile — academics, contact, address, links, skills, all of it. Search + filters.",
+    icon: FileSpreadsheet,
+    gradient: "from-emerald-500 to-teal-600",
+  },
+  {
+    to: "/staff/mentor-reports/offers-internships",
+    label: "Mentee Offers & Internships Report",
+    description: "Both placement tracks in one table, scoped to your mentees — offers link straight through to their drive.",
+    icon: Building2,
+    gradient: "from-cyan-500 to-blue-600",
+  },
+  {
+    to: "/staff/mentor-reports/training",
+    label: "Mentee Training Report",
+    description: "Internal training batch attendance % plus external/corporate trainings, scoped to your mentees.",
+    icon: BookOpen,
+    gradient: "from-amber-500 to-orange-600",
+  },
+  {
+    to: "/staff/mentor-reports/drives",
+    label: "Mentee-wise Drive Summary",
+    description: "Every application, one row per mentee per drive — trace one mentee across every drive, or export the whole roster's history.",
+    icon: ListChecks,
+    gradient: "from-violet-500 to-purple-600",
   },
   {
     to: "/staff/mentor-reports/follow-ups",
