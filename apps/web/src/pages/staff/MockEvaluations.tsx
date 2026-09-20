@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { ClipboardCheck, Download, ChevronDown, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { ClipboardCheck, Download, ChevronDown, ChevronRight, FileText, Pencil, Trash2 } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -194,6 +194,7 @@ function EvaluationForm({
   moduleEnd,
   existing,
   mentorId,
+  resumeUrl,
   onSaved,
 }: {
   studentId: string;
@@ -203,6 +204,7 @@ function EvaluationForm({
   moduleEnd: number;
   existing: (EvalRatingFields & { date: number; notes?: string }) | undefined;
   mentorId: string;
+  resumeUrl?: string;
   onSaved: () => void;
 }) {
   const { showToast } = useToast();
@@ -252,16 +254,31 @@ function EvaluationForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3 rounded-lg bg-slate-50 p-3">
-      <div>
-        <label className={labelClass}>Date</label>
-        <input
-          type="date"
-          value={date}
-          min={toDateInputValue(moduleStart)}
-          max={toDateInputValue(maxDate)}
-          onChange={(e) => setDate(e.target.value)}
-          className={`${inputClass} sm:w-48`}
-        />
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className={labelClass}>Date</label>
+          <input
+            type="date"
+            value={date}
+            min={toDateInputValue(moduleStart)}
+            max={toDateInputValue(maxDate)}
+            onChange={(e) => setDate(e.target.value)}
+            className={`${inputClass} sm:w-48`}
+          />
+        </div>
+        {resumeUrl ? (
+          <a
+            href={resumeUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline"
+          >
+            <FileText className="h-4 w-4" />
+            View resume
+          </a>
+        ) : (
+          <span className="mb-2 text-xs text-slate-400">No resume on file</span>
+        )}
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {EVAL_CATEGORIES.map(({ key, label }) => (
@@ -336,6 +353,7 @@ function MenteeEvalRow({
             moduleEnd={moduleEnd}
             existing={todayEntry}
             mentorId={mentorId}
+            resumeUrl={student.resumeUrl}
             onSaved={() => setOpen(false)}
           />
         </div>
