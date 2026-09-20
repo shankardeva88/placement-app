@@ -119,7 +119,7 @@ export default function BulkUpdateStudents() {
         <h3 className="mb-2 text-sm font-semibold text-slate-900">1. Paste data</h3>
         <p className="mb-3 text-xs text-slate-500">
           Include a "Roll No" column to match against, plus any subset of: name, email, department, batchYear,
-          currentSemester, tenthPercentage, tenthSchool, tenthYearOfPassing, twelfthPercentage, twelfthSchool,
+          currentSemester, activeBacklogs, tenthPercentage, tenthSchool, tenthYearOfPassing, twelfthPercentage, twelfthSchool,
           twelfthYearOfPassing, entranceType (EAMCET/ECET), entranceRank, studentPhone, personalEmail, parentName,
           parentPhone, address, state, dateOfBirth, gender, photoUrl. Leave a cell blank to leave that field untouched
           for that student.

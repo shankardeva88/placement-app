@@ -11,20 +11,20 @@ const INSTITUTION_ROLES = new Set(["dean", "principal", "cpo", "admin"]);
  * already seeds. Deliberately smaller than the full Student type: fields
  * with their own side effects (skills, certifications, resumeUrl, ...) stay
  * student-self-edit-only (see PersonalDetails.tsx / database.rules.json).
- * cgpa/activeBacklogs are excluded here too — Academic Record is the
- * intended flow for those. currentSemester is the odd one out: it's kept
- * in this list (and used to silently fail for coordinator/hod on an
- * existing record until the rule was loosened — see the
- * StudentProfileUpdate doc comment in studentsDirectoryLib.ts) since a
- * student mis-clicking through several semesters has no other correction
- * path besides fixing it themselves or a coordinator batch-correcting a
- * whole sheet at once. */
+ * cgpa is excluded here too — Academic Record is the intended flow for
+ * that. currentSemester and activeBacklogs are the odd ones out: kept in
+ * this list (and used to silently fail for coordinator/hod on an existing
+ * record until the rule was loosened — see the StudentProfileUpdate doc
+ * comment in studentsDirectoryLib.ts) since after each semester's results
+ * a coordinator commonly needs to correct a whole sheet's worth of
+ * students at once, not one at a time through Student Detail. */
 export const UPDATABLE_FIELDS = [
   "name",
   "email",
   "department",
   "batchYear",
   "currentSemester",
+  "activeBacklogs",
   "tenthPercentage",
   "tenthSchool",
   "tenthYearOfPassing",
@@ -57,6 +57,9 @@ const HEADER_MAP: Record<string, UpdatableField> = {
   [normalizeHeader("Batch")]: "batchYear",
   [normalizeHeader("Current Semester")]: "currentSemester",
   [normalizeHeader("Semester")]: "currentSemester",
+  [normalizeHeader("Backlogs")]: "activeBacklogs",
+  [normalizeHeader("Active Backlogs")]: "activeBacklogs",
+  [normalizeHeader("No of Backlogs")]: "activeBacklogs",
   [normalizeHeader("10th Percentage")]: "tenthPercentage",
   [normalizeHeader("Tenth Percentage")]: "tenthPercentage",
   [normalizeHeader("X Class Percentage %")]: "tenthPercentage",
@@ -171,6 +174,10 @@ export function parseStudentUpdateRows(headers: string[], rawRows: string[][]): 
     setIfPresent("currentSemester", (raw) => {
       const n = parseNumber(raw);
       return n == null ? { value: undefined, warning: `Current semester "${raw}" isn't a number — skipped` } : { value: n };
+    });
+    setIfPresent("activeBacklogs", (raw) => {
+      const n = parseNumber(raw);
+      return n == null ? { value: undefined, warning: `Backlogs "${raw}" isn't a number — skipped` } : { value: n };
     });
     setIfPresent("tenthPercentage", (raw) => {
       const n = parseNumber(raw);
