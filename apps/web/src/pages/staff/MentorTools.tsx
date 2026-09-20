@@ -106,6 +106,11 @@ const CATEGORY_LABEL: Record<FollowUpCategory, string> = {
 const PARENT_CONTACT_MODES: ParentContactMode[] = ["call", "meeting", "message"];
 
 const CONCERN_LEVELS: FollowUpConcernLevel[] = ["minor", "moderate", "serious"];
+const CONCERN_LEVEL_LABEL: Record<FollowUpConcernLevel, string> = {
+  minor: "Minor — small dip, easy fix",
+  moderate: "Moderate — needs regular check-ins",
+  serious: "Serious — urgent, may need parent/HOD involvement",
+};
 const READINESS_OPTIONS: PlacementReadiness[] = ["ready", "needs_prep", "not_ready"];
 const READINESS_LABEL: Record<PlacementReadiness, string> = {
   ready: "Ready",
@@ -321,20 +326,26 @@ function FollowUpForm({
 
       {category === "academics" && (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <input
-            type="text"
-            placeholder="Subject (optional) — e.g. DBMS"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            className={inputClass}
-          />
-          <select value={concernLevel} onChange={(e) => setConcernLevel(e.target.value as FollowUpConcernLevel)} className={inputClass}>
-            {CONCERN_LEVELS.map((c) => (
-              <option key={c} value={c} className="capitalize">
-                {c}
-              </option>
-            ))}
-          </select>
+          <div>
+            <label className={`${labelClass} mb-0.5 text-xs`}>Subject (optional)</label>
+            <input
+              type="text"
+              placeholder="e.g. DBMS"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={`${labelClass} mb-0.5 text-xs`}>Concern level</label>
+            <select value={concernLevel} onChange={(e) => setConcernLevel(e.target.value as FollowUpConcernLevel)} className={inputClass}>
+              {CONCERN_LEVELS.map((c) => (
+                <option key={c} value={c}>
+                  {CONCERN_LEVEL_LABEL[c]}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
 
