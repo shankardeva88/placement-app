@@ -320,7 +320,7 @@ export default function StaffDrives() {
   return (
     <div>
       <PageHeader
-        title="Drives"
+        title={drives ? `Drives (${drives.length})` : "Drives"}
         subtitle={
           drives && filteredDrives && filteredDrives.length !== drives.length
             ? `${filteredDrives.length} of ${drives.length} drive(s)`
