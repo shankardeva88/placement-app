@@ -48,9 +48,12 @@ import {
   clearNextMeetingDate,
   computeAtRiskReasons,
   STALE_FOLLOW_UP_DAYS,
+  PLACEMENT_RATING_OPTIONS,
+  PLACEMENT_RATING_CATEGORIES,
+  DEFAULT_PLACEMENT_RATINGS,
 } from "../../lib/menteeFollowUpLib";
 import { sortedSgpaEntries, useIndexedList } from "../../lib/mentorProgressLib";
-import { useMockEvaluations, RATING_OPTIONS, RATING_LABEL } from "../../lib/mockEvaluationLib";
+import { useMockEvaluations, RATING_LABEL } from "../../lib/mockEvaluationLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -106,29 +109,6 @@ const CATEGORY_LABEL: Record<FollowUpCategory, string> = {
   parent_communication: "Parent communication",
 };
 const PARENT_CONTACT_MODES: ParentContactMode[] = ["call", "meeting", "message"];
-
-// "Absent" (from the same MockEvalRating scale) doesn't apply to a quick
-// 1:1 chat the way it does to a scheduled mock-interview day, so it's left
-// out here.
-const PLACEMENT_RATING_OPTIONS: MockEvalRating[] = RATING_OPTIONS.filter((r) => r !== "absent");
-const PLACEMENT_RATING_CATEGORIES: { key: keyof FollowUpPlacementRatings; label: string }[] = [
-  { key: "selfIntroduction", label: "Self Introduction" },
-  { key: "projectExplanation", label: "Project Explanation" },
-  { key: "communication", label: "Communication" },
-  { key: "coding", label: "Coding" },
-  { key: "technical", label: "Technical" },
-  { key: "hr", label: "HR" },
-  { key: "confidence", label: "Confidence" },
-];
-const DEFAULT_PLACEMENT_RATINGS: FollowUpPlacementRatings = {
-  selfIntroduction: "good",
-  projectExplanation: "good",
-  communication: "good",
-  coding: "good",
-  technical: "good",
-  hr: "good",
-  confidence: "good",
-};
 
 const CONCERN_LEVELS: FollowUpConcernLevel[] = ["good", "minor", "moderate", "serious"];
 const CONCERN_LEVEL_LABEL: Record<FollowUpConcernLevel, string> = {

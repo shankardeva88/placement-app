@@ -11,12 +11,41 @@ import type {
   FollowUpPlacementRatings,
   MentorMapping,
   MenteeFollowUp,
+  MockEvalRating,
   ParentContactMode,
   PlacementReadiness,
   Student,
 } from "@placement-app/types";
 import { useDeptScopedCollection } from "./useDeptScopedCollection";
 import { useIndexedList, sortedSgpaEntries } from "./mentorProgressLib";
+import { RATING_OPTIONS } from "./mockEvaluationLib";
+
+// Shared between the follow-up form (MentorTools.tsx) and both Follow-up
+// Log reports, so the categories/labels these quick placement ratings use
+// can't drift apart between where they're entered and where they're read
+// back.
+// "Absent" (from the same MockEvalRating scale) doesn't apply to a quick
+// 1:1 chat the way it does to a scheduled mock-interview day, so it's left
+// out here.
+export const PLACEMENT_RATING_OPTIONS: MockEvalRating[] = RATING_OPTIONS.filter((r) => r !== "absent");
+export const PLACEMENT_RATING_CATEGORIES: { key: keyof FollowUpPlacementRatings; label: string }[] = [
+  { key: "selfIntroduction", label: "Self Introduction" },
+  { key: "projectExplanation", label: "Project Explanation" },
+  { key: "communication", label: "Communication" },
+  { key: "coding", label: "Coding" },
+  { key: "technical", label: "Technical" },
+  { key: "hr", label: "HR" },
+  { key: "confidence", label: "Confidence" },
+];
+export const DEFAULT_PLACEMENT_RATINGS: FollowUpPlacementRatings = {
+  selfIntroduction: "good",
+  projectExplanation: "good",
+  communication: "good",
+  coding: "good",
+  technical: "good",
+  hr: "good",
+  confidence: "good",
+};
 
 export const AT_RISK_CGPA_THRESHOLD = 6.0; // heuristic — matches common eligibility cutoffs, adjust if your college's bar differs
 export const STALE_FOLLOW_UP_DAYS = 30;

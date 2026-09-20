@@ -7,7 +7,8 @@ import { DB_NODES } from "@placement-app/types";
 import type { Drive, FollowUpCategory, MenteeFollowUp, Student } from "@placement-app/types";
 import { useAuth } from "../../../auth/AuthContext";
 import { useStudentsDirectory } from "../../../lib/studentsDirectoryLib";
-import { useMyMentees, useMenteeFollowUps } from "../../../lib/menteeFollowUpLib";
+import { useMyMentees, useMenteeFollowUps, PLACEMENT_RATING_CATEGORIES } from "../../../lib/menteeFollowUpLib";
+import { RATING_LABEL } from "../../../lib/mockEvaluationLib";
 import { downloadCsv } from "../../../lib/csv";
 import { Card } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
@@ -167,13 +168,25 @@ export default function MenteeFollowUpLogReport() {
     if (!filtered) return;
     downloadCsv(
       "mentee-follow-up-log.csv",
-      ["Date", "Roll No", "Name", "Category", "Detail", "Note", "Next Meeting Date"],
+      [
+        "Date",
+        "Roll No",
+        "Name",
+        "Category",
+        "Detail",
+        ...PLACEMENT_RATING_CATEGORIES.map((c) => c.label),
+        "Note",
+        "Next Meeting Date",
+      ],
       filtered.map((r) => [
         formatDay(r.entry.createdAt),
         r.student.rollNo,
         r.student.name,
         CATEGORY_LABEL[r.entry.category],
         detailLabel(r.entry, drives),
+        ...PLACEMENT_RATING_CATEGORIES.map(({ key }) =>
+          r.entry.placementRatings ? RATING_LABEL[r.entry.placementRatings[key]] : ""
+        ),
         r.entry.note,
         r.entry.nextMeetingDate ? formatDay(r.entry.nextMeetingDate) : "",
       ])
@@ -284,6 +297,15 @@ export default function MenteeFollowUpLogReport() {
                         <tr>
                           <td colSpan={6} className="pb-3">
                             <div className="ml-6 rounded-lg bg-slate-50 p-3 text-sm">
+                              {r.entry.placementRatings && (
+                                <div className="mb-2 flex flex-wrap gap-1.5">
+                                  {PLACEMENT_RATING_CATEGORIES.map(({ key, label }) => (
+                                    <Badge key={key} variant="neutral">
+                                      {label}: {RATING_LABEL[r.entry.placementRatings![key]]}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
                               <p className="whitespace-pre-wrap text-slate-700">{r.entry.note}</p>
                               {r.entry.nextMeetingDate && (
                                 <p className="mt-2 text-xs text-slate-500">Next meeting: {formatDay(r.entry.nextMeetingDate)}</p>
