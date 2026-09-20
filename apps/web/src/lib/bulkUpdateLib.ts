@@ -11,13 +11,13 @@ const INSTITUTION_ROLES = new Set(["dean", "principal", "cpo", "admin"]);
  * already seeds. Deliberately smaller than the full Student type: fields
  * with their own side effects (skills, certifications, resumeUrl, ...) stay
  * student-self-edit-only (see PersonalDetails.tsx / database.rules.json).
- * cgpa is excluded here too — Academic Record is the intended flow for
- * that. currentSemester and activeBacklogs are the odd ones out: kept in
+ * currentSemester, activeBacklogs, and cgpa are the odd ones out: kept in
  * this list (and used to silently fail for coordinator/hod on an existing
  * record until the rule was loosened — see the StudentProfileUpdate doc
  * comment in studentsDirectoryLib.ts) since after each semester's results
  * a coordinator commonly needs to correct a whole sheet's worth of
- * students at once, not one at a time through Student Detail. */
+ * students at once, not one at a time through Student Detail or Academic
+ * Record. */
 export const UPDATABLE_FIELDS = [
   "name",
   "email",
@@ -25,6 +25,7 @@ export const UPDATABLE_FIELDS = [
   "batchYear",
   "currentSemester",
   "activeBacklogs",
+  "cgpa",
   "tenthPercentage",
   "tenthSchool",
   "tenthYearOfPassing",
@@ -60,6 +61,7 @@ const HEADER_MAP: Record<string, UpdatableField> = {
   [normalizeHeader("Backlogs")]: "activeBacklogs",
   [normalizeHeader("Active Backlogs")]: "activeBacklogs",
   [normalizeHeader("No of Backlogs")]: "activeBacklogs",
+  [normalizeHeader("CGPA")]: "cgpa",
   [normalizeHeader("10th Percentage")]: "tenthPercentage",
   [normalizeHeader("Tenth Percentage")]: "tenthPercentage",
   [normalizeHeader("X Class Percentage %")]: "tenthPercentage",
@@ -178,6 +180,10 @@ export function parseStudentUpdateRows(headers: string[], rawRows: string[][]): 
     setIfPresent("activeBacklogs", (raw) => {
       const n = parseNumber(raw);
       return n == null ? { value: undefined, warning: `Backlogs "${raw}" isn't a number — skipped` } : { value: n };
+    });
+    setIfPresent("cgpa", (raw) => {
+      const n = parseNumber(raw);
+      return n == null ? { value: undefined, warning: `CGPA "${raw}" isn't a number — skipped` } : { value: n };
     });
     setIfPresent("tenthPercentage", (raw) => {
       const n = parseNumber(raw);
