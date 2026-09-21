@@ -64,12 +64,16 @@ export default function MenteeTrainingReport() {
     return map;
   }, [sessions]);
 
+  const now = Date.now();
   const rows = useMemo(() => {
     if (!mentees || !students || !batches || !sessions) return null;
     return menteeStudents.map((s) => {
       const allBatchIds = studentBatchIds.get(s.uid) ?? [];
       const batchIds = trainingBatchFilter ? allBatchIds.filter((bid) => bid === trainingBatchFilter) : allBatchIds;
-      const relevantSessions = batchIds.flatMap((bid) => sessionsByBatch.get(bid) ?? []);
+      // Sessions scheduled for later haven't happened yet — counting them
+      // in the denominator made attendance % look artificially low. Cut
+      // off at today, same fix as the coordinator-side Training Report.
+      const relevantSessions = batchIds.flatMap((bid) => sessionsByBatch.get(bid) ?? []).filter((sess) => sess.date <= now);
       const total = relevantSessions.length;
       const attended = relevantSessions.filter((sess) => {
         const status = attendance[sess.sessionId]?.[s.uid]?.status;
@@ -80,7 +84,7 @@ export default function MenteeTrainingReport() {
       const externalTrainings = Object.keys(s.trainings ?? {});
       return { student: s, allBatchIds, trainingBatchNames, attended, total, pct, externalTrainings };
     });
-  }, [mentees, students, batches, sessions, menteeStudents, studentBatchIds, sessionsByBatch, attendance, batchesById, trainingBatchFilter]);
+  }, [mentees, students, batches, sessions, menteeStudents, studentBatchIds, sessionsByBatch, attendance, batchesById, trainingBatchFilter, now]);
 
   const batchYears = useMemo(
     () => Array.from(new Set(menteeStudents.map((s) => s.batchYear))).sort((a, b) => b - a),

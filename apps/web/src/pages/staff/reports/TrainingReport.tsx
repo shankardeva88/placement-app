@@ -59,6 +59,7 @@ export default function TrainingReport() {
     return map;
   }, [sessions]);
 
+  const now = Date.now();
   const rows = useMemo(() => {
     if (!students || !batches || !sessions) return null;
     return students.map((s) => {
@@ -72,7 +73,11 @@ export default function TrainingReport() {
       // view — see MenteeTrainingRow's trainingFilter in
       // FacultyMentorTraining.tsx).
       const batchIds = trainingBatchFilter ? allBatchIds.filter((bid) => bid === trainingBatchFilter) : allBatchIds;
-      const relevantSessions = batchIds.flatMap((bid) => sessionsByBatch.get(bid) ?? []);
+      // Sessions scheduled for later are still "created" but haven't
+      // happened yet — counting them in the denominator made attendance %
+      // look artificially low (e.g. 8/24 when only 10 sessions had actually
+      // run so far). Cut off at today, same fix as the mentor-side view.
+      const relevantSessions = batchIds.flatMap((bid) => sessionsByBatch.get(bid) ?? []).filter((sess) => sess.date <= now);
       const total = relevantSessions.length;
       const attended = relevantSessions.filter((sess) => {
         const status = attendance[sess.sessionId]?.[s.uid]?.status;
@@ -83,7 +88,7 @@ export default function TrainingReport() {
       const externalTrainings = Object.keys(s.trainings ?? {});
       return { student: s, allBatchIds, trainingBatchNames, attended, total, pct, externalTrainings };
     });
-  }, [students, batches, sessions, studentBatchIds, sessionsByBatch, attendance, batchesById, trainingBatchFilter]);
+  }, [students, batches, sessions, studentBatchIds, sessionsByBatch, attendance, batchesById, trainingBatchFilter, now]);
 
   const batchYears = useMemo(() => {
     if (!students) return [];
