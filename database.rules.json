@@ -641,6 +641,24 @@
           ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'student'"
         }
       }
+    },
+
+    // Gate on Signup.tsx: signUpStudent creates the Firebase Auth account
+    // first (so auth != null holds even though this brand-new user has no
+    // /users profile yet — see authActions.ts), then checks this list before
+    // writing a profile, rolling the auth account back if the email isn't
+    // here. Low-sensitivity data (just pending email/department pairs), so
+    // read is open to any authenticated user rather than needing a dept
+    // index — the signup-time check has no department of its own to scope
+    // by yet. Write: coordinator/hod add/remove entries for their own
+    // department, institution roles for any; the one exception is a brand-
+    // new signup consuming (deleting) ONLY its own matching entry, identified
+    // by its own auth token's email rather than any role at all.
+    "signupAllowlist": {
+      ".read": "auth != null",
+      "$allowlistId": {
+        ".write": "auth != null && ( ( newData.val() === null && auth.token.email != null && data.child('email').val() === auth.token.email.toLowerCase() ) || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && (data.exists() ? data : newData).child('department').val() === root.child('users').child(auth.uid).child('department').val() ) )"
+      }
     }
   }
 }

@@ -7,12 +7,24 @@ import { ref, set, update, serverTimestamp } from "firebase/database";
 import { auth, db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
 import type { Department } from "@placement-app/types";
+import { findSignupAllowlistEntry, removeFromSignupAllowlist } from "./signupAllowlistLib";
 
 export async function signUpStudent(email: string, password: string, name: string) {
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   const uid = cred.user.uid;
 
   try {
+    // Coordinator/hod must have approved this email first (Students.tsx →
+    // Signup approvals) — otherwise anyone could create a student account
+    // with any email and an empty roll number, which is how this got added
+    // in the first place. Checked here (auth account already exists, so
+    // auth != null holds) rather than before creating it, since the
+    // allowlist read rule needs an authenticated context.
+    const allowlistEntry = await findSignupAllowlistEntry(email);
+    if (!allowlistEntry) {
+      throw new Error("This email hasn't been approved for signup yet — contact your placement coordinator.");
+    }
+
     await set(ref(db, `${DB_NODES.users}/${uid}`), {
       uid,
       email,
@@ -43,6 +55,11 @@ export async function signUpStudent(email: string, password: string, name: strin
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+
+    // Consumed now that it's done its job — a failure here shouldn't roll
+    // back the account that was just successfully created over it, so it's
+    // deliberately not inside the same try scope's failure path.
+    await removeFromSignupAllowlist(allowlistEntry.allowlistId).catch(() => {});
   } catch (writeErr) {
     // Auth account exists but /users or /students never landed — delete it
     // rather than leave an orphaned login with no profile and an email

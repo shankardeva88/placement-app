@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { FormEvent, MouseEvent } from "react";
 import { Link } from "react-router-dom";
-import { Users, Search, Upload, UserPlus, GraduationCap, RefreshCw, Copy, BadgeCheck } from "lucide-react";
+import { Users, Search, Upload, UserPlus, GraduationCap, RefreshCw, Copy, BadgeCheck, ShieldCheck, Trash2 } from "lucide-react";
 import type { Department, EntranceExamType, Gender, PlacementStatus } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import {
@@ -12,6 +12,7 @@ import {
 } from "../../lib/studentsDirectoryLib";
 import { createBulkStudent } from "../../lib/bulkImportLib";
 import { useAllTrainingBatches } from "../../lib/trainingManagementLib";
+import { useSignupAllowlist, addToSignupAllowlist, removeFromSignupAllowlist } from "../../lib/signupAllowlistLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -225,6 +226,119 @@ function AddStudentForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+/** Gates the self-service Signup page — see the doc comment on
+ * signUpStudent in authActions.ts. Add Student above already creates a
+ * ready-to-use account directly; this is for the other case: a student
+ * signing up on their own, who should only be able to if a coordinator/hod
+ * approved their email first. */
+function SignupApprovalsSection({ onDone }: { onDone: () => void }) {
+  const { appUser } = useAuth();
+  const { showToast } = useToast();
+  const myDept = appUser && "department" in appUser ? appUser.department : undefined;
+  const allowlist = useSignupAllowlist(appUser);
+  const [email, setEmail] = useState("");
+  const [department, setDepartment] = useState<Department>(myDept ?? "CSE");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!appUser) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await addToSignupAllowlist(email.trim(), department, appUser.uid);
+      showToast("Email approved for signup");
+      setEmail("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not approve email");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRemove(allowlistId: string) {
+    setRemovingId(allowlistId);
+    try {
+      await removeFromSignupAllowlist(allowlistId);
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
+  return (
+    <Card className="mb-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-slate-900">Signup approvals</h3>
+        <Button type="button" variant="secondary" onClick={onDone} className="!px-2 !py-1 text-xs">
+          Close
+        </Button>
+      </div>
+      <p className="mb-3 text-sm text-slate-500">
+        A student can only create their own account on the Signup page if their email is approved here first —
+        otherwise anyone could self-register with any email and an empty roll number.
+      </p>
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <div className="sm:col-span-2">
+          <label className={labelClass}>College email</label>
+          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>Department</label>
+          <select value={department} onChange={(e) => setDepartment(e.target.value as Department)} className={inputClass}>
+            {DEPARTMENTS.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-end">
+          <Button type="submit" loading={submitting} className="w-full">
+            Allow signup
+          </Button>
+        </div>
+        {error && <p className="text-sm text-red-600 sm:col-span-4">{error}</p>}
+      </form>
+
+      <div className="mt-4 border-t border-slate-100 pt-3">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Pending approvals</p>
+        {allowlist === null ? (
+          <p className="text-sm text-slate-400">Loading…</p>
+        ) : allowlist.length === 0 ? (
+          <p className="text-sm text-slate-400">No pending approvals — every approved email has already been used to sign up.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {allowlist
+              .slice()
+              .sort((a, b) => b.addedAt - a.addedAt)
+              .map((entry) => (
+                <li
+                  key={entry.allowlistId}
+                  className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-1.5 text-sm"
+                >
+                  <span className="text-slate-700">
+                    {entry.email} <span className="text-xs text-slate-400">— {entry.department}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(entry.allowlistId)}
+                    disabled={removingId === entry.allowlistId}
+                    className="text-slate-400 hover:text-red-600"
+                    title="Revoke approval"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+          </ul>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export default function Students() {
   const { appUser } = useAuth();
   const { showToast } = useToast();
@@ -244,6 +358,7 @@ export default function Students() {
   const [showAlumni, setShowAlumni] = useState(false);
   const [sortBy, setSortBy] = useState<"rollNo" | "recentlyUpdated">("rollNo");
   const [adding, setAdding] = useState(false);
+  const [managingSignupApprovals, setManagingSignupApprovals] = useState(false);
   const [verifyingUid, setVerifyingUid] = useState<string | null>(null);
   const [selectedUids, setSelectedUids] = useState<Set<string>>(new Set());
   const [bulkVerifying, setBulkVerifying] = useState(false);
@@ -504,6 +619,12 @@ export default function Students() {
                   Add Student
                 </Button>
               )}
+              {!managingSignupApprovals && (
+                <Button variant="secondary" onClick={() => setManagingSignupApprovals(true)}>
+                  <ShieldCheck className="h-4 w-4" />
+                  Signup Approvals
+                </Button>
+              )}
               <Link to="/staff/bulk-import-students">
                 <Button variant="secondary">
                   <Upload className="h-4 w-4" />
@@ -528,6 +649,7 @@ export default function Students() {
       />
 
       {adding && <AddStudentForm onDone={() => setAdding(false)} />}
+      {managingSignupApprovals && <SignupApprovalsSection onDone={() => setManagingSignupApprovals(false)} />}
 
       <Card className="mb-4 space-y-4">
         <div className="relative">

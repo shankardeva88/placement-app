@@ -802,6 +802,20 @@ export interface AlumniRecord {
  * readable (it's their own placement record) — see the Internship doc
  * comment above for why this is a separate collection from offers.
  */
+// A coordinator/hod-approved email a student is allowed to self-register
+// with on the Signup page — signUpStudent checks this (after creating the
+// Firebase Auth account but before writing a profile) and rolls the auth
+// account back if the email isn't on it, rather than letting anyone create
+// a student account with any email/department. Consumed (deleted) once the
+// matching signup succeeds, so this only ever holds pending approvals.
+export interface SignupAllowlistEntry {
+  allowlistId: string;
+  email: string; // normalized: trimmed + lowercased
+  department: Department;
+  addedBy: string; // staff uid
+  addedAt: Timestamp;
+}
+
 export const DB_NODES = {
   users: "users",
   students: "students",
@@ -840,4 +854,5 @@ export const DB_NODES = {
   menteeFollowUpsDeptIndex: "menteeFollowUpsDeptIndex",
   internships: "internships",
   internshipsDeptIndex: "internshipsDeptIndex",
+  signupAllowlist: "signupAllowlist",
 } as const;
