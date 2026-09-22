@@ -20,6 +20,17 @@ const labelClass = "mb-1 block text-sm font-medium text-slate-700";
 
 const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
 
+const ATTENDANCE_CODE: Record<"present" | "absent" | "late", string> = { present: "P", absent: "A", late: "L" };
+const ATTENDANCE_CODE_BADGE: Record<"present" | "absent" | "late", BadgeVariant> = {
+  present: "success",
+  absent: "danger",
+  late: "warning",
+};
+
+function formatShortDate(ts: number): string {
+  return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
 /** One row per student — internal training batch enrollment + session
  * attendance %, alongside external/corporate trainings (Student.trainings,
  * a completely separate system from batches/sessions — see the field's
@@ -126,6 +137,37 @@ export default function TrainingReport() {
         r.total,
         r.pct ?? "",
         r.externalTrainings.join("; "),
+      ])
+    );
+  }
+
+  // Only meaningful for one specific training batch — "All training
+  // batches" has no single shared set of session dates to put in columns.
+  // Sessions that haven't happened yet are excluded, same cutoff as the
+  // summary table above.
+  const dayWiseSessions = useMemo(() => {
+    if (!trainingBatchFilter) return [];
+    return (sessionsByBatch.get(trainingBatchFilter) ?? []).filter((s) => s.date <= now).sort((a, b) => a.date - b.date);
+  }, [trainingBatchFilter, sessionsByBatch, now]);
+
+  function attendanceCode(sessionId: string, uid: string): "present" | "absent" | "late" | null {
+    const status = attendance[sessionId]?.[uid]?.status;
+    return status === "present" || status === "absent" || status === "late" ? status : null;
+  }
+
+  function handleDownloadDayWise() {
+    if (!filtered || dayWiseSessions.length === 0) return;
+    downloadCsv(
+      `training-report-day-wise-${batchesById[trainingBatchFilter]?.name ?? trainingBatchFilter}.csv`,
+      ["Roll No", "Name", ...dayWiseSessions.map((s) => formatShortDate(s.date)), "Attendance %"],
+      filtered.map((r) => [
+        r.student.rollNo,
+        r.student.name,
+        ...dayWiseSessions.map((s) => {
+          const code = attendanceCode(s.sessionId, r.student.uid);
+          return code ? ATTENDANCE_CODE[code] : "-";
+        }),
+        r.pct ?? "",
       ])
     );
   }
@@ -251,6 +293,66 @@ export default function TrainingReport() {
               </tbody>
             </table>
           </div>
+        </Card>
+      )}
+
+      {!loading && filtered.length > 0 && trainingBatchFilter && (
+        <Card className="mt-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">
+                Day-wise — {batchesById[trainingBatchFilter]?.name ?? trainingBatchFilter}
+              </h3>
+              <p className="text-xs text-slate-500">One column per session held so far. P = present, A = absent, L = late.</p>
+            </div>
+            {dayWiseSessions.length > 0 && (
+              <Button variant="secondary" onClick={handleDownloadDayWise}>
+                <Download className="h-4 w-4" />
+                Download day-wise CSV
+              </Button>
+            )}
+          </div>
+          {dayWiseSessions.length === 0 ? (
+            <p className="text-sm text-slate-400">No sessions have run yet for this batch.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                    <th className="whitespace-nowrap py-2 pr-4">Roll No</th>
+                    <th className="whitespace-nowrap py-2 pr-4">Name</th>
+                    {dayWiseSessions.map((s) => (
+                      <th key={s.sessionId} className="whitespace-nowrap py-2 pr-3 text-center" title={s.topic}>
+                        {formatShortDate(s.date)}
+                      </th>
+                    ))}
+                    <th className="whitespace-nowrap py-2 pl-3">%</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filtered.map((r) => (
+                    <tr key={r.student.studentId}>
+                      <td className="whitespace-nowrap py-1.5 pr-4 font-medium text-slate-800">{r.student.rollNo}</td>
+                      <td className="whitespace-nowrap py-1.5 pr-4 text-slate-600">{r.student.name}</td>
+                      {dayWiseSessions.map((s) => {
+                        const code = attendanceCode(s.sessionId, r.student.uid);
+                        return (
+                          <td key={s.sessionId} className="py-1.5 pr-3 text-center">
+                            {code ? (
+                              <Badge variant={ATTENDANCE_CODE_BADGE[code]}>{ATTENDANCE_CODE[code]}</Badge>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="whitespace-nowrap py-1.5 pl-3 font-medium text-slate-700">{r.pct ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
       )}
     </div>
