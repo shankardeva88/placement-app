@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ref, push, set, get, update, onValue } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -265,19 +265,24 @@ export async function markAllPresent(sessionId: string, studentIds: string[], de
 const INSTITUTION_ROLES = new Set(["dean", "principal", "cpo", "admin"]);
 
 /** Dept-scoped attendance, grouped back into the {sessionId: {studentUid:
- * record}} shape the shortage report expects. attendance is nested
- * ({sessionId}/{studentUid}), not flat, so this can't reuse
- * useDeptScopedCollection directly — root read is institution-only now,
- * dept-scoped roles fan out through attendanceDeptIndex (keyed by the
- * record's own attendanceId = "{sessionId}_{studentUid}"), splitting that
- * id back into its two path segments client-side. */
+ * record}} shape the shortage report expects. Reads each of the
+ * department's own sessions' attendance directly (attendance/{sessionId}
+ * has its own .read rule for dept-matched coordinator/hod/faculty_mentor —
+ * see database.rules.json) rather than fanning out through
+ * attendanceDeptIndex's composite "{sessionId}_{studentUid}" keys — those
+ * had to be split back into two path segments by finding the first "_",
+ * which silently produced the wrong path (and so no attendance at all for
+ * that session) whenever a session's push-generated id happened to contain
+ * an underscore of its own, since Firebase push ids use "_" as a normal
+ * alphabet character, not just as this code's separator. */
 export function useAllAttendance(appUser: AppUser | null): Record<string, Record<string, { status: AttendanceStatus }>> {
   const isInstitution = !!appUser && INSTITUTION_ROLES.has(appUser.role);
   const department = appUser && "department" in appUser ? appUser.department : undefined;
 
   const [rootAttendance, setRootAttendance] = useState<Record<string, Record<string, AttendanceRecord>> | null>(null);
-  const [deptIds, setDeptIds] = useState<string[] | null>(null);
-  const [deptRecords, setDeptRecords] = useState<Record<string, AttendanceRecord>>({});
+  const [batches, setBatches] = useState<TrainingBatch[] | null>(null);
+  const [sessions, setSessions] = useState<TrainingSession[] | null>(null);
+  const [sessionAttendance, setSessionAttendance] = useState<Record<string, Record<string, AttendanceRecord>>>({});
 
   useEffect(() => {
     if (!isInstitution) return;
@@ -288,34 +293,50 @@ export function useAllAttendance(appUser: AppUser | null): Record<string, Record
 
   useEffect(() => {
     if (isInstitution || !department) return;
-    return onValue(ref(db, `${DB_NODES.attendanceDeptIndex}/${department}`), (snap) => {
-      const val = snap.val() as Record<string, boolean> | null;
-      setDeptIds(val ? Object.keys(val) : []);
+    return onValue(ref(db, DB_NODES.trainingBatches), (snap) => {
+      const val = snap.val() as Record<string, TrainingBatch> | null;
+      setBatches(val ? Object.values(val) : []);
     });
   }, [isInstitution, department]);
 
   useEffect(() => {
-    if (!deptIds) return;
-    const unsubs = deptIds.map((attendanceId) => {
-      const splitAt = attendanceId.indexOf("_");
-      const sessionId = attendanceId.slice(0, splitAt);
-      const studentId = attendanceId.slice(splitAt + 1);
-      return onValue(ref(db, `${DB_NODES.attendance}/${sessionId}/${studentId}`), (snap) => {
-        if (snap.exists()) {
-          setDeptRecords((prev) => ({ ...prev, [attendanceId]: snap.val() as AttendanceRecord }));
-        }
-      });
+    if (isInstitution || !department) return;
+    return onValue(ref(db, DB_NODES.trainingSessions), (snap) => {
+      const val = snap.val() as Record<string, TrainingSession> | null;
+      setSessions(val ? Object.values(val) : []);
     });
+  }, [isInstitution, department]);
+
+  const deptSessionIds = useMemo(() => {
+    if (isInstitution || !department || !batches || !sessions) return null;
+    const deptBatchIds = new Set(batches.filter((b) => b.department === department).map((b) => b.batchId));
+    return sessions.filter((s) => deptBatchIds.has(s.batchId)).map((s) => s.sessionId);
+  }, [isInstitution, department, batches, sessions]);
+
+  useEffect(() => {
+    if (!deptSessionIds) return;
+    const unsubs = deptSessionIds.map((sessionId) =>
+      onValue(ref(db, `${DB_NODES.attendance}/${sessionId}`), (snap) => {
+        setSessionAttendance((prev) => ({
+          ...prev,
+          [sessionId]: (snap.val() as Record<string, AttendanceRecord> | null) ?? {},
+        }));
+      })
+    );
     return () => unsubs.forEach((u) => u());
-  }, [deptIds]);
+  }, [deptSessionIds]);
 
   const grouped: Record<string, Record<string, { status: AttendanceStatus }>> = {};
-  const records = isInstitution
-    ? Object.values(rootAttendance ?? {}).flatMap((byStudent) => Object.values(byStudent))
-    : Object.values(deptRecords);
-  for (const r of records) {
-    grouped[r.sessionId] ??= {};
-    grouped[r.sessionId][r.studentId] = { status: r.status };
+  if (isInstitution) {
+    for (const [sessionId, byStudent] of Object.entries(rootAttendance ?? {})) {
+      grouped[sessionId] = {};
+      for (const [studentId, record] of Object.entries(byStudent)) grouped[sessionId][studentId] = { status: record.status };
+    }
+  } else {
+    for (const [sessionId, byStudent] of Object.entries(sessionAttendance)) {
+      grouped[sessionId] = {};
+      for (const [studentId, record] of Object.entries(byStudent)) grouped[sessionId][studentId] = { status: record.status };
+    }
   }
   return grouped;
 }
