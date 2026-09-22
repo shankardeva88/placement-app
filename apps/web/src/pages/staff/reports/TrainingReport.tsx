@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, ArrowLeft, Download, Search } from "lucide-react";
+import { BookOpen, ArrowLeft, ChevronDown, ChevronUp, Download, Search } from "lucide-react";
 import type { Department, TrainingSession } from "@placement-app/types";
 import { useAuth } from "../../../auth/AuthContext";
 import { useStudentsDirectory } from "../../../lib/studentsDirectoryLib";
@@ -47,6 +47,9 @@ export default function TrainingReport() {
   const [deptFilter, setDeptFilter] = useState<Department | "">("");
   const [batchYearFilter, setBatchYearFilter] = useState<number | "">("");
   const [trainingBatchFilter, setTrainingBatchFilter] = useState("");
+  // Collapsed by default — with the whole department's roster (278+
+  // students) this table pushed the day-wise matrix far down the page.
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
 
   const batchesById = useMemo(() => Object.fromEntries((batches ?? []).map((b) => [b.batchId, b])), [batches]);
 
@@ -257,42 +260,52 @@ export default function TrainingReport() {
 
       {!loading && filtered.length > 0 && (
         <Card>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-4">Roll No</th>
-                  <th className="py-2 pr-4">Name</th>
-                  <th className="py-2 pr-4">Dept</th>
-                  <th className="py-2 pr-4">Batch</th>
-                  <th className="py-2 pr-4">Training Batch(es)</th>
-                  <th className="py-2 pr-4">Attendance</th>
-                  <th className="py-2 pr-4">External Trainings</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filtered.map((r) => (
-                  <tr key={r.student.studentId}>
-                    <td className="py-2 pr-4 font-medium text-slate-800">{r.student.rollNo}</td>
-                    <td className="py-2 pr-4 text-slate-600">{r.student.name}</td>
-                    <td className="py-2 pr-4 text-slate-600">{r.student.department}</td>
-                    <td className="py-2 pr-4 text-slate-600">{r.student.batchYear}</td>
-                    <td className="py-2 pr-4 text-slate-600">{r.trainingBatchNames.join(", ") || "—"}</td>
-                    <td className="py-2 pr-4">
-                      {r.total === 0 ? (
-                        <span className="text-slate-400">—</span>
-                      ) : (
-                        <Badge variant={pctBadge(r.pct ?? 0)}>
-                          {r.attended}/{r.total} ({r.pct}%)
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="py-2 pr-4 text-slate-600">{r.externalTrainings.join(", ") || "—"}</td>
+          <button
+            type="button"
+            onClick={() => setSummaryExpanded((v) => !v)}
+            className="flex w-full items-center justify-between gap-2 text-left"
+          >
+            <h3 className="text-sm font-semibold text-slate-900">Summary ({filtered.length} student(s))</h3>
+            {summaryExpanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+          </button>
+          {summaryExpanded && (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-[900px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                    <th className="py-2 pr-4">Roll No</th>
+                    <th className="py-2 pr-4">Name</th>
+                    <th className="py-2 pr-4">Dept</th>
+                    <th className="py-2 pr-4">Batch</th>
+                    <th className="py-2 pr-4">Training Batch(es)</th>
+                    <th className="py-2 pr-4">Attendance</th>
+                    <th className="py-2 pr-4">External Trainings</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filtered.map((r) => (
+                    <tr key={r.student.studentId}>
+                      <td className="py-2 pr-4 font-medium text-slate-800">{r.student.rollNo}</td>
+                      <td className="py-2 pr-4 text-slate-600">{r.student.name}</td>
+                      <td className="py-2 pr-4 text-slate-600">{r.student.department}</td>
+                      <td className="py-2 pr-4 text-slate-600">{r.student.batchYear}</td>
+                      <td className="py-2 pr-4 text-slate-600">{r.trainingBatchNames.join(", ") || "—"}</td>
+                      <td className="py-2 pr-4">
+                        {r.total === 0 ? (
+                          <span className="text-slate-400">—</span>
+                        ) : (
+                          <Badge variant={pctBadge(r.pct ?? 0)}>
+                            {r.attended}/{r.total} ({r.pct}%)
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="py-2 pr-4 text-slate-600">{r.externalTrainings.join(", ") || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
       )}
 
@@ -319,8 +332,8 @@ export default function TrainingReport() {
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                    <th className="whitespace-nowrap py-2 pr-4">Roll No</th>
-                    <th className="whitespace-nowrap py-2 pr-4">Name</th>
+                    <th className="sticky left-0 z-10 w-24 truncate bg-white py-2 pr-4">Roll No</th>
+                    <th className="sticky left-24 z-10 w-36 truncate border-r border-slate-200 bg-white py-2 pr-4">Name</th>
                     {dayWiseSessions.map((s) => (
                       <th key={s.sessionId} className="whitespace-nowrap py-2 pr-3 text-center" title={s.topic}>
                         {formatShortDate(s.date)}
@@ -332,8 +345,12 @@ export default function TrainingReport() {
                 <tbody className="divide-y divide-slate-100">
                   {filtered.map((r) => (
                     <tr key={r.student.studentId}>
-                      <td className="whitespace-nowrap py-1.5 pr-4 font-medium text-slate-800">{r.student.rollNo}</td>
-                      <td className="whitespace-nowrap py-1.5 pr-4 text-slate-600">{r.student.name}</td>
+                      <td className="sticky left-0 z-10 w-24 truncate bg-white py-1.5 pr-4 font-medium text-slate-800">
+                        {r.student.rollNo}
+                      </td>
+                      <td className="sticky left-24 z-10 w-36 truncate border-r border-slate-200 bg-white py-1.5 pr-4 text-slate-600">
+                        {r.student.name}
+                      </td>
                       {dayWiseSessions.map((s) => {
                         const code = attendanceCode(s.sessionId, r.student.uid);
                         return (
