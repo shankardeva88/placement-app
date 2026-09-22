@@ -156,9 +156,25 @@ export async function removeStudent(uid: string) {
 
   await remove(ref(db, `${DB_NODES.users}/${uid}`));
 
-  const updates: Record<string, null> = { [`${DB_NODES.students}/${uid}`]: null };
+  const updates: Record<string, unknown> = { [`${DB_NODES.students}/${uid}`]: null };
   if (department) {
     updates[`${DB_NODES.departmentIndex}/${department}/${uid}`] = null;
   }
+
+  // Also strip this uid out of any training batch roster it's still in —
+  // trainingBatches.studentIds isn't indexed by student, so without this a
+  // deleted student's now-orphaned id stayed in every batch they were part
+  // of forever, with no way to remove it through the batch-edit UI either
+  // (that form only lists currently-existing students as checkboxes, so an
+  // orphaned id already in the array can never be unchecked). Showed up as
+  // a raw uid instead of a name/roll number anywhere that roster was read.
+  const batchesSnap = await get(ref(db, DB_NODES.trainingBatches));
+  const batches = (batchesSnap.val() as Record<string, { studentIds?: string[] }> | null) ?? {};
+  for (const [batchId, batch] of Object.entries(batches)) {
+    if (batch.studentIds?.includes(uid)) {
+      updates[`${DB_NODES.trainingBatches}/${batchId}/studentIds`] = batch.studentIds.filter((id) => id !== uid);
+    }
+  }
+
   await update(ref(db), updates);
 }
