@@ -53,7 +53,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [firebaseUser]);
 
   useEffect(() => {
-    if (!firebaseUser || !appUser) return;
+    if (!firebaseUser) return;
+    // No /users profile for this login — e.g. the account was deleted from
+    // the database (removeStudent only removes the RTDB profile, not the
+    // underlying Firebase Auth account, which needs Admin SDK access this
+    // app doesn't have) while the old login credentials still work. Without
+    // this, loading stayed stuck true forever: this effect used to bail out
+    // silently whenever appUser was null, which meant RootRedirect/
+    // ProtectedRoute's own "no appUser → back to /login" handling never got
+    // a chance to run, since they gate on loading first.
+    if (!appUser) {
+      setStudent(null);
+      setLoading(false);
+      return;
+    }
 
     // Only student accounts have a /students record — staff/recruiter
     // accounts don't. Reading a path that doesn't exist, where the rules
