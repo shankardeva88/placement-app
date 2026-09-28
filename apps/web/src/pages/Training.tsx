@@ -75,6 +75,20 @@ function CheckInAction({ sessionId }: { sessionId: string }) {
   );
 }
 
+// One dot per session (not per day — a day can hold more than one, and
+// each is its own attendance record) so this stays exactly as granular as
+// the day-wise matrix coordinators/mentors already see, just condensed
+// into something glanceable without expanding the card. Grey means the
+// session hasn't happened yet; a lighter grey means it has but nothing
+// was ever marked.
+function dayStripColor(session: SessionWithAttendance["session"], attendance: SessionWithAttendance["attendance"]): string {
+  if (session.date > Date.now()) return "bg-slate-200";
+  if (!attendance) return "bg-slate-300";
+  if (attendance.status === "present") return "bg-emerald-500";
+  if (attendance.status === "late") return "bg-amber-500";
+  return "bg-red-500";
+}
+
 function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions: SessionWithAttendance[] }) {
   // Collapsed by default — same fix as Offers/Drives/Internships: a
   // student in several training batches (or one batch with a long session
@@ -84,6 +98,7 @@ function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions
   // whether they still need to check in somewhere.
   const [expanded, setExpanded] = useState(false);
   const pendingCheckIn = sessions.some((s) => !s.attendance);
+  const sortedSessions = useMemo(() => sessions.slice().sort((a, b) => a.session.date - b.session.date), [sessions]);
 
   // Same date filter as the coordinator-side batch view — jump straight to
   // one day instead of scrolling a multi-day training's full session list.
@@ -129,6 +144,20 @@ function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions
           {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
         </div>
       </button>
+
+      {sortedSessions.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          {sortedSessions.map(({ session, attendance }) => (
+            <span
+              key={session.sessionId}
+              title={`${new Date(session.date).toLocaleDateString(undefined, { day: "numeric", month: "short" })} — ${
+                session.date > Date.now() ? "upcoming" : attendance ? attendance.status : "not marked"
+              }`}
+              className={`h-2.5 w-2.5 rounded-full ${dayStripColor(session, attendance)}`}
+            />
+          ))}
+        </div>
+      )}
 
       {expanded &&
         (sessions.length === 0 ? (
