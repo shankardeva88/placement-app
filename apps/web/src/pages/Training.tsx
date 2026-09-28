@@ -146,15 +146,20 @@ function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions
       </button>
 
       {sortedSessions.length > 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <div className="mt-3 flex flex-wrap items-end gap-x-2 gap-y-2">
           {sortedSessions.map(({ session, attendance }) => (
-            <span
+            <div
               key={session.sessionId}
+              className="flex flex-col items-center gap-1"
               title={`${new Date(session.date).toLocaleDateString(undefined, { day: "numeric", month: "short" })} — ${
                 session.date > Date.now() ? "upcoming" : attendance ? attendance.status : "not marked"
               }`}
-              className={`h-2.5 w-2.5 rounded-full ${dayStripColor(session, attendance)}`}
-            />
+            >
+              <span className="text-[10px] leading-none text-slate-400">
+                {new Date(session.date).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+              </span>
+              <span className={`h-2.5 w-2.5 rounded-full ${dayStripColor(session, attendance)}`} />
+            </div>
           ))}
         </div>
       )}
