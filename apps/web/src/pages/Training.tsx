@@ -156,7 +156,7 @@ function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions
             {sessions.length} session{sessions.length === 1 ? "" : "s"}
           </Badge>
           {attendancePct !== null && (
-            <Badge variant={attendancePct >= 75 ? "success" : attendancePct >= 50 ? "warning" : "danger"}>
+            <Badge variant={attendancePct >= 75 ? "warning" : "danger"}>
               {attendedCount}/{heldCount} ({attendancePct}%)
             </Badge>
           )}
