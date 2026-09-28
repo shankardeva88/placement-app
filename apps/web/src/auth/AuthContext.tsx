@@ -24,6 +24,12 @@ const AuthContext = createContext<AuthContextValue>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
+  // appUser alone can't tell "the /users read hasn't resolved yet" (normal
+  // on every fresh page load — briefly null before the first onValue
+  // callback fires) apart from "it resolved and there's genuinely no
+  // profile" (the deleted-account case below) — both look like appUser ===
+  // null. This tracks which one it actually is.
+  const [appUserChecked, setAppUserChecked] = useState(false);
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -36,9 +42,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // RootRedirect decide using the previous (logged-out) student=null.
         setLoading(true);
         setAppUser(null);
+        setAppUserChecked(false);
         setStudent(null);
       } else {
         setAppUser(null);
+        setAppUserChecked(false);
         setStudent(null);
         setLoading(false);
       }
@@ -47,13 +55,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!firebaseUser) return;
+    setAppUserChecked(false);
     return onValue(ref(db, `${DB_NODES.users}/${firebaseUser.uid}`), (snap) => {
       setAppUser(snap.exists() ? (snap.val() as AppUser) : null);
+      setAppUserChecked(true);
     });
   }, [firebaseUser]);
 
   useEffect(() => {
     if (!firebaseUser) return;
+    // Still waiting on the /users read above (or it just got reset for a
+    // new uid) — not the same as "resolved to nothing", so don't touch
+    // loading yet.
+    if (!appUserChecked) return;
     // No /users profile for this login — e.g. the account was deleted from
     // the database (removeStudent only removes the RTDB profile, not the
     // underlying Firebase Auth account, which needs Admin SDK access this
@@ -85,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStudent(snap.exists() ? (snap.val() as Student) : null);
       setLoading(false);
     });
-  }, [firebaseUser, appUser]);
+  }, [firebaseUser, appUser, appUserChecked]);
 
   return (
     <AuthContext.Provider value={{ firebaseUser, appUser, student, loading }}>
