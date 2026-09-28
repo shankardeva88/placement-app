@@ -100,6 +100,21 @@ function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions
   const pendingCheckIn = sessions.some((s) => !s.attendance);
   const sortedSessions = useMemo(() => sessions.slice().sort((a, b) => a.session.date - b.session.date), [sessions]);
 
+  // Same calculation as the coordinator/mentor Training Reports: only
+  // sessions that have already happened count toward the total (upcoming
+  // ones would make the percentage look artificially low), and late counts
+  // as attended.
+  const { heldCount, attendedCount, attendancePct } = useMemo(() => {
+    const now = Date.now();
+    const held = sessions.filter((s) => s.session.date <= now);
+    const attended = held.filter((s) => s.attendance?.status === "present" || s.attendance?.status === "late").length;
+    return {
+      heldCount: held.length,
+      attendedCount: attended,
+      attendancePct: held.length > 0 ? Math.round((attended / held.length) * 100) : null,
+    };
+  }, [sessions]);
+
   // Same date filter as the coordinator-side batch view — jump straight to
   // one day instead of scrolling a multi-day training's full session list.
   const [dateFilter, setDateFilter] = useState("");
@@ -140,6 +155,11 @@ function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions
           <Badge variant="neutral">
             {sessions.length} session{sessions.length === 1 ? "" : "s"}
           </Badge>
+          {attendancePct !== null && (
+            <Badge variant={attendancePct >= 75 ? "success" : attendancePct >= 50 ? "warning" : "danger"}>
+              {attendedCount}/{heldCount} ({attendancePct}%)
+            </Badge>
+          )}
           {pendingCheckIn && <Badge variant="warning">Check-in pending</Badge>}
           {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
         </div>
