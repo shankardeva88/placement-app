@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { ClipboardCheck, Download, ChevronDown, ChevronRight, FileText, Pencil, Trash2 } from "lucide-react";
+import { Archive, ClipboardCheck, Download, ChevronDown, ChevronRight, FileText, Pencil, Trash2 } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -17,6 +17,7 @@ import {
   createMockModule,
   updateMockModule,
   deleteMockModule,
+  setMockModuleArchived,
   recordMockEvaluation,
   startOfDay,
   RATING_OPTIONS,
@@ -1134,6 +1135,11 @@ export default function MockEvaluations() {
   const [drives, setDrives] = useState<Record<string, Drive>>({});
   const [editingModule, setEditingModule] = useState(false);
   const [deletingModule, setDeletingModule] = useState(false);
+  // Archived modules (see MockInterviewModule.archived doc comment) stay
+  // out of the dropdown by default — without this, every drive's module
+  // ever created just piles up here forever, since nothing's ever removed.
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiving, setArchiving] = useState(false);
 
   useEffect(() => {
     return onValue(ref(db, DB_NODES.drives), (snap) => {
@@ -1146,7 +1152,23 @@ export default function MockEvaluations() {
   const canLogEvalForAny = !!appUser && CAN_LOG_EVAL_FOR_ANY_ROLES.includes(appUser.role);
 
   const sortedModules = useMemo(() => (modules ?? []).slice().sort((a, b) => b.startDate - a.startDate), [modules]);
-  const selectedModule = sortedModules.find((m) => m.moduleId === selectedModuleId) ?? sortedModules[0];
+  const archivedCount = useMemo(() => sortedModules.filter((m) => m.archived).length, [sortedModules]);
+  const visibleModules = useMemo(
+    () => (showArchived ? sortedModules : sortedModules.filter((m) => !m.archived)),
+    [sortedModules, showArchived]
+  );
+  const selectedModule = visibleModules.find((m) => m.moduleId === selectedModuleId) ?? visibleModules[0];
+
+  async function handleToggleArchive() {
+    if (!selectedModule) return;
+    setArchiving(true);
+    try {
+      await setMockModuleArchived(selectedModule.moduleId, !selectedModule.archived);
+      setSelectedModuleId("");
+    } finally {
+      setArchiving(false);
+    }
+  }
 
   return (
     <div>
@@ -1166,37 +1188,61 @@ export default function MockEvaluations() {
       ) : (
         <>
           <Card className="mb-4">
-            <label className={labelClass}>Module</label>
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={selectedModule?.moduleId ?? ""}
-                onChange={(e) => {
-                  setSelectedModuleId(e.target.value);
-                  setEditingModule(false);
-                  setDeletingModule(false);
-                }}
-                className={`${inputClass} sm:w-96`}
-              >
-                {sortedModules.map((m) => (
-                  <option key={m.moduleId} value={m.moduleId}>
-                    {m.name} ({formatDay(m.startDate)} – {formatDay(m.endDate)})
-                    {m.driveId && drives[m.driveId] ? ` — linked to ${drives[m.driveId].companyName}` : ""}
-                  </option>
-                ))}
-              </select>
-              {canCreateModule && selectedModule && !editingModule && !deletingModule && (
-                <>
-                  <Button variant="secondary" onClick={() => setEditingModule(true)} className="shrink-0">
-                    <Pencil className="h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button variant="danger" onClick={() => setDeletingModule(true)} className="shrink-0">
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </Button>
-                </>
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+              <label className={`${labelClass} mb-0`}>Module</label>
+              {archivedCount > 0 && (
+                <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <input
+                    type="checkbox"
+                    checked={showArchived}
+                    onChange={(e) => {
+                      setShowArchived(e.target.checked);
+                      setSelectedModuleId("");
+                    }}
+                  />
+                  Show archived ({archivedCount})
+                </label>
               )}
             </div>
+            {visibleModules.length === 0 ? (
+              <p className="text-sm text-slate-400">No modules match — every module is archived. Check "Show archived" above.</p>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={selectedModule?.moduleId ?? ""}
+                  onChange={(e) => {
+                    setSelectedModuleId(e.target.value);
+                    setEditingModule(false);
+                    setDeletingModule(false);
+                  }}
+                  className={`${inputClass} sm:w-96`}
+                >
+                  {visibleModules.map((m) => (
+                    <option key={m.moduleId} value={m.moduleId}>
+                      {m.name} ({formatDay(m.startDate)} – {formatDay(m.endDate)})
+                      {m.driveId && drives[m.driveId] ? ` — linked to ${drives[m.driveId].companyName}` : ""}
+                      {m.archived ? " — archived" : ""}
+                    </option>
+                  ))}
+                </select>
+                {canCreateModule && selectedModule && !editingModule && !deletingModule && (
+                  <>
+                    <Button variant="secondary" onClick={() => setEditingModule(true)} className="shrink-0">
+                      <Pencil className="h-4 w-4" />
+                      Edit
+                    </Button>
+                    <Button variant="secondary" onClick={handleToggleArchive} loading={archiving} className="shrink-0">
+                      <Archive className="h-4 w-4" />
+                      {selectedModule.archived ? "Unarchive" : "Archive"}
+                    </Button>
+                    <Button variant="danger" onClick={() => setDeletingModule(true)} className="shrink-0">
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
           </Card>
 
           {selectedModule && editingModule && (

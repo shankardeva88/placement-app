@@ -590,6 +590,12 @@ export interface MockInterviewModule {
   driveId?: string;
   createdBy: string;
   createdAt: Timestamp;
+  // Kept-aside, not deleted — a coordinator archives a module once its
+  // drive (or just the mock-interview push itself) is done, so the module
+  // dropdown on Mock Interview Modules stops growing with every past drive
+  // ever run, without losing the evaluations logged against it. Hidden from
+  // the dropdown by default; a "Show archived" toggle reveals them again.
+  archived?: boolean;
 }
 
 export type MockEvalRating =

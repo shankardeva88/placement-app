@@ -165,6 +165,14 @@ export async function updateMockModule(moduleId: string, input: UpdateMockModule
   });
 }
 
+/** Keeps the module (and every evaluation logged against it) exactly as
+ * it is — just hides it from the default dropdown, see the doc comment on
+ * MockInterviewModule.archived. Reversible from the same "Show archived"
+ * view, unlike deleteMockModule. */
+export async function setMockModuleArchived(moduleId: string, archived: boolean) {
+  await update(ref(db, `${DB_NODES.mockInterviewModules}/${moduleId}`), { archived });
+}
+
 /** Cascades to every evaluation logged under the module (and each of those
  * evaluations' deptIndex/studentIndex entries) — same reasoning as
  * deleteTrainingBatch in trainingManagementLib.ts: leaving them behind would
