@@ -123,6 +123,7 @@ export interface CreateMockModuleInput {
   startDate: number;
   endDate: number;
   driveId?: string;
+  batchYear?: number;
   createdBy: string;
 }
 
@@ -138,6 +139,7 @@ export async function createMockModule(input: CreateMockModuleInput) {
     createdAt: Date.now(),
   };
   if (input.driveId) module.driveId = input.driveId;
+  if (input.batchYear) module.batchYear = input.batchYear;
   await update(ref(db), {
     [`${DB_NODES.mockInterviewModules}/${moduleId}`]: module,
     [`${DB_NODES.mockInterviewModulesDeptIndex}/${input.department}/${moduleId}`]: true,
@@ -150,6 +152,7 @@ export interface UpdateMockModuleInput {
   startDate: number;
   endDate: number;
   driveId?: string;
+  batchYear?: number;
 }
 
 // Department isn't editable here — it's the deptIndex key, so changing it
@@ -162,6 +165,7 @@ export async function updateMockModule(moduleId: string, input: UpdateMockModule
     startDate: startOfDay(input.startDate),
     endDate: startOfDay(input.endDate),
     driveId: input.driveId ?? null,
+    batchYear: input.batchYear ?? null,
   });
 }
 

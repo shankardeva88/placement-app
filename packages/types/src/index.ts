@@ -588,6 +588,13 @@ export interface MockInterviewModule {
   // so mock-interview time focuses on students the company already moved
   // forward, not the whole roster.
   driveId?: string;
+  // Optional — narrows which mentees/students show up for logging to just
+  // this batch year, same role as driveId's "cleared round 1" narrowing but
+  // by batch instead of drive progress. Without this, an unlinked module
+  // (no drive) showed every mentee across every batch year mixed together,
+  // even when the mock-interview push was only ever meant for one batch
+  // (e.g. 2027 finals, not 2028).
+  batchYear?: number;
   createdBy: string;
   createdAt: Timestamp;
   // Kept-aside, not deleted — a coordinator archives a module once its

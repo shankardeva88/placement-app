@@ -81,12 +81,14 @@ function CreateModuleSection({ onCreated }: { onCreated: () => void }) {
   const { appUser } = useAuth();
   const { showToast } = useToast();
   const myDept = appUser && "department" in appUser ? appUser.department : undefined;
+  const students = useStudentsDirectory(appUser);
 
   const [name, setName] = useState("");
   const [department, setDepartment] = useState<Department>(myDept ?? "CSE");
   const [startDate, setStartDate] = useState(toDateInputValue(Date.now()));
   const [endDate, setEndDate] = useState(toDateInputValue(Date.now()));
   const [driveId, setDriveId] = useState("");
+  const [batchYear, setBatchYear] = useState("");
   const [drives, setDrives] = useState<Drive[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +101,12 @@ function CreateModuleSection({ onCreated }: { onCreated: () => void }) {
   }, []);
 
   const sortedDrives = useMemo(() => drives.slice().sort((a, b) => b.driveDate - a.driveDate), [drives]);
+  const batchYearOptions = useMemo(() => {
+    const dept = myDept ?? department;
+    return Array.from(new Set((students ?? []).filter((s) => s.department === dept).map((s) => s.batchYear))).sort(
+      (a, b) => b - a
+    );
+  }, [students, myDept, department]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -120,11 +128,13 @@ function CreateModuleSection({ onCreated }: { onCreated: () => void }) {
         startDate: new Date(startDate).getTime(),
         endDate: new Date(endDate).getTime(),
         driveId: driveId || undefined,
+        batchYear: batchYear ? Number(batchYear) : undefined,
         createdBy: appUser.uid,
       });
       showToast("Module created");
       setName("");
       setDriveId("");
+      setBatchYear("");
       onCreated();
     } finally {
       setSubmitting(false);
@@ -174,6 +184,21 @@ function CreateModuleSection({ onCreated }: { onCreated: () => void }) {
           </select>
           <p className="mt-1 text-xs text-slate-400">
             When linked, mentors only see mentees who've cleared at least the first round of this drive — not the whole roster.
+          </p>
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Batch (optional)</label>
+          <select value={batchYear} onChange={(e) => setBatchYear(e.target.value)} className={inputClass}>
+            <option value="">Every batch</option>
+            {batchYearOptions.map((y) => (
+              <option key={y} value={y}>
+                Batch {y}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-400">
+            When set, only this batch's mentees show up for logging — without it, an unlinked module mixes every batch
+            year together.
           </p>
         </div>
         {error && <p className="text-sm text-red-600 sm:col-span-4">{error}</p>}
@@ -372,11 +397,14 @@ function EditModuleForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const { appUser } = useAuth();
   const { showToast } = useToast();
+  const students = useStudentsDirectory(appUser);
   const [name, setName] = useState(module.name);
   const [startDate, setStartDate] = useState(toDateInputValue(module.startDate));
   const [endDate, setEndDate] = useState(toDateInputValue(module.endDate));
   const [driveId, setDriveId] = useState(module.driveId ?? "");
+  const [batchYear, setBatchYear] = useState(module.batchYear ? String(module.batchYear) : "");
   const [drives, setDrives] = useState<Drive[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -389,6 +417,12 @@ function EditModuleForm({
   }, []);
 
   const sortedDrives = useMemo(() => drives.slice().sort((a, b) => b.driveDate - a.driveDate), [drives]);
+  const batchYearOptions = useMemo(
+    () => Array.from(new Set((students ?? []).filter((s) => s.department === module.department).map((s) => s.batchYear))).sort(
+      (a, b) => b - a
+    ),
+    [students, module.department]
+  );
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -408,6 +442,7 @@ function EditModuleForm({
         startDate: new Date(startDate).getTime(),
         endDate: new Date(endDate).getTime(),
         driveId: driveId || undefined,
+        batchYear: batchYear ? Number(batchYear) : undefined,
       });
       showToast("Module updated");
       onDone();
@@ -439,6 +474,17 @@ function EditModuleForm({
             {sortedDrives.map((d) => (
               <option key={d.driveId} value={d.driveId}>
                 {d.companyName} — {new Date(d.driveDate).toLocaleDateString()}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Batch (optional)</label>
+          <select value={batchYear} onChange={(e) => setBatchYear(e.target.value)} className={inputClass}>
+            <option value="">Every batch</option>
+            {batchYearOptions.map((y) => (
+              <option key={y} value={y}>
+                Batch {y}
               </option>
             ))}
           </select>
@@ -509,12 +555,14 @@ function LogEvaluationsSection({
   moduleEnd,
   driveId,
   driveName,
+  moduleBatchYear,
 }: {
   moduleId: string;
   moduleStart: number;
   moduleEnd: number;
   driveId?: string;
   driveName?: string;
+  moduleBatchYear?: number;
 }) {
   const { appUser, firebaseUser } = useAuth();
   const mentees = useMyMentees(appUser, firebaseUser?.uid);
@@ -569,10 +617,11 @@ function LogEvaluationsSection({
   // mentees, none match the current filters".
   const filteredMenteeStudents = useMemo(() => {
     let result = menteeStudents;
+    if (moduleBatchYear) result = result.filter((s) => s.batchYear === moduleBatchYear);
     if (driveId && advancedIds) result = result.filter((s) => advancedIds.has(s.uid));
     if (batchFilter) result = result.filter((s) => s.batchYear === batchFilter);
     return result;
-  }, [menteeStudents, driveId, advancedIds, batchFilter]);
+  }, [menteeStudents, driveId, advancedIds, batchFilter, moduleBatchYear]);
 
   if (!firebaseUser) return null;
   // Coordinator/hod/dean/cpo/admin can technically log evaluations too (same
@@ -589,7 +638,7 @@ function LogEvaluationsSection({
     <Card className="mb-4">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-base font-semibold text-slate-900">Log today's evaluations</h3>
-        {batchYearOptions.length > 1 && (
+        {!moduleBatchYear && batchYearOptions.length > 1 && (
           <select
             value={batchFilter}
             onChange={(e) => setBatchFilter(e.target.value ? Number(e.target.value) : "")}
@@ -606,18 +655,22 @@ function LogEvaluationsSection({
       </div>
       <p className="mb-3 text-sm text-slate-500">
         {driveId
-          ? `Mentees who've cleared at least the first round of ${driveName ?? "the linked drive"} — click one to log or update an evaluation.`
-          : "Your mentees — click one to log or update an evaluation."}
+          ? `Mentees who've cleared at least the first round of ${driveName ?? "the linked drive"}${moduleBatchYear ? ` (Batch ${moduleBatchYear})` : ""} — click one to log or update an evaluation.`
+          : moduleBatchYear
+            ? `Your Batch ${moduleBatchYear} mentees — click one to log or update an evaluation.`
+            : "Your mentees — click one to log or update an evaluation."}
       </p>
       {stillLoading ? (
         <Skeleton className="h-24" />
       ) : filteredMenteeStudents.length === 0 ? (
         <p className="text-sm text-slate-400">
-          {driveId && batchFilter
-            ? `None of your Batch ${batchFilter} mentees have advanced in ${driveName ?? "this drive"} yet.`
+          {driveId && (batchFilter || moduleBatchYear)
+            ? `None of your Batch ${batchFilter || moduleBatchYear} mentees have advanced in ${driveName ?? "this drive"} yet.`
             : driveId
               ? `None of your mentees have advanced in ${driveName ?? "this drive"} yet.`
-              : `No mentees in Batch ${batchFilter}.`}
+              : moduleBatchYear
+                ? `No mentees in Batch ${moduleBatchYear}.`
+                : `No mentees in Batch ${batchFilter}.`}
         </p>
       ) : (
         <ul className="divide-y divide-slate-100">
@@ -644,12 +697,14 @@ function LogEvalForAnyStudentSection({
   moduleEnd,
   driveId,
   driveName,
+  moduleBatchYear,
 }: {
   moduleId: string;
   moduleStart: number;
   moduleEnd: number;
   driveId?: string;
   driveName?: string;
+  moduleBatchYear?: number;
 }) {
   const { appUser, firebaseUser } = useAuth();
   const students = useStudentsDirectory(appUser);
@@ -679,9 +734,10 @@ function LogEvalForAnyStudentSection({
 
   const eligibleStudents = useMemo(() => {
     let pool = (students ?? []).filter((s) => !s.isAlumni);
+    if (moduleBatchYear) pool = pool.filter((s) => s.batchYear === moduleBatchYear);
     if (driveId && advancedIds) pool = pool.filter((s) => advancedIds.has(s.uid));
     return pool;
-  }, [students, driveId, advancedIds]);
+  }, [students, driveId, advancedIds, moduleBatchYear]);
 
   // Unlike LogEvaluationsSection's fixed mentee roster, this is meant for a
   // coordinator/hod dipping into the whole department — showing everyone at
@@ -704,7 +760,11 @@ function LogEvalForAnyStudentSection({
     <Card className="mb-4">
       <h3 className="mb-1 text-base font-semibold text-slate-900">Conduct a mock interview for any student</h3>
       <p className="mb-3 text-sm text-slate-500">
-        Not limited to your mentees — search any {driveId ? `student who's cleared at least the first round of ${driveName ?? "the linked drive"}` : "student in your department"} to log a one-off evaluation.
+        Not limited to your mentees — search any{" "}
+        {driveId
+          ? `student who's cleared at least the first round of ${driveName ?? "the linked drive"}`
+          : "student in your department"}
+        {moduleBatchYear ? ` (Batch ${moduleBatchYear})` : ""} to log a one-off evaluation.
       </p>
       <input
         type="text"
@@ -1221,6 +1281,7 @@ export default function MockEvaluations() {
                     <option key={m.moduleId} value={m.moduleId}>
                       {m.name} ({formatDay(m.startDate)} – {formatDay(m.endDate)})
                       {m.driveId && drives[m.driveId] ? ` — linked to ${drives[m.driveId].companyName}` : ""}
+                      {m.batchYear ? ` — Batch ${m.batchYear}` : ""}
                       {m.archived ? " — archived" : ""}
                     </option>
                   ))}
@@ -1268,6 +1329,7 @@ export default function MockEvaluations() {
                   moduleEnd={selectedModule.endDate}
                   driveId={selectedModule.driveId}
                   driveName={selectedModule.driveId ? drives[selectedModule.driveId]?.companyName : undefined}
+                  moduleBatchYear={selectedModule.batchYear}
                 />
               )}
               {canLogEvalForAny && (
@@ -1277,6 +1339,7 @@ export default function MockEvaluations() {
                   moduleEnd={selectedModule.endDate}
                   driveId={selectedModule.driveId}
                   driveName={selectedModule.driveId ? drives[selectedModule.driveId]?.companyName : undefined}
+                  moduleBatchYear={selectedModule.batchYear}
                 />
               )}
               <ConsolidationSection
