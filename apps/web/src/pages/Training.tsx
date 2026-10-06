@@ -119,10 +119,17 @@ function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions
   // one day instead of scrolling a multi-day training's full session list.
   const [dateFilter, setDateFilter] = useState("");
   const dateKey = (ts: number) => new Date(ts).toDateString();
-  const dateOptions = useMemo(
-    () => Array.from(new Set(sessions.map((s) => dateKey(s.session.date)))),
-    [sessions]
-  );
+  // Most recent date first in the dropdown — sessions itself stays
+  // ascending (the natural reading order once expanded below), so this
+  // sorts its own copy rather than relying on insertion order.
+  const dateOptions = useMemo(() => {
+    const firstSeenAt = new Map<string, number>();
+    for (const s of sessions) {
+      const key = dateKey(s.session.date);
+      if (!firstSeenAt.has(key)) firstSeenAt.set(key, s.session.date);
+    }
+    return Array.from(firstSeenAt.keys()).sort((a, b) => firstSeenAt.get(b)! - firstSeenAt.get(a)!);
+  }, [sessions]);
   const visibleSessions = useMemo(
     () => (dateFilter ? sessions.filter((s) => dateKey(s.session.date) === dateFilter) : sessions),
     [sessions, dateFilter]

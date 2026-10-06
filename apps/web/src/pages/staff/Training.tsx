@@ -935,7 +935,17 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
   // fine for a single day but turns unscannable once there's a week's worth.
   // Group by calendar day instead, with a filter to jump straight to one.
   const dateKey = (ts: number) => new Date(ts).toDateString();
-  const dateOptions = useMemo(() => Array.from(new Set(sessions.map((s) => dateKey(s.date)))), [sessions]);
+  // Most recent date first in the dropdown — sessions itself stays
+  // ascending (the natural reading order once expanded below), so this
+  // sorts its own copy rather than relying on insertion order.
+  const dateOptions = useMemo(() => {
+    const firstSeenAt = new Map<string, number>();
+    for (const s of sessions) {
+      const key = dateKey(s.date);
+      if (!firstSeenAt.has(key)) firstSeenAt.set(key, s.date);
+    }
+    return Array.from(firstSeenAt.keys()).sort((a, b) => firstSeenAt.get(b)! - firstSeenAt.get(a)!);
+  }, [sessions]);
   const visibleSessions = useMemo(
     () => (dateFilter ? sessions.filter((s) => dateKey(s.date) === dateFilter) : sessions),
     [sessions, dateFilter]
