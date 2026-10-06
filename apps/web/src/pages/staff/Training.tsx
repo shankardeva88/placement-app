@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { BarChart3, BookOpen, CalendarPlus, ChevronDown, ChevronUp, ClipboardCopy, Pencil, Plus, QrCode, Trash2 } from "lucide-react";
+import { BarChart3, BookOpen, CalendarPlus, ChevronDown, ChevronUp, ClipboardCopy, Pencil, Plus, QrCode, Search, Trash2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import type { AttendanceStatus, Department, SkillTrack, TrainingBatch, TrainingSession } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
@@ -9,6 +9,7 @@ import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import {
   useAllTrainingBatches,
   useAllTrainingSessions,
+  useAllAttendance,
   createTrainingBatch,
   updateTrainingBatch,
   deleteTrainingBatch,
@@ -910,6 +911,154 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
   );
 }
 
+function attendanceDotColor(status: AttendanceStatus | undefined): string {
+  if (!status) return "bg-slate-300";
+  if (status === "present") return "bg-emerald-500";
+  if (status === "late") return "bg-amber-500";
+  return "bg-red-500";
+}
+
+/** Quick lookup for the actual coordinator workflow of "a student is
+ * standing in front of me, what's their attendance like" — the Training
+ * Report and batch cards both require knowing which batch to look in
+ * first, which this skips entirely by searching across every batch at
+ * once from just a roll number or name. */
+function StudentStatusLookup() {
+  const { appUser } = useAuth();
+  const students = useStudentsDirectory(appUser);
+  const batches = useAllTrainingBatches();
+  const sessions = useAllTrainingSessions();
+  const attendance = useAllAttendance(appUser);
+  const [query, setQuery] = useState("");
+  const [selectedUid, setSelectedUid] = useState("");
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q || !students) return [];
+    return students
+      .filter((s) => s.rollNo.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
+      .sort((a, b) => a.rollNo.localeCompare(b.rollNo))
+      .slice(0, 8);
+  }, [students, query]);
+
+  // Auto-shows the result once there's exactly one match, so typing a full
+  // roll number is a single step — picking from the list only kicks in
+  // when the search is ambiguous (matches several students).
+  const selectedStudent = useMemo(() => {
+    if (selectedUid) return students?.find((s) => s.uid === selectedUid) ?? null;
+    if (matches.length === 1) return matches[0];
+    return null;
+  }, [selectedUid, matches, students]);
+
+  const studentBatches = useMemo(() => {
+    if (!selectedStudent || !batches) return [];
+    return batches.filter((b) => b.studentIds.includes(selectedStudent.uid));
+  }, [selectedStudent, batches]);
+
+  const loading = students === null || batches === null || sessions === null;
+
+  return (
+    <Card className="mb-4">
+      <h3 className="mb-1 text-sm font-semibold text-slate-900">Student status</h3>
+      <p className="mb-3 text-xs text-slate-500">
+        Search a roll number or name to see their attendance at a glance — handy for a quick follow-up when a student
+        comes to you directly.
+      </p>
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+        <input
+          type="text"
+          placeholder="Roll no or name…"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setSelectedUid("");
+          }}
+          className={`${inputClass} pl-9`}
+        />
+      </div>
+
+      {query.trim() !== "" && (
+        <>
+          {loading ? (
+            <p className="mt-2 text-sm text-slate-400">Loading…</p>
+          ) : matches.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-400">No matching student.</p>
+          ) : !selectedStudent && matches.length > 1 ? (
+            <ul className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200">
+              {matches.map((s) => (
+                <li key={s.studentId}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedUid(s.uid)}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm hover:bg-slate-50"
+                  >
+                    <span className="font-medium text-slate-800">{s.rollNo}</span>
+                    <span className="truncate text-slate-500">{s.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : selectedStudent ? (
+            <div className="mt-3 space-y-3">
+              <p className="text-sm font-medium text-slate-800">
+                {selectedStudent.rollNo} — {selectedStudent.name}
+              </p>
+              {studentBatches.length === 0 ? (
+                <p className="text-sm text-slate-400">Not part of any training batch.</p>
+              ) : (
+                studentBatches.map((batch) => {
+                  const batchSessions = (sessions ?? [])
+                    .filter((sess) => sess.batchId === batch.batchId && sess.date <= Date.now())
+                    .sort((a, b) => a.date - b.date);
+                  const attended = batchSessions.filter((sess) => {
+                    const status = attendance[sess.sessionId]?.[selectedStudent.uid]?.status;
+                    return status === "present" || status === "late";
+                  }).length;
+                  const pct = batchSessions.length > 0 ? Math.round((attended / batchSessions.length) * 100) : null;
+                  return (
+                    <div key={batch.batchId} className="rounded-lg bg-slate-50 p-3">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-slate-700">{batch.name}</p>
+                        {pct !== null && (
+                          <Badge variant={pct >= 75 ? "success" : pct >= 50 ? "warning" : "danger"}>
+                            {attended}/{batchSessions.length} ({pct}%)
+                          </Badge>
+                        )}
+                      </div>
+                      {batchSessions.length === 0 ? (
+                        <p className="text-xs text-slate-400">No sessions held yet.</p>
+                      ) : (
+                        <div className="flex flex-wrap items-end gap-x-2 gap-y-2">
+                          {batchSessions.map((sess) => {
+                            const status = attendance[sess.sessionId]?.[selectedStudent.uid]?.status;
+                            return (
+                              <div
+                                key={sess.sessionId}
+                                className="flex flex-col items-center gap-1"
+                                title={`${new Date(sess.date).toLocaleDateString(undefined, { day: "numeric", month: "short" })} — ${status ?? "not marked"}`}
+                              >
+                                <span className="text-[10px] leading-none text-slate-400">
+                                  {new Date(sess.date).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+                                </span>
+                                <span className={`h-2.5 w-2.5 rounded-full ${attendanceDotColor(status)}`} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          ) : null}
+        </>
+      )}
+    </Card>
+  );
+}
+
 function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canManageSchedule: boolean }) {
   const allSessions = useAllTrainingSessions();
   const sessions = useMemo(
@@ -1213,6 +1362,8 @@ export default function StaffTraining() {
           </div>
         }
       />
+
+      <StudentStatusLookup />
 
       {canManageSchedule && creating && (
         <Card className="mb-6">
