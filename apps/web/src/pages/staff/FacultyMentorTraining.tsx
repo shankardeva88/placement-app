@@ -21,6 +21,18 @@ const ATTENDANCE_BADGE: Record<AttendanceStatus, BadgeVariant> = {
 
 const UPCOMING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
+// Same colouring as the student-side Training page's own attendance strip —
+// grey for not-yet-happened (shouldn't occur here since allSessions is
+// already cut off at today, but kept for safety), light grey for held-but-
+// unmarked.
+function dayStripColor(sessionDate: number, status: AttendanceStatus | undefined): string {
+  if (sessionDate > Date.now()) return "bg-slate-200";
+  if (!status) return "bg-slate-300";
+  if (status === "present") return "bg-emerald-500";
+  if (status === "late") return "bg-amber-500";
+  return "bg-red-500";
+}
+
 /** Read-only — a mentor doesn't run these sessions (that's a coordinator/hod
  * or the dedicated faculty_mentor-as-trainer flow on /staff/training, which
  * has its own attendance-marking UI this deliberately doesn't duplicate).
@@ -53,6 +65,9 @@ function MenteeTrainingRow({ student, trainingFilter }: { student: Student; trai
   const marked = allSessions.filter((s) => s.attendance !== null);
   const present = marked.filter((s) => s.attendance?.status === "present" || s.attendance?.status === "late");
   const pct = marked.length > 0 ? Math.round((present.length / marked.length) * 100) : null;
+  // Oldest-to-newest, left-to-right — allSessions itself is sorted newest-
+  // first for the expanded list below, so this reverses just for the strip.
+  const stripSessions = useMemo(() => allSessions.slice().reverse(), [allSessions]);
 
   return (
     <Card>
@@ -73,6 +88,25 @@ function MenteeTrainingRow({ student, trainingFilter }: { student: Student; trai
           </span>
         )}
       </button>
+
+      {stripSessions.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-end gap-x-2 gap-y-2">
+          {stripSessions.map(({ session, attendance }) => (
+            <div
+              key={session.sessionId}
+              className="flex flex-col items-center gap-1"
+              title={`${new Date(session.date).toLocaleDateString(undefined, { day: "numeric", month: "short" })} — ${
+                attendance?.status ?? "not marked"
+              }`}
+            >
+              <span className="text-[10px] leading-none text-slate-400">
+                {new Date(session.date).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+              </span>
+              <span className={`h-2.5 w-2.5 rounded-full ${dayStripColor(session.date, attendance?.status)}`} />
+            </div>
+          ))}
+        </div>
+      )}
 
       {expanded && (
         <div className="mt-3 border-t border-slate-100 pt-3">
