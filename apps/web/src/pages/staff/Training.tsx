@@ -931,15 +931,29 @@ function StudentStatusLookup() {
   const attendance = useAllAttendance(appUser);
   const [query, setQuery] = useState("");
   const [selectedUid, setSelectedUid] = useState("");
+  const [batchYearFilter, setBatchYearFilter] = useState<number | "">("");
+  const [trainingFilter, setTrainingFilter] = useState("");
+
+  const batchYearOptions = useMemo(
+    () => Array.from(new Set((students ?? []).map((s) => s.batchYear))).sort((a, b) => b - a),
+    [students]
+  );
+  const trainingOptions = useMemo(
+    () => (batches ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)),
+    [batches]
+  );
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q || !students) return [];
+    const trainingIds = trainingFilter ? new Set(batches?.find((b) => b.batchId === trainingFilter)?.studentIds ?? []) : null;
     return students
       .filter((s) => s.rollNo.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
+      .filter((s) => !batchYearFilter || s.batchYear === batchYearFilter)
+      .filter((s) => !trainingIds || trainingIds.has(s.uid))
       .sort((a, b) => a.rollNo.localeCompare(b.rollNo))
       .slice(0, 8);
-  }, [students, query]);
+  }, [students, query, batchYearFilter, trainingFilter, batches]);
 
   // Auto-shows the result once there's exactly one match, so typing a full
   // roll number is a single step — picking from the list only kicks in
@@ -952,8 +966,12 @@ function StudentStatusLookup() {
 
   const studentBatches = useMemo(() => {
     if (!selectedStudent || !batches) return [];
-    return batches.filter((b) => b.studentIds.includes(selectedStudent.uid));
-  }, [selectedStudent, batches]);
+    const all = batches.filter((b) => b.studentIds.includes(selectedStudent.uid));
+    // A specific Training filter means "show me just that one" — without
+    // this, picking a training to narrow the search still mixed every
+    // other batch the student happens to also be in back into the result.
+    return trainingFilter ? all.filter((b) => b.batchId === trainingFilter) : all;
+  }, [selectedStudent, batches, trainingFilter]);
 
   const loading = students === null || batches === null || sessions === null;
 
@@ -964,18 +982,50 @@ function StudentStatusLookup() {
         Search a roll number or name to see their attendance at a glance — handy for a quick follow-up when a student
         comes to you directly.
       </p>
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Roll no or name…"
-          value={query}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="relative sm:col-span-1">
+          <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Roll no or name…"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSelectedUid("");
+            }}
+            className={`${inputClass} pl-9`}
+          />
+        </div>
+        <select
+          value={batchYearFilter}
           onChange={(e) => {
-            setQuery(e.target.value);
+            setBatchYearFilter(e.target.value ? Number(e.target.value) : "");
             setSelectedUid("");
           }}
-          className={`${inputClass} pl-9`}
-        />
+          className={inputClass}
+        >
+          <option value="">All batches</option>
+          {batchYearOptions.map((y) => (
+            <option key={y} value={y}>
+              Batch {y}
+            </option>
+          ))}
+        </select>
+        <select
+          value={trainingFilter}
+          onChange={(e) => {
+            setTrainingFilter(e.target.value);
+            setSelectedUid("");
+          }}
+          className={inputClass}
+        >
+          <option value="">All trainings</option>
+          {trainingOptions.map((b) => (
+            <option key={b.batchId} value={b.batchId}>
+              {b.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       {query.trim() !== "" && (
