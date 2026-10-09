@@ -13,6 +13,7 @@ import { useAllApplications } from "../../lib/applicantsLib";
 import { useAllOffers } from "../../lib/offersManagementLib";
 import { useIndexedList } from "../../lib/mentorProgressLib";
 import { useModulesByIds } from "../../lib/mockEvaluationLib";
+import { useAllTrainingBatches, useAllTrainingSessions, useAllAttendance } from "../../lib/trainingManagementLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -35,6 +36,15 @@ function formatRelativeTime(ts: number): string {
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
   return new Date(ts).toLocaleDateString();
+}
+
+// Same colouring as the Training page's own Student Status lookup and the
+// student/mentor attendance strips.
+function attendanceDotColor(status: "present" | "absent" | "late" | undefined): string {
+  if (!status) return "bg-slate-300";
+  if (status === "present") return "bg-emerald-500";
+  if (status === "late") return "bg-amber-500";
+  return "bg-red-500";
 }
 
 const CAN_MANAGE_ROLES = ["coordinator", "hod", "dean", "principal", "cpo", "admin"];
@@ -282,6 +292,13 @@ export default function StudentDetail() {
   const allOffers = useAllOffers(appUser);
   const applications = allApplications?.filter((a) => a.studentId === uid) ?? [];
   const offers = allOffers?.filter((o) => o.studentId === uid) ?? [];
+  const allTrainingBatches = useAllTrainingBatches();
+  const allTrainingSessions = useAllTrainingSessions();
+  const trainingAttendance = useAllAttendance(appUser);
+  const studentTrainingBatches = useMemo(
+    () => (allTrainingBatches ?? []).filter((b) => uid && b.studentIds.includes(uid)),
+    [allTrainingBatches, uid]
+  );
   const mockEvaluations = useIndexedList<MockEvaluation>(uid, DB_NODES.mockEvaluations);
   const mockModuleIds = useMemo(
     () => Array.from(new Set((mockEvaluations ?? []).map((e) => e.moduleId))),
@@ -597,6 +614,61 @@ export default function StudentDetail() {
                     {name}
                   </Badge>
                 ))}
+              </div>
+            )}
+          </Card>
+
+          <Card className="mb-4">
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Training Attendance</h3>
+            {allTrainingBatches === null || allTrainingSessions === null ? (
+              <p className="text-sm text-slate-500">Loading…</p>
+            ) : studentTrainingBatches.length === 0 ? (
+              <p className="text-sm text-slate-500">Not part of any training batch.</p>
+            ) : (
+              <div className="space-y-3">
+                {studentTrainingBatches.map((batch) => {
+                  const batchSessions = allTrainingSessions
+                    .filter((sess) => sess.batchId === batch.batchId && sess.date <= Date.now())
+                    .sort((a, b) => a.date - b.date);
+                  const attended = batchSessions.filter((sess) => {
+                    const status = trainingAttendance[sess.sessionId]?.[uid as string]?.status;
+                    return status === "present" || status === "late";
+                  }).length;
+                  const pct = batchSessions.length > 0 ? Math.round((attended / batchSessions.length) * 100) : null;
+                  return (
+                    <div key={batch.batchId} className="rounded-lg bg-slate-50 p-3">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-slate-700">{batch.name}</p>
+                        {pct !== null && (
+                          <Badge variant={pct >= 75 ? "success" : pct >= 50 ? "warning" : "danger"}>
+                            {attended}/{batchSessions.length} ({pct}%)
+                          </Badge>
+                        )}
+                      </div>
+                      {batchSessions.length === 0 ? (
+                        <p className="text-xs text-slate-400">No sessions held yet.</p>
+                      ) : (
+                        <div className="flex flex-wrap items-end gap-x-2 gap-y-2">
+                          {batchSessions.map((sess) => {
+                            const status = trainingAttendance[sess.sessionId]?.[uid as string]?.status;
+                            return (
+                              <div
+                                key={sess.sessionId}
+                                className="flex flex-col items-center gap-1"
+                                title={`${new Date(sess.date).toLocaleDateString(undefined, { day: "numeric", month: "short" })} — ${status ?? "not marked"}`}
+                              >
+                                <span className="text-[10px] leading-none text-slate-400">
+                                  {new Date(sess.date).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+                                </span>
+                                <span className={`h-2.5 w-2.5 rounded-full ${attendanceDotColor(status)}`} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </Card>
