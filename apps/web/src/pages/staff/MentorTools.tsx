@@ -833,6 +833,16 @@ function AssignMentorSection() {
     return map;
   }, [mappings]);
 
+  // One mentor per mentee at a time — used to find and remove a student's
+  // existing mapping when they're being moved to a different mentor, so
+  // assigning a new one is a real reassignment instead of leaving them
+  // mapped to both (see the doc comment on assignMentorBulk).
+  const mappingByStudent = useMemo(() => {
+    const map = new Map<string, MentorMapping>();
+    for (const m of mappings ?? []) map.set(m.studentId, m);
+    return map;
+  }, [mappings]);
+
   const mentorsWithMentees = useMemo(
     () =>
       Array.from(menteesByMentor.keys())
@@ -899,9 +909,20 @@ function AssignMentorSection() {
     // coordinator/hod only ever sees their own department's students
     // anyway, but institution roles (admin/dean/cpo) have no department of
     // their own and can select students spanning several departments.
+    // previousMapping: newStudentIds already excludes anyone already on
+    // this same mentor, so any existing mapping found here is necessarily
+    // to a different one — attach it so assignMentorBulk replaces it
+    // instead of adding a second mapping alongside it.
     const students = newStudentIds
-      .map((uid) => ({ studentId: uid, department: studentsByUid[uid]?.department }))
-      .filter((s): s is { studentId: string; department: Department } => !!s.department);
+      .map((uid) => {
+        const existing = mappingByStudent.get(uid);
+        return {
+          studentId: uid,
+          department: studentsByUid[uid]?.department,
+          previousMapping: existing ? { mappingId: existing.mappingId, department: existing.department } : undefined,
+        };
+      })
+      .filter((s): s is typeof s & { department: Department } => !!s.department);
     setSubmitting(true);
     try {
       await assignMentorBulk({ facultyId, students });
@@ -918,7 +939,8 @@ function AssignMentorSection() {
       <h3 className="mb-1 text-base font-semibold text-slate-900">Assign mentor</h3>
       <p className="mb-4 text-sm text-slate-500">
         Select one or more students and assign them all to the same mentor in one go. Picking a mentor pre-checks
-        their current mentees — check more to add them, nothing happens to anyone you leave checked.
+        their current mentees — check more to add them, nothing happens to anyone you leave checked. To change a
+        student's mentor, just pick the new one and select them — their old assignment is replaced, not duplicated.
       </p>
       <form onSubmit={handleSubmit} className="space-y-3">
         <select

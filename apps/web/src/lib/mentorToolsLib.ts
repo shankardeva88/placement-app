@@ -48,16 +48,36 @@ export interface AssignMentorBulkInput {
   // their own to fall back on (see the AssignMentorSection bug this fixed:
   // the actor's department was required and admin/dean/cpo simply don't
   // have one, silently blocking the whole submit).
-  students: { studentId: string; department: Department }[];
+  // previousMapping: that student's existing mentorMapping record, if any —
+  // see the doc comment below on why this is required for a clean
+  // reassignment rather than a duplicate. Carries its OWN department (not
+  // necessarily the same as this student's current one, in the rare case
+  // they moved departments since) so its deptIndex entry gets removed from
+  // the right place.
+  students: { studentId: string; department: Department; previousMapping?: { mappingId: string; department: Department } }[];
 }
 
 /** Same shape as assignMentor, one mappingId per student, all written in a
  * single multi-path update() — lets a coordinator assign a whole class to
- * one mentor instead of repeating the single-student form per student. */
+ * one mentor instead of repeating the single-student form per student.
+ *
+ * A mentee is meant to have exactly one mentor at a time, but this used to
+ * only ever ADD a mapping — picking a different mentor for a student who
+ * already had one left their old mapping untouched, so they ended up
+ * assigned to both mentors at once (showing up twice in the roster, and in
+ * both mentors' own mentee lists) with no way to tell which one was
+ * "current". previousMappingId, when the caller found one, is nulled out
+ * in the same atomic update as the new mapping is created — a real
+ * reassignment, not an addition. */
 export async function assignMentorBulk(input: AssignMentorBulkInput) {
   const assignedAt = Date.now();
   const updates: Record<string, unknown> = {};
-  for (const { studentId, department } of input.students) {
+  for (const { studentId, department, previousMapping } of input.students) {
+    if (previousMapping) {
+      updates[`${DB_NODES.mentorMapping}/${previousMapping.mappingId}`] = null;
+      updates[`${DB_NODES.studentIndex}/${studentId}/${DB_NODES.mentorMapping}/${previousMapping.mappingId}`] = null;
+      updates[`${DB_NODES.mentorMappingDeptIndex}/${previousMapping.department}/${previousMapping.mappingId}`] = null;
+    }
     const mappingId = push(ref(db, DB_NODES.mentorMapping)).key as string;
     updates[`${DB_NODES.mentorMapping}/${mappingId}`] = {
       mappingId,
