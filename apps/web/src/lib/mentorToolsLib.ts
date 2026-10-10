@@ -92,6 +92,20 @@ export async function assignMentorBulk(input: AssignMentorBulkInput) {
   await update(ref(db), updates);
 }
 
+/** Removes one mentorMapping record outright, with no replacement — the
+ * other half of the "edit mentee info" ask alongside reassignment: a
+ * coordinator fixing a student who ended up mapped to two mentors (e.g. the
+ * pre-fix duplicates assignMentorBulk used to create) needs to drop one
+ * without creating a new mapping, which the Assign form's pre-check/submit
+ * flow never does on its own. */
+export async function removeMentorMapping(mapping: { mappingId: string; studentId: string; department: Department }) {
+  await update(ref(db), {
+    [`${DB_NODES.mentorMapping}/${mapping.mappingId}`]: null,
+    [`${DB_NODES.studentIndex}/${mapping.studentId}/${DB_NODES.mentorMapping}/${mapping.mappingId}`]: null,
+    [`${DB_NODES.mentorMappingDeptIndex}/${mapping.department}/${mapping.mappingId}`]: null,
+  });
+}
+
 export interface MockInterviewInput {
   studentId: string;
   department: Department;

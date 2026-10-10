@@ -28,6 +28,7 @@ import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useDeptScopedCollection } from "../../lib/useDeptScopedCollection";
 import {
   assignMentorBulk,
+  removeMentorMapping,
   recordMockInterview,
   updateMockInterview,
   recordResumeReview,
@@ -823,12 +824,15 @@ function AssignMentorSection() {
   const mentorsByUid = useMemo(() => Object.fromEntries((mentors ?? []).map((m) => [m.uid, m])), [mentors]);
 
   // Who's currently assigned to whom, for both the pre-check below and the
-  // roster table under the form.
+  // roster table under the form. studentId maps to mappingId (not a bare
+  // Set) so the roster row below can remove that exact record — needed to
+  // tell apart a student's two mappings when they're duplicated across
+  // mentors (see removeMentorMapping).
   const menteesByMentor = useMemo(() => {
-    const map = new Map<string, Set<string>>();
+    const map = new Map<string, Map<string, string>>();
     for (const m of mappings ?? []) {
-      if (!map.has(m.facultyId)) map.set(m.facultyId, new Set());
-      map.get(m.facultyId)!.add(m.studentId);
+      if (!map.has(m.facultyId)) map.set(m.facultyId, new Map());
+      map.get(m.facultyId)!.set(m.studentId, m.mappingId);
     }
     return map;
   }, [mappings]);
@@ -852,25 +856,34 @@ function AssignMentorSection() {
   );
 
   // Flat, one row per mentee — easier to scan and filter than the grouped
-  // "mentor: comma-separated names" text it used to be.
+  // "mentor: comma-separated names" text it used to be. mappingId travels
+  // with each row so the Remove button below acts on that exact record,
+  // not "whichever mapping this student has" — a student duplicated across
+  // two mentors shows up as two separate rows, each removable on its own.
   const rosterRows = useMemo(() => {
-    const rows: { mentorUid: string; mentorName: string; student: Student }[] = [];
+    const rows: { mentorUid: string; mentorName: string; student: Student; mappingId: string }[] = [];
     const q = rosterSearch.trim().toLowerCase();
-    for (const [mentorUid, menteeUids] of menteesByMentor.entries()) {
+    for (const [mentorUid, menteeMap] of menteesByMentor.entries()) {
       if (rosterMentorFilter && mentorUid !== rosterMentorFilter) continue;
       const mentorName = mentorsByUid[mentorUid]?.name ?? mentorUid;
-      for (const uid of menteeUids) {
+      for (const [uid, mappingId] of menteeMap.entries()) {
         const student = studentsByUid[uid];
         if (!student) continue;
         if (rosterBatchFilter && student.batchYear !== rosterBatchFilter) continue;
         if (q && !student.rollNo.toLowerCase().includes(q) && !student.name.toLowerCase().includes(q) && !mentorName.toLowerCase().includes(q)) {
           continue;
         }
-        rows.push({ mentorUid, mentorName, student });
+        rows.push({ mentorUid, mentorName, student, mappingId });
       }
     }
     return rows.sort((a, b) => a.mentorName.localeCompare(b.mentorName) || a.student.rollNo.localeCompare(b.student.rollNo));
   }, [menteesByMentor, mentorsByUid, studentsByUid, rosterMentorFilter, rosterBatchFilter, rosterSearch]);
+
+  async function handleRemoveMapping(row: { mentorName: string; student: Student; mappingId: string }) {
+    if (!window.confirm(`Remove ${row.student.name} from ${row.mentorName}'s mentees? This can't be undone.`)) return;
+    await removeMentorMapping({ mappingId: row.mappingId, studentId: row.student.uid, department: row.student.department });
+    showToast("Mentor assignment removed");
+  }
 
   function handleMentorChange(uid: string) {
     setFacultyId(uid);
@@ -879,7 +892,7 @@ function AssignMentorSection() {
     // more — handleSubmit filters these back out before writing, so
     // re-submitting an already-assigned student can't create a duplicate
     // mentorMapping record.
-    setSelectedIds(new Set(menteesByMentor.get(uid) ?? []));
+    setSelectedIds(new Set(menteesByMentor.get(uid)?.keys() ?? []));
   }
 
   function toggleOne(uid: string) {
@@ -899,7 +912,7 @@ function AssignMentorSection() {
     e.preventDefault();
     if (!appUser || !facultyId) return;
     if (selectedIds.size === 0) return;
-    const alreadyAssigned = menteesByMentor.get(facultyId) ?? new Set();
+    const alreadyAssigned = menteesByMentor.get(facultyId) ?? new Map();
     const newStudentIds = Array.from(selectedIds).filter((uid) => !alreadyAssigned.has(uid));
     if (newStudentIds.length === 0) {
       showToast("Everyone selected is already assigned to this mentor");
@@ -1047,28 +1060,41 @@ function AssignMentorSection() {
                   <th className="py-2 pr-4">CGPA</th>
                   <th className="py-2 pr-4">Backlogs</th>
                   <th className="py-2 pr-4">Status</th>
+                  <th className="py-2 pr-4"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rosterRows.map(({ mentorUid, mentorName, student }) => (
-                  <tr key={`${mentorUid}_${student.studentId}`}>
-                    <td className="py-2 pr-4 font-medium text-slate-800">{mentorName}</td>
-                    <td className="py-2 pr-4 text-slate-600">{student.rollNo}</td>
-                    <td className="py-2 pr-4 text-slate-600">{student.name}</td>
-                    <td className="py-2 pr-4 text-slate-600">{student.studentPhone ?? "—"}</td>
-                    <td className="py-2 pr-4 text-slate-600">{student.department}</td>
-                    <td className="py-2 pr-4 text-slate-600">{student.cgpa}</td>
-                    <td className="py-2 pr-4 text-slate-600">{student.activeBacklogs}</td>
-                    <td className="py-2 pr-4">
-                      <Badge variant={PLACEMENT_STATUS_BADGE[student.placementStatus]}>
-                        {PLACEMENT_STATUS_LABEL[student.placementStatus]}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
+                {rosterRows.map((row) => {
+                  const { mentorUid, mentorName, student } = row;
+                  return (
+                    <tr key={`${mentorUid}_${student.studentId}`}>
+                      <td className="py-2 pr-4 font-medium text-slate-800">{mentorName}</td>
+                      <td className="py-2 pr-4 text-slate-600">{student.rollNo}</td>
+                      <td className="py-2 pr-4 text-slate-600">{student.name}</td>
+                      <td className="py-2 pr-4 text-slate-600">{student.studentPhone ?? "—"}</td>
+                      <td className="py-2 pr-4 text-slate-600">{student.department}</td>
+                      <td className="py-2 pr-4 text-slate-600">{student.cgpa}</td>
+                      <td className="py-2 pr-4 text-slate-600">{student.activeBacklogs}</td>
+                      <td className="py-2 pr-4">
+                        <Badge variant={PLACEMENT_STATUS_BADGE[student.placementStatus]}>
+                          {PLACEMENT_STATUS_LABEL[student.placementStatus]}
+                        </Badge>
+                      </td>
+                      <td className="py-2 pr-4">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveMapping(row)}
+                          className="text-xs font-medium text-red-600 hover:underline"
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {rosterRows.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="py-6 text-center text-sm text-slate-400">
+                    <td colSpan={9} className="py-6 text-center text-sm text-slate-400">
                       No assignments match this filter.
                     </td>
                   </tr>
