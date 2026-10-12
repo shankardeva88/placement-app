@@ -262,6 +262,18 @@ export async function markAllPresent(sessionId: string, studentIds: string[], de
   await Promise.all(studentIds.map((uid) => markAttendance(sessionId, uid, department, "present", staffUid, "manual")));
 }
 
+/** Backing the "Import attendance" paste flow — a roll-no/status sheet taken
+ * on paper (or in a separate spreadsheet) during the session gets digitized
+ * in one shot instead of setting each student's dropdown by hand. */
+export async function markAttendanceBulk(
+  sessionId: string,
+  entries: { studentId: string; status: AttendanceStatus }[],
+  department: Department,
+  staffUid: string
+) {
+  await Promise.all(entries.map(({ studentId, status }) => markAttendance(sessionId, studentId, department, status, staffUid, "manual")));
+}
+
 const INSTITUTION_ROLES = new Set(["dean", "principal", "cpo", "admin"]);
 
 /** Dept-scoped attendance, grouped back into the {sessionId: {studentUid:

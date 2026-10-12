@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { BarChart3, BookOpen, CalendarPlus, ChevronDown, ChevronUp, ClipboardCopy, Pencil, Plus, QrCode, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, BarChart3, BookOpen, CalendarPlus, ChevronDown, ChevronUp, ClipboardCopy, Pencil, Plus, QrCode, Search, Trash2, Upload } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import type { AttendanceStatus, Department, SkillTrack, TrainingBatch, TrainingSession } from "@placement-app/types";
+import type { AttendanceStatus, Department, SkillTrack, Student, TrainingBatch, TrainingSession } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import {
@@ -20,10 +20,12 @@ import {
   markAttendance,
   markAllPresent,
   markRemainingAbsent,
+  markAttendanceBulk,
   startCheckIn,
   closeCheckIn,
   useSessionAttendance,
 } from "../../lib/trainingManagementLib";
+import { parseDelimited } from "../../lib/csv";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -712,6 +714,154 @@ function CheckInPanel({ session }: { session: TrainingSession }) {
   );
 }
 
+function normalizeAttendanceStatus(raw: string): AttendanceStatus | null {
+  const v = raw.trim().toLowerCase();
+  if (["present", "p", "yes", "y", "1", "true"].includes(v)) return "present";
+  if (["absent", "a", "no", "n", "0", "false"].includes(v)) return "absent";
+  if (["late", "l"].includes(v)) return "late";
+  return null;
+}
+
+interface ImportAttendanceRow {
+  rollNo: string;
+  statusText: string;
+  uid?: string;
+  status?: AttendanceStatus;
+}
+
+// Paste-and-review, same pattern as Import mentors in MentorTools.tsx — a
+// roll-no/status sheet taken on paper or in a separate spreadsheet during
+// the session gets digitized in one shot instead of setting each student's
+// dropdown by hand. Matches by roll number against THIS batch's roster
+// only, so a sheet with the wrong batch mixed in just shows up as
+// "not found" rather than silently marking someone else's students.
+function ImportAttendanceForm({
+  rosterIds,
+  students,
+  onImport,
+}: {
+  rosterIds: string[];
+  students: Student[];
+  onImport: (entries: { studentId: string; status: AttendanceStatus }[]) => Promise<void>;
+}) {
+  const { showToast } = useToast();
+  const [expanded, setExpanded] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [parsed, setParsed] = useState<ImportAttendanceRow[] | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  const matched = (parsed ?? []).filter((r) => r.uid && r.status);
+  const unmatched = (parsed ?? []).filter((r) => !r.uid);
+  const unrecognized = (parsed ?? []).filter((r) => r.uid && !r.status);
+
+  function handleParse() {
+    const { headers, rows } = parseDelimited(pasteText);
+    if (headers.length === 0) {
+      showToast("Paste some data first");
+      return;
+    }
+    const rollColIdx = headers.findIndex((h) => /roll/i.test(h));
+    const statusColIdx = headers.findIndex((h) => /present|status|attend/i.test(h));
+    if (rollColIdx === -1 || statusColIdx === -1) {
+      showToast('Need a "Roll No" column and a "Present" (or Status) column');
+      return;
+    }
+    const rosterSet = new Set(rosterIds);
+    const byRollNo = new Map(
+      students.filter((s) => rosterSet.has(s.uid)).map((s) => [s.rollNo.trim().toLowerCase(), s])
+    );
+    const result: ImportAttendanceRow[] = rows
+      .map((row) => {
+        const rollNo = (row[rollColIdx] ?? "").trim();
+        const statusText = (row[statusColIdx] ?? "").trim();
+        const student = byRollNo.get(rollNo.toLowerCase());
+        return { rollNo, statusText, uid: student?.uid, status: normalizeAttendanceStatus(statusText) ?? undefined };
+      })
+      .filter((r) => r.rollNo);
+    setParsed(result);
+  }
+
+  async function handleApply() {
+    if (matched.length === 0) return;
+    setImporting(true);
+    try {
+      await onImport(matched.map((r) => ({ studentId: r.uid as string, status: r.status as AttendanceStatus })));
+      showToast(`Imported attendance for ${matched.length} student${matched.length === 1 ? "" : "s"}`);
+      setPasteText("");
+      setParsed(null);
+      setExpanded(false);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  if (!expanded) {
+    return (
+      <Button variant="secondary" onClick={() => setExpanded(true)} className="!px-2 !py-1 text-xs">
+        <Upload className="h-3.5 w-3.5" />
+        Import
+      </Button>
+    );
+  }
+
+  return (
+    <div className="w-full rounded-lg bg-white p-3 ring-1 ring-slate-200">
+      <p className="mb-2 text-xs text-slate-500">
+        Paste two columns — Roll No and Present/Absent/Late (P/A/L also work) — from Excel/Sheets or a CSV. Matches
+        by roll number against this batch's roster.
+      </p>
+      <textarea
+        rows={5}
+        value={pasteText}
+        onChange={(e) => setPasteText(e.target.value)}
+        placeholder={"Roll No\tPresent"}
+        className="w-full rounded-lg border border-slate-300 p-2 font-mono text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+      />
+      <div className="mt-2 flex gap-2">
+        <Button variant="secondary" onClick={handleParse} className="!px-2 !py-1 text-xs">
+          Parse
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setExpanded(false);
+            setPasteText("");
+            setParsed(null);
+          }}
+          className="!px-2 !py-1 text-xs"
+        >
+          Cancel
+        </Button>
+      </div>
+
+      {parsed !== null && (
+        <div className="mt-3 space-y-1.5 text-xs">
+          <p className="text-slate-600">
+            {matched.length} matched
+            {unmatched.length > 0 ? `, ${unmatched.length} roll no not found` : ""}
+            {unrecognized.length > 0 ? `, ${unrecognized.length} unrecognized status` : ""}
+          </p>
+          {unmatched.length > 0 && (
+            <p className="flex items-start gap-1.5 text-amber-700">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Not found: {unmatched.map((r) => r.rollNo).join(", ")}
+            </p>
+          )}
+          {unrecognized.length > 0 && (
+            <p className="flex items-start gap-1.5 text-amber-700">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Unrecognized status: {unrecognized.map((r) => `${r.rollNo} (${r.statusText})`).join(", ")}
+            </p>
+          )}
+          <Button onClick={handleApply} loading={importing} disabled={matched.length === 0} className="!px-2 !py-1 text-xs">
+            Apply to {matched.length} student{matched.length === 1 ? "" : "s"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AttendanceRoster({ session, batch }: { session: TrainingSession; batch: TrainingBatch }) {
   const { firebaseUser, appUser } = useAuth();
   const { showToast } = useToast();
@@ -776,6 +926,11 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
   async function setStatus(uid: string, status: AttendanceStatus) {
     if (!firebaseUser) return;
     await markAttendance(session.sessionId, uid, batch.department, status, firebaseUser.uid);
+  }
+
+  async function handleImportAttendance(entries: { studentId: string; status: AttendanceStatus }[]) {
+    if (!firebaseUser) return;
+    await markAttendanceBulk(session.sessionId, entries, batch.department, firebaseUser.uid);
   }
 
   function toggleSelected(uid: string) {
@@ -850,6 +1005,7 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
           <ClipboardCopy className="h-3.5 w-3.5" />
           Copy summary
         </Button>
+        <ImportAttendanceForm rosterIds={rosterIds} students={students ?? []} onImport={handleImportAttendance} />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3">
