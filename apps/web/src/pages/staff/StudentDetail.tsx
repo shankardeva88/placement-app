@@ -5,7 +5,7 @@ import { ArrowLeft, BadgeCheck, ExternalLink, Pencil, Power, Trash2, User } from
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { ApplicationStatus, Department, Drive, EntranceExamType, Gender, MockEvaluation, Student } from "@placement-app/types";
+import type { ApplicationStatus, Department, Drive, EntranceExamType, Gender, MentorMapping, MockEvaluation, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { setStudentVerified, updateStudentProfile, setStudentActive, removeStudent } from "../../lib/studentsDirectoryLib";
 import type { StudentProfileUpdate } from "../../lib/studentsDirectoryLib";
@@ -14,6 +14,8 @@ import { useAllOffers } from "../../lib/offersManagementLib";
 import { useIndexedList } from "../../lib/mentorProgressLib";
 import { useModulesByIds } from "../../lib/mockEvaluationLib";
 import { useAllTrainingBatches, useAllTrainingSessions, useAllAttendance } from "../../lib/trainingManagementLib";
+import { useDeptScopedCollection } from "../../lib/useDeptScopedCollection";
+import { useMentorDirectory } from "../../lib/drivePrepLib";
 import { useToast } from "../../components/ui/Toast";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -305,6 +307,13 @@ export default function StudentDetail() {
     [mockEvaluations]
   );
   const mockModules = useModulesByIds(mockModuleIds);
+  // So "who's this student's mentor" is answered right here instead of
+  // needing a trip to Mentor Tools' roster table and searching it by name.
+  const mentorMappings = useDeptScopedCollection<MentorMapping>(appUser, DB_NODES.mentorMapping, DB_NODES.mentorMappingDeptIndex);
+  const mentors = useMentorDirectory(appUser);
+  const mentorsByUid = useMemo(() => Object.fromEntries((mentors ?? []).map((m) => [m.uid, m])), [mentors]);
+  const mentorMapping = useMemo(() => (mentorMappings ?? []).find((m) => m.studentId === uid), [mentorMappings, uid]);
+  const mentorName = mentorMapping ? mentorsByUid[mentorMapping.facultyId]?.name : undefined;
   const mockEvalsByModule = useMemo(() => {
     const map: Record<string, MockEvaluation[]> = {};
     for (const e of mockEvaluations ?? []) {
@@ -465,6 +474,7 @@ export default function StudentDetail() {
           {editing && <EditStudentForm student={student} uid={student.uid} onDone={() => setEditing(false)} />}
 
           <SectionCard title="Academics">
+            <Field label="Mentor">{mentorName ?? (mentorMapping ? mentorMapping.facultyId : "Not assigned")}</Field>
             <Field label="CGPA">{student.cgpa}</Field>
             <Field label="Active backlogs">{student.activeBacklogs}</Field>
             <Field label="Placement status">
