@@ -48,6 +48,7 @@ import ReportsHome from "./pages/staff/reports/ReportsHome";
 import StudentMasterReport from "./pages/staff/reports/StudentMasterReport";
 import FullStudentReport from "./pages/staff/reports/FullStudentReport";
 import TrainingReport from "./pages/staff/reports/TrainingReport";
+import AssessmentReport from "./pages/staff/reports/AssessmentReport";
 import CertificationReport from "./pages/staff/reports/CertificationReport";
 import PlacementReport from "./pages/staff/reports/PlacementReport";
 import OffersInternshipsReport from "./pages/staff/reports/OffersInternshipsReport";
@@ -66,6 +67,7 @@ import MenteeMasterReport from "./pages/staff/reports/MenteeMasterReport";
 import MenteeFullReport from "./pages/staff/reports/MenteeFullReport";
 import MenteeOffersInternshipsReport from "./pages/staff/reports/MenteeOffersInternshipsReport";
 import MenteeTrainingReport from "./pages/staff/reports/MenteeTrainingReport";
+import MenteeAssessmentReport from "./pages/staff/reports/MenteeAssessmentReport";
 import MenteeDriveSummaryReport from "./pages/staff/reports/MenteeDriveSummaryReport";
 import MenteeFollowUpReport from "./pages/staff/reports/MenteeFollowUpReport";
 import MenteeFollowUpLogReport from "./pages/staff/reports/MenteeFollowUpLogReport";
@@ -410,6 +412,14 @@ export default function App() {
             }
           />
           <Route
+            path="/staff/reports/assessments"
+            element={
+              <StaffLayoutRoute>
+                <AssessmentReport />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
             path="/staff/reports/certifications"
             element={
               <StaffLayoutRoute>
@@ -550,6 +560,14 @@ export default function App() {
             element={
               <StaffLayoutRoute>
                 <MenteeTrainingReport />
+              </StaffLayoutRoute>
+            }
+          />
+          <Route
+            path="/staff/mentor-reports/assessments"
+            element={
+              <StaffLayoutRoute>
+                <MenteeAssessmentReport />
               </StaffLayoutRoute>
             }
           />

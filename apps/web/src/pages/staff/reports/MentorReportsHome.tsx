@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
+  Award,
   FileBarChart,
   FileText,
   Users,
@@ -43,6 +44,13 @@ const REPORTS: { to: string; label: string; description: string; icon: LucideIco
     description: "Internal training batch attendance % plus external/corporate trainings, scoped to your mentees.",
     icon: BookOpen,
     gradient: "from-amber-500 to-orange-600",
+  },
+  {
+    to: "/staff/mentor-reports/assessments",
+    label: "Mentee Assessment Report",
+    description: "Vendor mock assessment scores — attempted, absent, average %, plus an assessment-wise matrix — scoped to your mentees.",
+    icon: Award,
+    gradient: "from-violet-500 to-purple-600",
   },
   {
     to: "/staff/mentor-reports/drives",

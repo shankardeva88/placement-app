@@ -536,3 +536,50 @@ export function useBatchAssessmentAverages(assessmentIds: string[]): Record<stri
   }
   return result;
 }
+
+/** Dept-scoped equivalent of useAllAttendance, for the Assessment Report
+ * (coordinator/hod and its mentee-scoped mentor counterpart). Simpler than
+ * attendance's version — TrainingAssessment already carries `department`
+ * directly, so there's no batch/session cross-reference needed to find
+ * "which assessments are in my department." */
+export function useAllAssessmentScores(appUser: AppUser | null): Record<string, Record<string, TrainingAssessmentScore>> {
+  const isInstitution = !!appUser && INSTITUTION_ROLES.has(appUser.role);
+  const department = appUser && "department" in appUser ? appUser.department : undefined;
+
+  const [rootScores, setRootScores] = useState<Record<string, Record<string, TrainingAssessmentScore>> | null>(null);
+  const [assessments, setAssessments] = useState<TrainingAssessment[] | null>(null);
+  const [scoresByAssessment, setScoresByAssessment] = useState<Record<string, Record<string, TrainingAssessmentScore>>>({});
+
+  useEffect(() => {
+    if (!isInstitution) return;
+    return onValue(ref(db, DB_NODES.assessmentScores), (snap) => {
+      setRootScores((snap.val() as Record<string, Record<string, TrainingAssessmentScore>> | null) ?? {});
+    });
+  }, [isInstitution]);
+
+  useEffect(() => {
+    if (isInstitution || !department) return;
+    return onValue(ref(db, DB_NODES.trainingAssessments), (snap) => {
+      const val = snap.val() as Record<string, TrainingAssessment> | null;
+      setAssessments(val ? Object.values(val) : []);
+    });
+  }, [isInstitution, department]);
+
+  const deptAssessmentIds = useMemo(() => {
+    if (isInstitution || !department || !assessments) return null;
+    return assessments.filter((a) => a.department === department).map((a) => a.assessmentId);
+  }, [isInstitution, department, assessments]);
+
+  useEffect(() => {
+    if (!deptAssessmentIds) return;
+    const unsubs = deptAssessmentIds.map((id) =>
+      onValue(ref(db, `${DB_NODES.assessmentScores}/${id}`), (snap) => {
+        setScoresByAssessment((prev) => ({ ...prev, [id]: (snap.val() as Record<string, TrainingAssessmentScore> | null) ?? {} }));
+      })
+    );
+    return () => unsubs.forEach((u) => u());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deptAssessmentIds?.join(",")]);
+
+  return isInstitution ? (rootScores ?? {}) : scoresByAssessment;
+}

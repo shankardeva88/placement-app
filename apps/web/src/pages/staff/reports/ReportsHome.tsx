@@ -129,6 +129,13 @@ const REPORTS: { to: string; label: string; description: string; icon: LucideIco
     gradient: "from-amber-500 to-orange-600",
   },
   {
+    to: "/staff/reports/assessments",
+    label: "Assessment Report",
+    description: "Vendor mock assessment scores — attempted, absent, average %, plus an assessment-wise matrix for one training batch.",
+    icon: Award,
+    gradient: "from-violet-500 to-purple-600",
+  },
+  {
     to: "/staff/reports/certifications",
     label: "Certification Report",
     description: "Every certification a student has added, one row each — filter by department or batch, search by name.",
