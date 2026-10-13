@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, BarChart3, BookOpen, CalendarPlus, ChevronDown, ChevronUp, ClipboardCopy, Pencil, Plus, QrCode, Search, Trash2, Upload } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import type { AttendanceStatus, Department, SkillTrack, Student, TrainingBatch, TrainingSession } from "@placement-app/types";
+import type { AttendanceStatus, Department, SkillTrack, Student, TrainingAssessment, TrainingBatch, TrainingSession } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import {
@@ -24,6 +24,13 @@ import {
   startCheckIn,
   closeCheckIn,
   useSessionAttendance,
+  useAllTrainingAssessments,
+  createTrainingAssessment,
+  updateTrainingAssessment,
+  deleteTrainingAssessment,
+  useAssessmentScores,
+  recordAssessmentScore,
+  recordAssessmentScoresBulk,
 } from "../../lib/trainingManagementLib";
 import { parseDelimited } from "../../lib/csv";
 import { useToast } from "../../components/ui/Toast";
@@ -319,11 +326,13 @@ function EditBatchForm({ batch, onDone }: { batch: TrainingBatch; onDone: () => 
 function DeleteBatchConfirm({
   batchId,
   sessionIds,
+  assessmentIds,
   onDone,
   onCancel,
 }: {
   batchId: string;
   sessionIds: string[];
+  assessmentIds: string[];
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -335,7 +344,7 @@ function DeleteBatchConfirm({
     setDeleting(true);
     setError(null);
     try {
-      await deleteTrainingBatch(batchId, sessionIds);
+      await deleteTrainingBatch(batchId, sessionIds, assessmentIds);
       showToast("Batch deleted");
       onDone();
     } catch (err) {
@@ -347,8 +356,9 @@ function DeleteBatchConfirm({
   return (
     <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
       <p className="text-sm text-red-800">
-        Delete this batch? This removes {sessionIds.length} session{sessionIds.length === 1 ? "" : "s"} and all attendance records — this can&apos;t
-        be undone.
+        Delete this batch? This removes {sessionIds.length} session{sessionIds.length === 1 ? "" : "s"}
+        {assessmentIds.length > 0 ? `, ${assessmentIds.length} assessment${assessmentIds.length === 1 ? "" : "s"},` : " and"} all attendance
+        and score records — this can&apos;t be undone.
       </p>
       {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
       <div className="mt-2 flex gap-2">
@@ -499,6 +509,409 @@ function DeleteSessionConfirm({ sessionId, onDone, onCancel }: { sessionId: stri
         <Button type="button" variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
+      </div>
+    </div>
+  );
+}
+
+function CreateAssessmentForm({ batchId, department, onDone }: { batchId: string; department: Department; onDone: () => void }) {
+  const { firebaseUser } = useAuth();
+  const { showToast } = useToast();
+  const [name, setName] = useState("");
+  const [date, setDate] = useState("");
+  const [maxScore, setMaxScore] = useState(100);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!firebaseUser) return;
+    setSubmitting(true);
+    try {
+      await createTrainingAssessment({
+        batchId,
+        department,
+        name,
+        date: date ? new Date(date).getTime() : Date.now(),
+        maxScore,
+        createdBy: firebaseUser.uid,
+      });
+      showToast("Assessment created");
+      onDone();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-3 space-y-3 rounded-lg bg-slate-50 p-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <input
+          type="text"
+          placeholder="Name, e.g. Mock Assessment 6"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className={inputClass}
+        />
+        <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+        <input
+          type="number"
+          min={1}
+          placeholder="Max score"
+          required
+          value={maxScore}
+          onChange={(e) => setMaxScore(Number(e.target.value))}
+          className={inputClass}
+        />
+      </div>
+      <div className="flex gap-2">
+        <Button type="submit" loading={submitting}>
+          Create
+        </Button>
+        <Button type="button" variant="secondary" onClick={onDone}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function EditAssessmentForm({ assessment, onDone }: { assessment: TrainingAssessment; onDone: () => void }) {
+  const { showToast } = useToast();
+  const [name, setName] = useState(assessment.name);
+  const [date, setDate] = useState(() => {
+    const d = new Date(assessment.date);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  });
+  const [maxScore, setMaxScore] = useState(assessment.maxScore);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await updateTrainingAssessment(assessment.assessmentId, {
+        name,
+        date: date ? new Date(date).getTime() : assessment.date,
+        maxScore,
+      });
+      showToast("Assessment updated");
+      onDone();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-2 space-y-3 rounded-lg bg-white p-3 ring-1 ring-slate-200">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <input type="text" placeholder="Name" required value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+        <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+        <input
+          type="number"
+          min={1}
+          required
+          value={maxScore}
+          onChange={(e) => setMaxScore(Number(e.target.value))}
+          className={inputClass}
+        />
+      </div>
+      <div className="flex gap-2">
+        <Button type="submit" loading={submitting}>
+          Save changes
+        </Button>
+        <Button type="button" variant="secondary" onClick={onDone}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function DeleteAssessmentConfirm({ assessmentId, onDone, onCancel }: { assessmentId: string; onDone: () => void; onCancel: () => void }) {
+  const { showToast } = useToast();
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await deleteTrainingAssessment(assessmentId);
+      showToast("Assessment deleted");
+      onDone();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3">
+      <p className="text-sm text-red-800">Delete this assessment? This removes every student&apos;s score for it — this can&apos;t be undone.</p>
+      <div className="mt-2 flex gap-2">
+        <Button type="button" variant="danger" onClick={handleDelete} loading={deleting}>
+          Delete assessment
+        </Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+interface ImportScoreRow {
+  rollNo: string;
+  scoreText: string;
+  uid?: string;
+  score?: number;
+}
+
+// Same paste-and-review pattern as ImportAttendanceForm below, generalized
+// to a numeric score instead of a present/absent/late status.
+function ImportScoresForm({
+  rosterIds,
+  students,
+  maxScore,
+  onImport,
+}: {
+  rosterIds: string[];
+  students: Student[];
+  maxScore: number;
+  onImport: (entries: { studentId: string; score: number }[]) => Promise<void>;
+}) {
+  const { showToast } = useToast();
+  const [expanded, setExpanded] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [parsed, setParsed] = useState<ImportScoreRow[] | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  const matched = (parsed ?? []).filter((r) => r.uid && r.score != null);
+  const unmatched = (parsed ?? []).filter((r) => !r.uid);
+  const unrecognized = (parsed ?? []).filter((r) => r.uid && r.score == null);
+
+  function handleParse() {
+    const { headers, rows } = parseDelimited(pasteText);
+    if (headers.length === 0) {
+      showToast("Paste some data first");
+      return;
+    }
+    const rollColIdx = headers.findIndex((h) => /roll/i.test(h));
+    const scoreColIdx = headers.findIndex((h) => /score|marks/i.test(h));
+    if (rollColIdx === -1 || scoreColIdx === -1) {
+      showToast('Need a "Roll No" column and a "Score" column');
+      return;
+    }
+    const rosterSet = new Set(rosterIds);
+    const byRollNo = new Map(
+      students.filter((s) => rosterSet.has(s.uid)).map((s) => [s.rollNo.trim().toLowerCase(), s])
+    );
+    const result: ImportScoreRow[] = rows
+      .map((row) => {
+        const rollNo = (row[rollColIdx] ?? "").trim();
+        const scoreText = (row[scoreColIdx] ?? "").trim();
+        const student = byRollNo.get(rollNo.toLowerCase());
+        const parsedScore = scoreText === "" ? NaN : Number(scoreText);
+        return { rollNo, scoreText, uid: student?.uid, score: Number.isFinite(parsedScore) ? parsedScore : undefined };
+      })
+      .filter((r) => r.rollNo);
+    setParsed(result);
+  }
+
+  async function handleApply() {
+    if (matched.length === 0) return;
+    setImporting(true);
+    try {
+      await onImport(matched.map((r) => ({ studentId: r.uid as string, score: r.score as number })));
+      showToast(`Imported scores for ${matched.length} student${matched.length === 1 ? "" : "s"}`);
+      setPasteText("");
+      setParsed(null);
+      setExpanded(false);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  if (!expanded) {
+    return (
+      <Button variant="secondary" onClick={() => setExpanded(true)} className="!px-2 !py-1 text-xs">
+        <Upload className="h-3.5 w-3.5" />
+        Import
+      </Button>
+    );
+  }
+
+  return (
+    <div className="w-full rounded-lg bg-white p-3 ring-1 ring-slate-200">
+      <p className="mb-2 text-xs text-slate-500">
+        Paste two columns — Roll No and Score (out of {maxScore}) — from Excel/Sheets or a CSV. Matches by roll
+        number against this batch's roster.
+      </p>
+      <textarea
+        rows={5}
+        value={pasteText}
+        onChange={(e) => setPasteText(e.target.value)}
+        placeholder={"Roll No\tScore"}
+        className="w-full rounded-lg border border-slate-300 p-2 font-mono text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+      />
+      <div className="mt-2 flex gap-2">
+        <Button variant="secondary" onClick={handleParse} className="!px-2 !py-1 text-xs">
+          Parse
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setExpanded(false);
+            setPasteText("");
+            setParsed(null);
+          }}
+          className="!px-2 !py-1 text-xs"
+        >
+          Cancel
+        </Button>
+      </div>
+
+      {parsed !== null && (
+        <div className="mt-3 space-y-1.5 text-xs">
+          <p className="text-slate-600">
+            {matched.length} matched
+            {unmatched.length > 0 ? `, ${unmatched.length} roll no not found` : ""}
+            {unrecognized.length > 0 ? `, ${unrecognized.length} invalid score` : ""}
+          </p>
+          {unmatched.length > 0 && (
+            <p className="flex items-start gap-1.5 text-amber-700">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Not found: {unmatched.map((r) => r.rollNo).join(", ")}
+            </p>
+          )}
+          {unrecognized.length > 0 && (
+            <p className="flex items-start gap-1.5 text-amber-700">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Invalid score: {unrecognized.map((r) => `${r.rollNo} (${r.scoreText})`).join(", ")}
+            </p>
+          )}
+          <Button onClick={handleApply} loading={importing} disabled={matched.length === 0} className="!px-2 !py-1 text-xs">
+            Apply to {matched.length} student{matched.length === 1 ? "" : "s"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Mirrors AttendanceRoster's shape (roster sorted by roll no, Copy summary,
+// Import), but each student gets a numeric score input instead of a
+// present/absent/late dropdown.
+function AssessmentScoreRoster({ assessment, batch }: { assessment: TrainingAssessment; batch: TrainingBatch }) {
+  const { firebaseUser, appUser } = useAuth();
+  const { showToast } = useToast();
+  const scores = useAssessmentScores(assessment.assessmentId);
+  const students = useStudentsDirectory(appUser);
+  const nameFor = (uid: string) => {
+    const s = students?.find((x) => x.uid === uid);
+    return s ? `${s.rollNo} — ${s.name}` : uid;
+  };
+  const rosterIds = useMemo(() => {
+    const rollNoOf = new Map((students ?? []).map((s) => [s.uid, s.rollNo]));
+    return [...batch.studentIds].sort((a, b) => (rollNoOf.get(a) ?? "").localeCompare(rollNoOf.get(b) ?? ""));
+  }, [batch.studentIds, students]);
+
+  // Local edit buffer, one entry per student seeded from the live
+  // subscription once (not kept in sync afterwards) — otherwise every
+  // remote update (e.g. an Import elsewhere) would stomp whatever a staff
+  // member is mid-typing into another student's box.
+  const [scoreInputs, setScoreInputs] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!scores) return;
+    setScoreInputs((prev) => {
+      const next = { ...prev };
+      for (const uid of rosterIds) {
+        if (!(uid in next) && scores[uid]) next[uid] = String(scores[uid].score);
+      }
+      return next;
+    });
+  }, [scores, rosterIds]);
+
+  async function handleScoreCommit(uid: string) {
+    if (!firebaseUser) return;
+    const raw = scoreInputs[uid];
+    if (raw === undefined || raw.trim() === "") return;
+    const value = Number(raw);
+    if (!Number.isFinite(value)) return;
+    await recordAssessmentScore(assessment.assessmentId, uid, batch.department, value, firebaseUser.uid);
+  }
+
+  async function handleImport(entries: { studentId: string; score: number }[]) {
+    if (!firebaseUser) return;
+    await recordAssessmentScoresBulk(assessment.assessmentId, entries, batch.department, firebaseUser.uid);
+    setScoreInputs((prev) => {
+      const next = { ...prev };
+      for (const { studentId, score } of entries) next[studentId] = String(score);
+      return next;
+    });
+  }
+
+  const attempted = rosterIds.filter((uid) => scores?.[uid] != null);
+  const average =
+    attempted.length > 0 ? attempted.reduce((sum, uid) => sum + (scores?.[uid]?.score ?? 0), 0) / attempted.length : null;
+
+  async function handleCopySummary() {
+    const notAttempted = rosterIds.filter((uid) => scores?.[uid] == null);
+    const lines = [
+      `${batch.name} — ${assessment.name}`,
+      new Date(assessment.date).toLocaleDateString(),
+      "",
+      `Total: ${rosterIds.length} | Attempted: ${attempted.length}` +
+        (notAttempted.length > 0 ? ` | Not attempted: ${notAttempted.length}` : "") +
+        (average != null ? ` | Average: ${average.toFixed(1)}/${assessment.maxScore}` : ""),
+    ];
+    if (notAttempted.length > 0) {
+      lines.push("", "Not attempted:");
+      notAttempted.forEach((uid, i) => lines.push(`${i + 1}. ${nameFor(uid)}`));
+    }
+    await navigator.clipboard.writeText(lines.join("\n"));
+    showToast("Summary copied to clipboard");
+  }
+
+  return (
+    <div className="mt-2 space-y-3 rounded-lg bg-slate-50 p-3">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <Badge variant="success">
+          Attempted ({attempted.length}/{rosterIds.length})
+        </Badge>
+        {average != null && (
+          <Badge variant="brand">
+            Average {average.toFixed(1)}/{assessment.maxScore}
+          </Badge>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
+        <Button variant="secondary" onClick={handleCopySummary} className="!px-2 !py-1 text-xs">
+          <ClipboardCopy className="h-3.5 w-3.5" />
+          Copy summary
+        </Button>
+        <ImportScoresForm rosterIds={rosterIds} students={students ?? []} maxScore={assessment.maxScore} onImport={handleImport} />
+      </div>
+
+      <div className="space-y-1">
+        {rosterIds.map((uid) => (
+          <div key={uid} className="flex items-center justify-between gap-3 py-1 text-sm">
+            <span className="text-slate-700">{nameFor(uid)}</span>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                min={0}
+                max={assessment.maxScore}
+                value={scoreInputs[uid] ?? ""}
+                onChange={(e) => setScoreInputs((prev) => ({ ...prev, [uid]: e.target.value }))}
+                onBlur={() => handleScoreCommit(uid)}
+                placeholder="—"
+                className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none"
+              />
+              <span className="text-xs text-slate-400">/{assessment.maxScore}</span>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -1272,13 +1685,22 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
     [allSessions, batch.batchId]
   );
   const status = useMemo(() => getBatchStatus(batch.batchId, allSessions ?? []), [batch.batchId, allSessions]);
+  const allAssessments = useAllTrainingAssessments();
+  const assessments = useMemo(
+    () => (allAssessments ?? []).filter((a) => a.batchId === batch.batchId).sort((a, b) => b.date - a.date),
+    [allAssessments, batch.batchId]
+  );
   const [addingSession, setAddingSession] = useState(false);
   const [addingRecurring, setAddingRecurring] = useState(false);
+  const [addingAssessment, setAddingAssessment] = useState(false);
   const [openSessionId, setOpenSessionId] = useState<string | null>(null);
+  const [openAssessmentId, setOpenAssessmentId] = useState<string | null>(null);
   const [editingBatch, setEditingBatch] = useState(false);
   const [deletingBatch, setDeletingBatch] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [editingAssessmentId, setEditingAssessmentId] = useState<string | null>(null);
+  const [deletingAssessmentId, setDeletingAssessmentId] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState("");
   // Sessions/attendance collapsed by default — every batch card used to
   // dump its full session list open at once, which is a lot to scroll past
@@ -1347,6 +1769,10 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
               <Plus className="h-4 w-4" />
               Session
             </Button>
+            <Button variant="secondary" onClick={() => setAddingAssessment((v) => !v)}>
+              <Plus className="h-4 w-4" />
+              Assessment
+            </Button>
             <Button
               variant="secondary"
               onClick={() => {
@@ -1378,6 +1804,7 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
         <DeleteBatchConfirm
           batchId={batch.batchId}
           sessionIds={sessions.map((s) => s.sessionId)}
+          assessmentIds={assessments.map((a) => a.assessmentId)}
           onDone={() => setDeletingBatch(false)}
           onCancel={() => setDeletingBatch(false)}
         />
@@ -1388,6 +1815,9 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
       )}
       {canManageSchedule && addingSession && (
         <CreateSessionForm batchId={batch.batchId} onDone={() => setAddingSession(false)} />
+      )}
+      {canManageSchedule && addingAssessment && (
+        <CreateAssessmentForm batchId={batch.batchId} department={batch.department} onDone={() => setAddingAssessment(false)} />
       )}
 
       {expanded && (sessions.length === 0 ? (
@@ -1477,6 +1907,77 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
           ))}
         </>
       ))}
+
+      {expanded && (
+        <div className="mt-4 border-t border-slate-200 pt-4">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Assessments{assessments.length > 0 && ` (${assessments.length})`}
+          </h4>
+          {assessments.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-500">No assessments logged yet.</p>
+          ) : (
+            <ul className="mt-1 divide-y divide-slate-100">
+              {assessments.map((assessment) => (
+                <li key={assessment.assessmentId} className="py-2.5">
+                  <div className="flex w-full items-center justify-between gap-3 text-sm">
+                    <button
+                      onClick={() => setOpenAssessmentId((prev) => (prev === assessment.assessmentId ? null : assessment.assessmentId))}
+                      className="flex flex-1 items-center justify-between gap-3 text-left"
+                    >
+                      <div>
+                        <p className="font-medium text-slate-800">{assessment.name}</p>
+                        <p className="text-xs text-slate-500">
+                          {new Date(assessment.date).toLocaleDateString()} · out of {assessment.maxScore}
+                        </p>
+                      </div>
+                      <span className="text-xs font-medium text-brand-700">
+                        {openAssessmentId === assessment.assessmentId ? "Hide scores" : "Enter scores"}
+                      </span>
+                    </button>
+                    {canManageSchedule && (
+                      <div className="flex shrink-0 gap-1">
+                        <button
+                          type="button"
+                          title="Edit assessment"
+                          onClick={() => {
+                            setDeletingAssessmentId(null);
+                            setEditingAssessmentId((prev) => (prev === assessment.assessmentId ? null : assessment.assessmentId));
+                          }}
+                          className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          title="Delete assessment"
+                          onClick={() => {
+                            setEditingAssessmentId(null);
+                            setDeletingAssessmentId((prev) => (prev === assessment.assessmentId ? null : assessment.assessmentId));
+                          }}
+                          className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {editingAssessmentId === assessment.assessmentId && (
+                    <EditAssessmentForm assessment={assessment} onDone={() => setEditingAssessmentId(null)} />
+                  )}
+                  {deletingAssessmentId === assessment.assessmentId && (
+                    <DeleteAssessmentConfirm
+                      assessmentId={assessment.assessmentId}
+                      onDone={() => setDeletingAssessmentId(null)}
+                      onCancel={() => setDeletingAssessmentId(null)}
+                    />
+                  )}
+                  {openAssessmentId === assessment.assessmentId && <AssessmentScoreRoster assessment={assessment} batch={batch} />}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </Card>
   );
 }

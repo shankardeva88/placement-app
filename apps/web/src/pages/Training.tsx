@@ -3,8 +3,8 @@ import type { FormEvent } from "react";
 import { BookOpen, ChevronDown, ChevronUp, KeyRound } from "lucide-react";
 import type { AttendanceStatus, TrainingBatch } from "@placement-app/types";
 import { useAuth } from "../auth/AuthContext";
-import { useMyTraining } from "../lib/trainingLib";
-import type { SessionWithAttendance } from "../lib/trainingLib";
+import { useMyTraining, useMyAssessments } from "../lib/trainingLib";
+import type { AssessmentWithScore, SessionWithAttendance } from "../lib/trainingLib";
 import { selfCheckIn } from "../lib/checkInLib";
 import { useToast } from "../components/ui/Toast";
 import { Card } from "../components/ui/Card";
@@ -89,7 +89,15 @@ function dayStripColor(session: SessionWithAttendance["session"], attendance: Se
   return "bg-red-500";
 }
 
-function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions: SessionWithAttendance[] }) {
+function TrainingBatchCard({
+  batch,
+  sessions,
+  assessments,
+}: {
+  batch: TrainingBatch;
+  sessions: SessionWithAttendance[];
+  assessments: AssessmentWithScore[];
+}) {
   // Collapsed by default — same fix as Offers/Drives/Internships: a
   // student in several training batches (or one batch with a long session
   // history) had every session list open at once. Session count stays
@@ -236,6 +244,29 @@ function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions
             ))}
           </>
         ))}
+
+      {expanded && assessments.length > 0 && (
+        <div className="mt-4 border-t border-slate-200 pt-4">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Assessments</h4>
+          <ul className="mt-1 divide-y divide-slate-100">
+            {assessments.map(({ assessment, score }) => (
+              <li key={assessment.assessmentId} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                <div>
+                  <p className="font-medium text-slate-800">{assessment.name}</p>
+                  <p className="text-xs text-slate-500">{new Date(assessment.date).toLocaleDateString()}</p>
+                </div>
+                {score ? (
+                  <Badge variant={score.score / assessment.maxScore >= 0.75 ? "success" : score.score / assessment.maxScore >= 0.5 ? "warning" : "danger"}>
+                    {score.score}/{assessment.maxScore}
+                  </Badge>
+                ) : (
+                  <Badge variant="neutral">Not yet scored</Badge>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </Card>
   );
 }
@@ -243,6 +274,7 @@ function TrainingBatchCard({ batch, sessions }: { batch: TrainingBatch; sessions
 export default function Training() {
   const { student } = useAuth();
   const batches = useMyTraining(student?.uid);
+  const assessments = useMyAssessments(student?.uid);
 
   return (
     <div>
@@ -261,7 +293,12 @@ export default function Training() {
 
       <div className="space-y-4">
         {batches?.map(({ batch, sessions }) => (
-          <TrainingBatchCard key={batch.batchId} batch={batch} sessions={sessions} />
+          <TrainingBatchCard
+            key={batch.batchId}
+            batch={batch}
+            sessions={sessions}
+            assessments={(assessments ?? []).filter((a) => a.assessment.batchId === batch.batchId)}
+          />
         ))}
       </div>
     </div>

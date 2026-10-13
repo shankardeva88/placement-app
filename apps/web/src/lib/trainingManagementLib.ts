@@ -9,6 +9,8 @@ import type {
   AttendanceStatus,
   Department,
   SkillTrack,
+  TrainingAssessment,
+  TrainingAssessmentScore,
   TrainingBatch,
   TrainingSession,
 } from "@placement-app/types";
@@ -102,14 +104,35 @@ export async function deleteTrainingSession(sessionId: string) {
   await update(ref(db), updates);
 }
 
+/** Same reasoning as sessionDeletionUpdates — assessmentScores can only be
+ * nulled out one studentUid at a time, never as a whole assessmentId
+ * subtree, so each assessment's scores have to be fetched first. */
+async function assessmentDeletionUpdates(assessmentId: string): Promise<Record<string, unknown>> {
+  const scoresSnap = await get(ref(db, `${DB_NODES.assessmentScores}/${assessmentId}`));
+  const scoresByStudent = (scoresSnap.val() as Record<string, TrainingAssessmentScore> | null) ?? {};
+  const updates: Record<string, unknown> = { [`${DB_NODES.trainingAssessments}/${assessmentId}`]: null };
+  for (const studentUid of Object.keys(scoresByStudent)) {
+    updates[`${DB_NODES.assessmentScores}/${assessmentId}/${studentUid}`] = null;
+  }
+  return updates;
+}
+
 /** Cascades to every session under the batch (and each of those sessions'
- * attendance) — sessionIds comes from the caller, which already has the
- * batch's sessions loaded (useAllTrainingSessions filtered by batchId), so
- * this doesn't need to re-fetch and filter the whole collection itself. */
-export async function deleteTrainingBatch(batchId: string, sessionIds: string[]) {
+ * attendance), and every assessment under the batch (and each of those
+ * assessments' scores) — sessionIds/assessmentIds come from the caller,
+ * which already has the batch's sessions/assessments loaded
+ * (useAllTrainingSessions/useAllTrainingAssessments filtered by batchId),
+ * so this doesn't need to re-fetch and filter the whole collections itself.
+ * Without this, deleting a batch left its assessments (and their scores)
+ * behind pointing at a batchId that no longer exists — the same orphaned-
+ * record class of bug as a deleted student's uid lingering in a training
+ * batch's roster. */
+export async function deleteTrainingBatch(batchId: string, sessionIds: string[], assessmentIds: string[] = []) {
   const perSessionUpdates = await Promise.all(sessionIds.map(sessionDeletionUpdates));
+  const perAssessmentUpdates = await Promise.all(assessmentIds.map(assessmentDeletionUpdates));
   const updates: Record<string, unknown> = { [`${DB_NODES.trainingBatches}/${batchId}`]: null };
   for (const sessionUpdates of perSessionUpdates) Object.assign(updates, sessionUpdates);
+  for (const assessmentUpdates of perAssessmentUpdates) Object.assign(updates, assessmentUpdates);
   await update(ref(db), updates);
 }
 
@@ -367,4 +390,87 @@ export function useSessionAttendance(sessionId: string, studentIds: string[]) {
   }, [sessionId, studentIds.join(",")]);
 
   return attendance;
+}
+
+// ----------------------------------------------------------------------------
+// Training assessments — a vendor-run scored test within a batch (e.g.
+// Infosys's periodic mock assessments), distinct from attendance. Same
+// batchId-scoped shape as sessions, with scores nested per assessment the
+// same way attendance is nested per session (see the DB_NODES doc comment
+// in packages/types).
+// ----------------------------------------------------------------------------
+
+export function useAllTrainingAssessments(): TrainingAssessment[] | null {
+  const [assessments, setAssessments] = useState<TrainingAssessment[] | null>(null);
+  useEffect(() => {
+    return onValue(ref(db, DB_NODES.trainingAssessments), (snap) => {
+      const val = snap.val() as Record<string, TrainingAssessment> | null;
+      setAssessments(val ? Object.values(val) : []);
+    });
+  }, []);
+  return assessments;
+}
+
+export interface CreateAssessmentInput {
+  batchId: string;
+  department: Department;
+  name: string;
+  date: number;
+  maxScore: number;
+  createdBy: string;
+}
+
+export async function createTrainingAssessment(input: CreateAssessmentInput) {
+  const newRef = push(ref(db, DB_NODES.trainingAssessments));
+  const assessmentId = newRef.key as string;
+  const assessment: TrainingAssessment = {
+    assessmentId,
+    batchId: input.batchId,
+    department: input.department,
+    name: input.name,
+    date: input.date,
+    maxScore: input.maxScore,
+    createdBy: input.createdBy,
+    createdAt: Date.now(),
+  };
+  await set(newRef, assessment);
+  return assessmentId;
+}
+
+export type UpdateAssessmentInput = Partial<Pick<CreateAssessmentInput, "name" | "date" | "maxScore">>;
+
+export async function updateTrainingAssessment(assessmentId: string, input: UpdateAssessmentInput) {
+  await update(ref(db, `${DB_NODES.trainingAssessments}/${assessmentId}`), input);
+}
+
+export async function deleteTrainingAssessment(assessmentId: string) {
+  const updates = await assessmentDeletionUpdates(assessmentId);
+  await update(ref(db), updates);
+}
+
+export function useAssessmentScores(assessmentId: string): Record<string, TrainingAssessmentScore> | null {
+  const [scores, setScores] = useState<Record<string, TrainingAssessmentScore> | null>(null);
+  useEffect(() => {
+    return onValue(ref(db, `${DB_NODES.assessmentScores}/${assessmentId}`), (snap) => {
+      setScores((snap.val() as Record<string, TrainingAssessmentScore> | null) ?? {});
+    });
+  }, [assessmentId]);
+  return scores;
+}
+
+export async function recordAssessmentScore(assessmentId: string, studentId: string, department: Department, score: number, recordedBy: string) {
+  const record: TrainingAssessmentScore = { assessmentId, studentId, department, score, recordedBy, recordedAt: Date.now() };
+  await set(ref(db, `${DB_NODES.assessmentScores}/${assessmentId}/${studentId}`), record);
+}
+
+/** Backs the same "Import" paste flow as markAttendanceBulk — a roll-no +
+ * score sheet (handed over by the vendor, or taken down on paper) gets
+ * digitized in one shot. */
+export async function recordAssessmentScoresBulk(
+  assessmentId: string,
+  entries: { studentId: string; score: number }[],
+  department: Department,
+  recordedBy: string
+) {
+  await Promise.all(entries.map(({ studentId, score }) => recordAssessmentScore(assessmentId, studentId, department, score, recordedBy)));
 }

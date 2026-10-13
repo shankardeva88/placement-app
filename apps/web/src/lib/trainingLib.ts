@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { AttendanceRecord, TrainingBatch, TrainingSession } from "@placement-app/types";
+import type { AttendanceRecord, TrainingAssessment, TrainingAssessmentScore, TrainingBatch, TrainingSession } from "@placement-app/types";
 
 export interface SessionWithAttendance {
   session: TrainingSession;
@@ -69,4 +69,58 @@ export function useMyTraining(studentUid: string | undefined): BatchWithSessions
       .filter((s) => s.batchId === batch.batchId)
       .map((session) => ({ session, attendance: attendance[session.sessionId] ?? null })),
   }));
+}
+
+export interface AssessmentWithScore {
+  assessment: TrainingAssessment;
+  score: TrainingAssessmentScore | null;
+}
+
+/** Same approach as useMyTraining above — trainingAssessments is fully
+ * readable, so the ones relevant to this student are found by filtering
+ * client-side on their batch ids, then each score is read individually at
+ * assessmentScores/{assessmentId}/{studentUid} (the leaf a student is
+ * actually allowed to read for themselves — see database.rules.json).
+ * Reused for both the student's own Training page and, per mentee, the
+ * faculty-mentor Training page (same relationship useMyTraining already
+ * has to both). */
+export function useMyAssessments(studentUid: string | undefined): AssessmentWithScore[] | null {
+  const [batches, setBatches] = useState<TrainingBatch[] | null>(null);
+  const [assessments, setAssessments] = useState<TrainingAssessment[] | null>(null);
+  const [scores, setScores] = useState<Record<string, TrainingAssessmentScore | null>>({});
+
+  useEffect(() => {
+    return onValue(ref(db, DB_NODES.trainingBatches), (snap) => {
+      const val = snap.val() as Record<string, TrainingBatch> | null;
+      setBatches(val ? Object.values(val) : []);
+    });
+  }, []);
+
+  useEffect(() => {
+    return onValue(ref(db, DB_NODES.trainingAssessments), (snap) => {
+      const val = snap.val() as Record<string, TrainingAssessment> | null;
+      setAssessments(val ? Object.values(val) : []);
+    });
+  }, []);
+
+  const myAssessments = useMemo(() => {
+    if (!batches || !assessments || !studentUid) return null;
+    const myBatchIds = new Set(batches.filter((b) => b.studentIds.includes(studentUid)).map((b) => b.batchId));
+    return assessments.filter((a) => myBatchIds.has(a.batchId));
+  }, [batches, assessments, studentUid]);
+
+  useEffect(() => {
+    if (!studentUid || !myAssessments) return;
+    const unsubs = myAssessments.map((a) =>
+      onValue(ref(db, `${DB_NODES.assessmentScores}/${a.assessmentId}/${studentUid}`), (snap) => {
+        setScores((prev) => ({ ...prev, [a.assessmentId]: snap.exists() ? (snap.val() as TrainingAssessmentScore) : null }));
+      })
+    );
+    return () => unsubs.forEach((u) => u());
+  }, [studentUid, myAssessments]);
+
+  if (!myAssessments) return null;
+  return myAssessments
+    .map((assessment) => ({ assessment, score: scores[assessment.assessmentId] ?? null }))
+    .sort((a, b) => b.assessment.date - a.assessment.date);
 }

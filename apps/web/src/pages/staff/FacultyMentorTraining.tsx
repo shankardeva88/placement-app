@@ -4,7 +4,7 @@ import type { AttendanceStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useMyMentees } from "../../lib/menteeFollowUpLib";
-import { useMyTraining } from "../../lib/trainingLib";
+import { useMyTraining, useMyAssessments } from "../../lib/trainingLib";
 import { useAllTrainingBatches, useAllTrainingSessions } from "../../lib/trainingManagementLib";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -42,6 +42,11 @@ function dayStripColor(sessionDate: number, status: AttendanceStatus | undefined
 function MenteeTrainingRow({ student, trainingFilter }: { student: Student; trainingFilter: string }) {
   const [expanded, setExpanded] = useState(false);
   const batches = useMyTraining(student.uid);
+  const assessments = useMyAssessments(student.uid);
+  const filteredAssessments = useMemo(
+    () => (assessments ?? []).filter((a) => !trainingFilter || a.assessment.batchId === trainingFilter),
+    [assessments, trainingFilter]
+  );
 
   // The page-level training filter narrows which mentees show up, but a
   // mentee can still be in several training batches at once — without this,
@@ -126,6 +131,28 @@ function MenteeTrainingRow({ student, trainingFilter }: { student: Student; trai
                     <Badge variant={ATTENDANCE_BADGE[attendance.status]}>{attendance.status}</Badge>
                   ) : (
                     <Badge variant="neutral">Not marked</Badge>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {filteredAssessments.length > 0 && (
+            <ul className="mt-2 divide-y divide-slate-100 border-t border-slate-100 pt-2">
+              {filteredAssessments.map(({ assessment, score }) => (
+                <li key={assessment.assessmentId} className="flex items-center justify-between gap-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-slate-800">{assessment.name}</p>
+                    <p className="truncate text-xs text-slate-500">{new Date(assessment.date).toLocaleDateString()}</p>
+                  </div>
+                  {score ? (
+                    <Badge
+                      variant={score.score / assessment.maxScore >= 0.75 ? "success" : score.score / assessment.maxScore >= 0.5 ? "warning" : "danger"}
+                    >
+                      {score.score}/{assessment.maxScore}
+                    </Badge>
+                  ) : (
+                    <Badge variant="neutral">Not yet scored</Badge>
                   )}
                 </li>
               ))}

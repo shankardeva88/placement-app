@@ -459,6 +459,38 @@ export interface AttendanceRecord {
   checkInToken?: string; // the code submitted for a self-check-in — audit trail
 }
 
+/** A scored test run within an ongoing TrainingBatch (e.g. a vendor like
+ * Infosys running periodic mock assessments during their training) —
+ * distinct from attendance (present/absent) and from MockInterviewModule/
+ * MockEvaluation (a mentor's qualitative interview ratings): this is one
+ * numeric score per student, the same thing a coordinator was otherwise
+ * tracking by hand in a separate spreadsheet. */
+export interface TrainingAssessment {
+  assessmentId: string;
+  batchId: string;
+  department: Department; // denormalized from the batch, for department-scoped rules
+  name: string; // e.g. "Mock Assessment 6"
+  date: Timestamp;
+  maxScore: number;
+  createdBy: string;
+  createdAt: Timestamp;
+}
+
+/** One student's score on one TrainingAssessment. Nested
+ * assessmentScores/{assessmentId}/{studentUid} — same reasoning as
+ * attendance/{sessionId}/{studentUid} (see the DB_NODES doc comment below):
+ * lets the department-scoped rule look up the assessment's department via
+ * trainingAssessments/{assessmentId}/department without substring-parsing a
+ * flat composite id. */
+export interface TrainingAssessmentScore {
+  assessmentId: string;
+  studentId: string;
+  department: Department;
+  score: number;
+  recordedBy: string;
+  recordedAt: Timestamp;
+}
+
 // ----------------------------------------------------------------------------
 // 8. Mentor Progress Tracking
 // ----------------------------------------------------------------------------
@@ -744,7 +776,10 @@ export interface AlumniRecord {
  * attendance/{sessionId}/{studentUid}. Self-check-in (see TrainingSession.qrToken)
  * needs the rule to look up trainingSessions/{sessionId}/qrToken, and a single
  * flat wildcard can't be substring-parsed back into its sessionId part — two
- * wildcards on a nested path solve that directly.
+ * wildcards on a nested path solve that directly. `assessmentScores` follows
+ * the same nested shape (assessmentScores/{assessmentId}/{studentUid}) for
+ * the same reason, minus the self-check-in branch — there's no self-
+ * check-in equivalent for a vendor-run assessment score.
  *
  * Collections that are many-per-student with no natural composite key
  * (mockInterviews, resumeReviews, skillAssessments, mentorMapping) instead
@@ -844,6 +879,8 @@ export const DB_NODES = {
   trainingSessions: "trainingSessions",
   attendance: "attendance",
   attendanceDeptIndex: "attendanceDeptIndex",
+  trainingAssessments: "trainingAssessments",
+  assessmentScores: "assessmentScores",
   mentorMapping: "mentorMapping",
   mentorMappingDeptIndex: "mentorMappingDeptIndex",
   mockInterviews: "mockInterviews",

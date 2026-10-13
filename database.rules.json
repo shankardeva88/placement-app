@@ -384,6 +384,36 @@
       }
     },
 
+    // A scored test run within a TrainingBatch (e.g. a vendor's periodic
+    // mock assessment) — same create tier as trainingBatches/trainingSessions
+    // (coordinator/hod/dean/principal/cpo/admin; faculty_mentor doesn't
+    // schedule these, same division as the rest of training scheduling).
+    // Root .read "any signed-in user" — same "non-sensitive scheduling
+    // metadata" tier as trainingBatches/trainingSessions/mockInterviewModules,
+    // since it's just a name/date/maxScore, not anyone's actual score.
+    "trainingAssessments": {
+      ".read": "auth != null",
+      "$assessmentId": {
+        ".write": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' )"
+      }
+    },
+
+    // Nested assessmentScores/{assessmentId}/{studentUid}, same shape and
+    // reasoning as attendance/{sessionId}/{studentUid} above — the
+    // $assessmentId .read rule looks up trainingAssessments/{assessmentId}/
+    // department directly (denormalized on TrainingAssessment itself, no
+    // batch hop needed), and there's no self-check-in branch to carry over.
+    "assessmentScores": {
+      ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )",
+      "$assessmentId": {
+        ".read": "auth != null && ( root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' || root.child('users').child(auth.uid).child('role').val() === 'faculty_mentor' ) && root.child('trainingAssessments').child($assessmentId).child('department').val() === root.child('users').child(auth.uid).child('department').val() ) )",
+        "$studentUid": {
+          ".read": "auth != null && ( $studentUid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'principal' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || data.child('department').val() === root.child('users').child(auth.uid).child('department').val() )",
+          ".write": "auth != null && ( ( ( root.child('users').child(auth.uid).child('role').val() === 'faculty_mentor' || root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && (data.exists() ? data.child('department') : newData.child('department')).val() === root.child('users').child(auth.uid).child('department').val() ) || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' )"
+        }
+      }
+    },
+
     // Root .read institution-only now (was "any staff"); deptStaff go through
     // mentorMappingDeptIndex.
     "mentorMapping": {
