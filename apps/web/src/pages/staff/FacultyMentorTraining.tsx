@@ -6,6 +6,7 @@ import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useMyMentees } from "../../lib/menteeFollowUpLib";
 import { useMyTraining, useMyAssessments } from "../../lib/trainingLib";
 import { useAllTrainingBatches, useAllTrainingSessions } from "../../lib/trainingManagementLib";
+import { TrendLineChart } from "../../components/charts/TrendLineChart";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import type { BadgeVariant } from "../../components/ui/Badge";
@@ -46,6 +47,21 @@ function MenteeTrainingRow({ student, trainingFilter }: { student: Student; trai
   const filteredAssessments = useMemo(
     () => (assessments ?? []).filter((a) => !trainingFilter || a.assessment.batchId === trainingFilter),
     [assessments, trainingFilter]
+  );
+  // Oldest-to-newest, scored ones only — same convention as the student's
+  // own trend chart.
+  const assessmentTrendPoints = useMemo(
+    () =>
+      filteredAssessments
+        .filter((a) => a.score != null)
+        .slice()
+        .sort((a, b) => a.assessment.date - b.assessment.date)
+        .map((a) => ({
+          key: a.assessment.assessmentId,
+          label: new Date(a.assessment.date).toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+          value: Math.round((a.score!.score / a.assessment.maxScore) * 100),
+        })),
+    [filteredAssessments]
   );
 
   // The page-level training filter narrows which mentees show up, but a
@@ -113,12 +129,43 @@ function MenteeTrainingRow({ student, trainingFilter }: { student: Student; trai
         </div>
       )}
 
+      {expanded && filteredAssessments.length > 0 && (
+        <div className="mt-3 border-t border-slate-100 pt-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Assessments</h4>
+          {assessmentTrendPoints.length >= 2 && (
+            <div className="mt-2 rounded-lg bg-white p-3 ring-1 ring-slate-200">
+              <TrendLineChart data={assessmentTrendPoints} height={140} />
+            </div>
+          )}
+          <ul className="mt-1 divide-y divide-slate-100">
+            {filteredAssessments.map(({ assessment, score }) => (
+              <li key={assessment.assessmentId} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-slate-800">{assessment.name}</p>
+                  <p className="truncate text-xs text-slate-500">{new Date(assessment.date).toLocaleDateString()}</p>
+                </div>
+                {score ? (
+                  <Badge
+                    variant={score.score / assessment.maxScore >= 0.75 ? "success" : score.score / assessment.maxScore >= 0.5 ? "warning" : "danger"}
+                  >
+                    {Math.round((score.score / assessment.maxScore) * 100)}%
+                  </Badge>
+                ) : (
+                  <Badge variant="neutral">Not yet scored</Badge>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {expanded && (
         <div className="mt-3 border-t border-slate-100 pt-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sessions</h4>
           {allSessions.length === 0 ? (
-            <p className="text-sm text-slate-400">Not part of any training batch yet.</p>
+            <p className="mt-1 text-sm text-slate-400">Not part of any training batch yet.</p>
           ) : (
-            <ul className="divide-y divide-slate-100">
+            <ul className="mt-1 divide-y divide-slate-100">
               {allSessions.map(({ session, attendance, batchName }) => (
                 <li key={session.sessionId} className="flex items-center justify-between gap-3 py-2 text-sm">
                   <div className="min-w-0">
@@ -131,28 +178,6 @@ function MenteeTrainingRow({ student, trainingFilter }: { student: Student; trai
                     <Badge variant={ATTENDANCE_BADGE[attendance.status]}>{attendance.status}</Badge>
                   ) : (
                     <Badge variant="neutral">Not marked</Badge>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {filteredAssessments.length > 0 && (
-            <ul className="mt-2 divide-y divide-slate-100 border-t border-slate-100 pt-2">
-              {filteredAssessments.map(({ assessment, score }) => (
-                <li key={assessment.assessmentId} className="flex items-center justify-between gap-3 py-2 text-sm">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-slate-800">{assessment.name}</p>
-                    <p className="truncate text-xs text-slate-500">{new Date(assessment.date).toLocaleDateString()}</p>
-                  </div>
-                  {score ? (
-                    <Badge
-                      variant={score.score / assessment.maxScore >= 0.75 ? "success" : score.score / assessment.maxScore >= 0.5 ? "warning" : "danger"}
-                    >
-                      {Math.round((score.score / assessment.maxScore) * 100)}%
-                    </Badge>
-                  ) : (
-                    <Badge variant="neutral">Not yet scored</Badge>
                   )}
                 </li>
               ))}

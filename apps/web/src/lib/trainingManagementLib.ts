@@ -474,3 +474,35 @@ export async function recordAssessmentScoresBulk(
 ) {
   await Promise.all(entries.map(({ studentId, score }) => recordAssessmentScore(assessmentId, studentId, department, score, recordedBy)));
 }
+
+/** Backs the batch-level trend chart — one average per assessment, across
+ * every assessment in a batch at once (not just whichever one is currently
+ * expanded, the way AssessmentScoreRoster's useAssessmentScores is used).
+ * A batch's assessment count is small (this is "6 mock assessments so
+ * far", not hundreds), so subscribing to all of them directly is simpler
+ * than building a dept-scoped fan-out for it. */
+export function useBatchAssessmentAverages(assessmentIds: string[]): Record<string, { average: number; attempted: number } | null> {
+  const [byAssessment, setByAssessment] = useState<Record<string, Record<string, TrainingAssessmentScore>>>({});
+
+  useEffect(() => {
+    const unsubs = assessmentIds.map((id) =>
+      onValue(ref(db, `${DB_NODES.assessmentScores}/${id}`), (snap) => {
+        setByAssessment((prev) => ({ ...prev, [id]: (snap.val() as Record<string, TrainingAssessmentScore> | null) ?? {} }));
+      })
+    );
+    return () => unsubs.forEach((u) => u());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assessmentIds.join(",")]);
+
+  const result: Record<string, { average: number; attempted: number } | null> = {};
+  for (const id of assessmentIds) {
+    const byStudent = byAssessment[id];
+    if (!byStudent) {
+      result[id] = null;
+      continue;
+    }
+    const scores = Object.values(byStudent).map((r) => r.score);
+    result[id] = { average: scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0, attempted: scores.length };
+  }
+  return result;
+}

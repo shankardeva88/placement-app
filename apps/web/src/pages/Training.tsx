@@ -14,6 +14,7 @@ import { Button } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
 import { PageHeader } from "../components/ui/PageHeader";
+import { TrendLineChart } from "../components/charts/TrendLineChart";
 
 const ATTENDANCE_BADGE: Record<AttendanceStatus, BadgeVariant> = {
   present: "success",
@@ -159,6 +160,23 @@ function TrainingBatchCard({
     return groups;
   }, [visibleSessions]);
 
+  // Oldest-to-newest, scored assessments only — same convention as the
+  // SGPA trend chart on Mentor Tools. Nothing to plot for one that hasn't
+  // been scored yet.
+  const assessmentTrendPoints = useMemo(
+    () =>
+      assessments
+        .filter((a) => a.score != null)
+        .slice()
+        .sort((a, b) => a.assessment.date - b.assessment.date)
+        .map((a) => ({
+          key: a.assessment.assessmentId,
+          label: new Date(a.assessment.date).toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+          value: Math.round((a.score!.score / a.assessment.maxScore) * 100),
+        })),
+    [assessments]
+  );
+
   return (
     <Card>
       <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-start justify-between gap-4 text-left">
@@ -199,55 +217,15 @@ function TrainingBatchCard({
         </div>
       )}
 
-      {expanded &&
-        (sessions.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-500">No sessions scheduled yet.</p>
-        ) : (
-          <>
-            {dateOptions.length > 1 && (
-              <select
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="mt-4 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-              >
-                <option value="">All dates ({sessions.length} sessions)</option>
-                {dateOptions.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            )}
-            {sessionsByDate.map((group) => (
-            <div key={group.dateKey} className="mt-4">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {new Date(group.date).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}
-              </h4>
-              <ul className="mt-1 divide-y divide-slate-100">
-                {group.sessions.map(({ session, attendance }) => (
-                  <li key={session.sessionId} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                    <div>
-                      <p className="font-medium text-slate-800">{session.topic}</p>
-                      <p className="text-xs text-slate-500">
-                        {session.startTime}–{session.endTime} · {session.mode}
-                      </p>
-                    </div>
-                    {attendance ? (
-                      <Badge variant={ATTENDANCE_BADGE[attendance.status]}>{attendance.status}</Badge>
-                    ) : (
-                      <CheckInAction sessionId={session.sessionId} />
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            ))}
-          </>
-        ))}
-
       {expanded && assessments.length > 0 && (
-        <div className="mt-4 border-t border-slate-200 pt-4">
+        <div className="mt-4">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Assessments</h4>
+          {assessmentTrendPoints.length >= 2 && (
+            <div className="mt-2 rounded-lg bg-white p-3 ring-1 ring-slate-200">
+              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Score trend</p>
+              <TrendLineChart data={assessmentTrendPoints} height={160} />
+            </div>
+          )}
           <ul className="mt-1 divide-y divide-slate-100">
             {assessments.map(({ assessment, score }) => (
               <li key={assessment.assessmentId} className="flex items-center justify-between gap-3 py-2.5 text-sm">
@@ -267,6 +245,53 @@ function TrainingBatchCard({
           </ul>
         </div>
       )}
+
+      {expanded &&
+        (sessions.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-500">No sessions scheduled yet.</p>
+        ) : (
+          <div className={assessments.length > 0 ? "mt-4 border-t border-slate-200 pt-4" : "mt-4"}>
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sessions</h4>
+            {dateOptions.length > 1 && (
+              <select
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              >
+                <option value="">All dates ({sessions.length} sessions)</option>
+                {dateOptions.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            )}
+            {sessionsByDate.map((group) => (
+              <div key={group.dateKey} className="mt-4">
+                <h5 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {new Date(group.date).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}
+                </h5>
+                <ul className="mt-1 divide-y divide-slate-100">
+                  {group.sessions.map(({ session, attendance }) => (
+                    <li key={session.sessionId} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                      <div>
+                        <p className="font-medium text-slate-800">{session.topic}</p>
+                        <p className="text-xs text-slate-500">
+                          {session.startTime}–{session.endTime} · {session.mode}
+                        </p>
+                      </div>
+                      {attendance ? (
+                        <Badge variant={ATTENDANCE_BADGE[attendance.status]}>{attendance.status}</Badge>
+                      ) : (
+                        <CheckInAction sessionId={session.sessionId} />
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        ))}
     </Card>
   );
 }
