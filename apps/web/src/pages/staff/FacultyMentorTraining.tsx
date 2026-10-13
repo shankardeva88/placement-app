@@ -149,7 +149,7 @@ function MenteeTrainingRow({ student, trainingFilter }: { student: Student; trai
                     <Badge
                       variant={score.score / assessment.maxScore >= 0.75 ? "success" : score.score / assessment.maxScore >= 0.5 ? "warning" : "danger"}
                     >
-                      {score.score}/{assessment.maxScore}
+                      {Math.round((score.score / assessment.maxScore) * 100)}%
                     </Badge>
                   ) : (
                     <Badge variant="neutral">Not yet scored</Badge>

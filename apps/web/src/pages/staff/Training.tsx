@@ -862,7 +862,7 @@ function AssessmentScoreRoster({ assessment, batch }: { assessment: TrainingAsse
       "",
       `Total: ${rosterIds.length} | Attempted: ${attempted.length}` +
         (notAttempted.length > 0 ? ` | Not attempted: ${notAttempted.length}` : "") +
-        (average != null ? ` | Average: ${average.toFixed(1)}/${assessment.maxScore}` : ""),
+        (average != null ? ` | Average: ${Math.round((average / assessment.maxScore) * 100)}%` : ""),
     ];
     if (notAttempted.length > 0) {
       lines.push("", "Not attempted:");
@@ -879,9 +879,7 @@ function AssessmentScoreRoster({ assessment, batch }: { assessment: TrainingAsse
           Attempted ({attempted.length}/{rosterIds.length})
         </Badge>
         {average != null && (
-          <Badge variant="brand">
-            Average {average.toFixed(1)}/{assessment.maxScore}
-          </Badge>
+          <Badge variant="brand">Average {Math.round((average / assessment.maxScore) * 100)}%</Badge>
         )}
       </div>
 
@@ -908,7 +906,11 @@ function AssessmentScoreRoster({ assessment, batch }: { assessment: TrainingAsse
                 placeholder="—"
                 className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none"
               />
-              <span className="text-xs text-slate-400">/{assessment.maxScore}</span>
+              <span className="w-10 text-xs text-slate-400">
+                {scoreInputs[uid] && Number.isFinite(Number(scoreInputs[uid]))
+                  ? `${Math.round((Number(scoreInputs[uid]) / assessment.maxScore) * 100)}%`
+                  : `/${assessment.maxScore}`}
+              </span>
             </div>
           </div>
         ))}
