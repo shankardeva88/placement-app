@@ -458,21 +458,47 @@ export function useAssessmentScores(assessmentId: string): Record<string, Traini
   return scores;
 }
 
-export async function recordAssessmentScore(assessmentId: string, studentId: string, department: Department, score: number, recordedBy: string) {
-  const record: TrainingAssessmentScore = { assessmentId, studentId, department, score, recordedBy, recordedAt: Date.now() };
+export async function recordAssessmentScore(
+  assessmentId: string,
+  studentId: string,
+  department: Department,
+  score: number,
+  recordedBy: string,
+  absent: boolean = false
+) {
+  const record: TrainingAssessmentScore = {
+    assessmentId,
+    studentId,
+    department,
+    score: absent ? 0 : score,
+    recordedBy,
+    recordedAt: Date.now(),
+  };
+  if (absent) record.absent = true;
   await set(ref(db, `${DB_NODES.assessmentScores}/${assessmentId}/${studentId}`), record);
+}
+
+/** Reverts a student's assessment record back to "not entered" — used when
+ * un-marking Absent, rather than leaving a stale score:0/absent:false
+ * record behind that would look exactly like an entered score of zero. */
+export async function clearAssessmentScore(assessmentId: string, studentId: string) {
+  await set(ref(db, `${DB_NODES.assessmentScores}/${assessmentId}/${studentId}`), null);
 }
 
 /** Backs the same "Import" paste flow as markAttendanceBulk — a roll-no +
  * score sheet (handed over by the vendor, or taken down on paper) gets
- * digitized in one shot. */
+ * digitized in one shot. Score column entries recognized as absent (see
+ * ImportScoresForm's parsing) come through with absent:true and an
+ * unused score. */
 export async function recordAssessmentScoresBulk(
   assessmentId: string,
-  entries: { studentId: string; score: number }[],
+  entries: { studentId: string; score: number; absent?: boolean }[],
   department: Department,
   recordedBy: string
 ) {
-  await Promise.all(entries.map(({ studentId, score }) => recordAssessmentScore(assessmentId, studentId, department, score, recordedBy)));
+  await Promise.all(
+    entries.map(({ studentId, score, absent }) => recordAssessmentScore(assessmentId, studentId, department, score, recordedBy, absent))
+  );
 }
 
 /** Backs the batch-level trend chart — one average per assessment, across
@@ -501,7 +527,11 @@ export function useBatchAssessmentAverages(assessmentIds: string[]): Record<stri
       result[id] = null;
       continue;
     }
-    const scores = Object.values(byStudent).map((r) => r.score);
+    // Absent students are excluded entirely, not averaged in as a 0 —
+    // skipping the test isn't the same as scoring zero on it.
+    const scores = Object.values(byStudent)
+      .filter((r) => !r.absent)
+      .map((r) => r.score);
     result[id] = { average: scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0, attempted: scores.length };
   }
   return result;

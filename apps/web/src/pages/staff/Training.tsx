@@ -31,6 +31,7 @@ import {
   useAssessmentScores,
   recordAssessmentScore,
   recordAssessmentScoresBulk,
+  clearAssessmentScore,
   useBatchAssessmentAverages,
 } from "../../lib/trainingManagementLib";
 import { parseDelimited } from "../../lib/csv";
@@ -666,10 +667,16 @@ interface ImportScoreRow {
   scoreText: string;
   uid?: string;
   score?: number;
+  absent?: boolean;
 }
 
+const ABSENT_MARKERS = new Set(["a", "absent", "-", "na", "n/a"]);
+
 // Same paste-and-review pattern as ImportAttendanceForm below, generalized
-// to a numeric score instead of a present/absent/late status.
+// to a numeric score instead of a present/absent/late status — plus the
+// score column also accepts "A"/"Absent"/"-" for a student who didn't
+// attempt it at all, same distinction AssessmentScoreRoster's own Absent
+// checkbox makes.
 function ImportScoresForm({
   rosterIds,
   students,
@@ -679,7 +686,7 @@ function ImportScoresForm({
   rosterIds: string[];
   students: Student[];
   maxScore: number;
-  onImport: (entries: { studentId: string; score: number }[]) => Promise<void>;
+  onImport: (entries: { studentId: string; score: number; absent?: boolean }[]) => Promise<void>;
 }) {
   const { showToast } = useToast();
   const [expanded, setExpanded] = useState(false);
@@ -687,9 +694,9 @@ function ImportScoresForm({
   const [parsed, setParsed] = useState<ImportScoreRow[] | null>(null);
   const [importing, setImporting] = useState(false);
 
-  const matched = (parsed ?? []).filter((r) => r.uid && r.score != null);
+  const matched = (parsed ?? []).filter((r) => r.uid && (r.score != null || r.absent));
   const unmatched = (parsed ?? []).filter((r) => !r.uid);
-  const unrecognized = (parsed ?? []).filter((r) => r.uid && r.score == null);
+  const unrecognized = (parsed ?? []).filter((r) => r.uid && r.score == null && !r.absent);
 
   function handleParse() {
     const { headers, rows } = parseDelimited(pasteText);
@@ -712,6 +719,9 @@ function ImportScoresForm({
         const rollNo = (row[rollColIdx] ?? "").trim();
         const scoreText = (row[scoreColIdx] ?? "").trim();
         const student = byRollNo.get(rollNo.toLowerCase());
+        if (ABSENT_MARKERS.has(scoreText.toLowerCase())) {
+          return { rollNo, scoreText, uid: student?.uid, absent: true };
+        }
         const parsedScore = scoreText === "" ? NaN : Number(scoreText);
         return { rollNo, scoreText, uid: student?.uid, score: Number.isFinite(parsedScore) ? parsedScore : undefined };
       })
@@ -723,7 +733,7 @@ function ImportScoresForm({
     if (matched.length === 0) return;
     setImporting(true);
     try {
-      await onImport(matched.map((r) => ({ studentId: r.uid as string, score: r.score as number })));
+      await onImport(matched.map((r) => ({ studentId: r.uid as string, score: r.score ?? 0, absent: r.absent })));
       showToast(`Imported scores for ${matched.length} student${matched.length === 1 ? "" : "s"}`);
       setPasteText("");
       setParsed(null);
@@ -745,8 +755,8 @@ function ImportScoresForm({
   return (
     <div className="w-full rounded-lg bg-white p-3 ring-1 ring-slate-200">
       <p className="mb-2 text-xs text-slate-500">
-        Paste two columns — Roll No and Score (out of {maxScore}) — from Excel/Sheets or a CSV. Matches by roll
-        number against this batch's roster.
+        Paste two columns — Roll No and Score (out of {maxScore}) — from Excel/Sheets or a CSV. "A" or "Absent" in
+        the score column marks that student absent. Matches by roll number against this batch's roster.
       </p>
       <textarea
         rows={5}
@@ -820,14 +830,16 @@ function AssessmentScoreRoster({ assessment, batch }: { assessment: TrainingAsse
   // Local edit buffer, one entry per student seeded from the live
   // subscription once (not kept in sync afterwards) — otherwise every
   // remote update (e.g. an Import elsewhere) would stomp whatever a staff
-  // member is mid-typing into another student's box.
+  // member is mid-typing into another student's box. Absent students are
+  // skipped here — their score is meaningless, and the checkbox below
+  // reflects scores[uid].absent directly rather than its own local state.
   const [scoreInputs, setScoreInputs] = useState<Record<string, string>>({});
   useEffect(() => {
     if (!scores) return;
     setScoreInputs((prev) => {
       const next = { ...prev };
       for (const uid of rosterIds) {
-        if (!(uid in next) && scores[uid]) next[uid] = String(scores[uid].score);
+        if (!(uid in next) && scores[uid] && !scores[uid].absent) next[uid] = String(scores[uid].score);
       }
       return next;
     });
@@ -842,33 +854,61 @@ function AssessmentScoreRoster({ assessment, batch }: { assessment: TrainingAsse
     await recordAssessmentScore(assessment.assessmentId, uid, batch.department, value, firebaseUser.uid);
   }
 
-  async function handleImport(entries: { studentId: string; score: number }[]) {
+  // Checking it writes absent:true outright; unchecking clears the record
+  // entirely (not a score of 0) so it goes back to "not entered" and the
+  // input is free to take a real score next.
+  async function handleToggleAbsent(uid: string) {
+    if (!firebaseUser) return;
+    if (scores?.[uid]?.absent) {
+      await clearAssessmentScore(assessment.assessmentId, uid);
+    } else {
+      await recordAssessmentScore(assessment.assessmentId, uid, batch.department, 0, firebaseUser.uid, true);
+      setScoreInputs((prev) => {
+        const next = { ...prev };
+        delete next[uid];
+        return next;
+      });
+    }
+  }
+
+  async function handleImport(entries: { studentId: string; score: number; absent?: boolean }[]) {
     if (!firebaseUser) return;
     await recordAssessmentScoresBulk(assessment.assessmentId, entries, batch.department, firebaseUser.uid);
     setScoreInputs((prev) => {
       const next = { ...prev };
-      for (const { studentId, score } of entries) next[studentId] = String(score);
+      for (const { studentId, score, absent } of entries) {
+        if (absent) delete next[studentId];
+        else next[studentId] = String(score);
+      }
       return next;
     });
   }
 
-  const attempted = rosterIds.filter((uid) => scores?.[uid] != null);
+  // Absent students are excluded from both the attempted count and the
+  // average — skipping the test isn't the same as scoring zero on it.
+  const absentList = rosterIds.filter((uid) => scores?.[uid]?.absent);
+  const attempted = rosterIds.filter((uid) => scores?.[uid] != null && !scores[uid].absent);
+  const notEntered = rosterIds.filter((uid) => scores?.[uid] == null);
   const average =
     attempted.length > 0 ? attempted.reduce((sum, uid) => sum + (scores?.[uid]?.score ?? 0), 0) / attempted.length : null;
 
   async function handleCopySummary() {
-    const notAttempted = rosterIds.filter((uid) => scores?.[uid] == null);
     const lines = [
       `${batch.name} — ${assessment.name}`,
       new Date(assessment.date).toLocaleDateString(),
       "",
       `Total: ${rosterIds.length} | Attempted: ${attempted.length}` +
-        (notAttempted.length > 0 ? ` | Not attempted: ${notAttempted.length}` : "") +
+        (absentList.length > 0 ? ` | Absent: ${absentList.length}` : "") +
+        (notEntered.length > 0 ? ` | Not entered: ${notEntered.length}` : "") +
         (average != null ? ` | Average: ${Math.round((average / assessment.maxScore) * 100)}%` : ""),
     ];
-    if (notAttempted.length > 0) {
-      lines.push("", "Not attempted:");
-      notAttempted.forEach((uid, i) => lines.push(`${i + 1}. ${nameFor(uid)}`));
+    if (absentList.length > 0) {
+      lines.push("", "Absent:");
+      absentList.forEach((uid, i) => lines.push(`${i + 1}. ${nameFor(uid)}`));
+    }
+    if (notEntered.length > 0) {
+      lines.push("", "Not entered:");
+      notEntered.forEach((uid, i) => lines.push(`${i + 1}. ${nameFor(uid)}`));
     }
     await navigator.clipboard.writeText(lines.join("\n"));
     showToast("Summary copied to clipboard");
@@ -880,6 +920,7 @@ function AssessmentScoreRoster({ assessment, batch }: { assessment: TrainingAsse
         <Badge variant="success">
           Attempted ({attempted.length}/{rosterIds.length})
         </Badge>
+        {absentList.length > 0 && <Badge variant="danger">Absent ({absentList.length})</Badge>}
         {average != null && (
           <Badge variant="brand">Average {Math.round((average / assessment.maxScore) * 100)}%</Badge>
         )}
@@ -894,28 +935,38 @@ function AssessmentScoreRoster({ assessment, batch }: { assessment: TrainingAsse
       </div>
 
       <div className="space-y-1">
-        {rosterIds.map((uid) => (
-          <div key={uid} className="flex items-center justify-between gap-3 py-1 text-sm">
-            <span className="text-slate-700">{nameFor(uid)}</span>
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                min={0}
-                max={assessment.maxScore}
-                value={scoreInputs[uid] ?? ""}
-                onChange={(e) => setScoreInputs((prev) => ({ ...prev, [uid]: e.target.value }))}
-                onBlur={() => handleScoreCommit(uid)}
-                placeholder="—"
-                className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none"
-              />
-              <span className="w-10 text-xs text-slate-400">
-                {scoreInputs[uid] && Number.isFinite(Number(scoreInputs[uid]))
-                  ? `${Math.round((Number(scoreInputs[uid]) / assessment.maxScore) * 100)}%`
-                  : `/${assessment.maxScore}`}
-              </span>
+        {rosterIds.map((uid) => {
+          const isAbsent = !!scores?.[uid]?.absent;
+          return (
+            <div key={uid} className="flex items-center justify-between gap-3 py-1 text-sm">
+              <span className="text-slate-700">{nameFor(uid)}</span>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1 text-xs text-slate-500">
+                  <input type="checkbox" checked={isAbsent} onChange={() => handleToggleAbsent(uid)} />
+                  Absent
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={assessment.maxScore}
+                  value={isAbsent ? "" : scoreInputs[uid] ?? ""}
+                  onChange={(e) => setScoreInputs((prev) => ({ ...prev, [uid]: e.target.value }))}
+                  onBlur={() => handleScoreCommit(uid)}
+                  disabled={isAbsent}
+                  placeholder="—"
+                  className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                />
+                <span className="w-10 text-xs text-slate-400">
+                  {isAbsent
+                    ? ""
+                    : scoreInputs[uid] && Number.isFinite(Number(scoreInputs[uid]))
+                      ? `${Math.round((Number(scoreInputs[uid]) / assessment.maxScore) * 100)}%`
+                      : `/${assessment.maxScore}`}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

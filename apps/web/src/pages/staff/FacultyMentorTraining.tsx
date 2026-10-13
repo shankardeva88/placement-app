@@ -49,11 +49,11 @@ function MenteeTrainingRow({ student, trainingFilter }: { student: Student; trai
     [assessments, trainingFilter]
   );
   // Oldest-to-newest, scored ones only — same convention as the student's
-  // own trend chart.
+  // own trend chart. An absence isn't a score of zero to plot either.
   const assessmentTrendPoints = useMemo(
     () =>
       filteredAssessments
-        .filter((a) => a.score != null)
+        .filter((a) => a.score != null && !a.score.absent)
         .slice()
         .sort((a, b) => a.assessment.date - b.assessment.date)
         .map((a) => ({
@@ -144,7 +144,9 @@ function MenteeTrainingRow({ student, trainingFilter }: { student: Student; trai
                   <p className="truncate font-medium text-slate-800">{assessment.name}</p>
                   <p className="truncate text-xs text-slate-500">{new Date(assessment.date).toLocaleDateString()}</p>
                 </div>
-                {score ? (
+                {score?.absent ? (
+                  <Badge variant="danger">Absent</Badge>
+                ) : score ? (
                   <Badge
                     variant={score.score / assessment.maxScore >= 0.75 ? "success" : score.score / assessment.maxScore >= 0.5 ? "warning" : "danger"}
                   >

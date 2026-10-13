@@ -486,7 +486,13 @@ export interface TrainingAssessmentScore {
   assessmentId: string;
   studentId: string;
   department: Department;
-  score: number;
+  score: number; // meaningless when absent is true — always 0, kept so the field stays a plain number
+  // A student who didn't attempt the assessment at all — distinct from no
+  // record existing yet (not entered). Entering 0 for an absentee would
+  // wrongly count them as "attempted" and drag the average down for
+  // skipping rather than for performing badly; absent students are
+  // excluded from both.
+  absent?: boolean;
   recordedBy: string;
   recordedAt: Timestamp;
 }

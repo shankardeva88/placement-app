@@ -162,11 +162,11 @@ function TrainingBatchCard({
 
   // Oldest-to-newest, scored assessments only — same convention as the
   // SGPA trend chart on Mentor Tools. Nothing to plot for one that hasn't
-  // been scored yet.
+  // been scored yet, and an absence isn't a score of zero to plot either.
   const assessmentTrendPoints = useMemo(
     () =>
       assessments
-        .filter((a) => a.score != null)
+        .filter((a) => a.score != null && !a.score.absent)
         .slice()
         .sort((a, b) => a.assessment.date - b.assessment.date)
         .map((a) => ({
@@ -233,7 +233,9 @@ function TrainingBatchCard({
                   <p className="font-medium text-slate-800">{assessment.name}</p>
                   <p className="text-xs text-slate-500">{new Date(assessment.date).toLocaleDateString()}</p>
                 </div>
-                {score ? (
+                {score?.absent ? (
+                  <Badge variant="danger">Absent</Badge>
+                ) : score ? (
                   <Badge variant={score.score / assessment.maxScore >= 0.75 ? "success" : score.score / assessment.maxScore >= 0.5 ? "warning" : "danger"}>
                     {Math.round((score.score / assessment.maxScore) * 100)}%
                   </Badge>
