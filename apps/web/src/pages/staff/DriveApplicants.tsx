@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Check, Download, Search, Trash2, UserPlus, Users, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Download, Search, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -158,6 +158,9 @@ export default function DriveApplicants() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkDeleteProgress, setBulkDeleteProgress] = useState(0);
+  const [showRollNoImport, setShowRollNoImport] = useState(false);
+  const [rollNoText, setRollNoText] = useState("");
+  const [rollNoImportResult, setRollNoImportResult] = useState<{ matched: number; notFound: string[] } | null>(null);
 
   // A "details restricted" row (different department, see the empty-state
   // branch below) has no student record to search/filter on — search and
@@ -348,6 +351,37 @@ export default function DriveApplicants() {
       }
       return next;
     });
+  }
+
+  // Scales a 229-student batch past one-by-one checkbox clicking — matches
+  // against every applicant on this drive (not just sortedRows, so an
+  // active filter/search can't make a real applicant falsely report as
+  // "not found"), merges into whatever's already checked, and reports
+  // which roll numbers didn't match (typo, or that student never applied
+  // here — including a "details restricted" row, which has no student
+  // record to match by roll number at all).
+  function handleImportRollNos() {
+    if (!rows) return;
+    const rollNoToAppId = new Map(
+      rows.filter((r) => r.student).map((r) => [r.student!.rollNo.trim().toLowerCase(), r.application.applicationId])
+    );
+    const requested = rollNoText
+      .split(/[\n,\t]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const notFound: string[] = [];
+    const matchedIds: string[] = [];
+    for (const rollNo of requested) {
+      const appId = rollNoToAppId.get(rollNo.toLowerCase());
+      if (appId) matchedIds.push(appId);
+      else notFound.push(rollNo);
+    }
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of matchedIds) next.add(id);
+      return next;
+    });
+    setRollNoImportResult({ matched: matchedIds.length, notFound });
   }
 
   // Same chunked-concurrency approach as handleBulkApply below — sequential
@@ -729,6 +763,17 @@ export default function DriveApplicants() {
             <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
             {selectedIds.size > 0 ? `${selectedIds.size} selected` : `Select all ${sortedRows.length} shown`}
           </label>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setShowRollNoImport((v) => !v);
+              setRollNoImportResult(null);
+            }}
+            className="!px-2 !py-1 text-xs"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Import roll numbers
+          </Button>
           {selectedIds.size > 0 && (
             <>
               <span className="text-xs text-slate-400">Set status to</span>
@@ -787,6 +832,50 @@ export default function DriveApplicants() {
                 Clear
               </Button>
             </>
+          )}
+        </div>
+      )}
+
+      {showRollNoImport && (
+        <div className="mb-3 rounded-lg border border-slate-200 bg-white p-3">
+          <p className="mb-2 text-xs text-slate-500">
+            Paste roll numbers — one per line, or comma/tab separated — to check their boxes without clicking each
+            one. Matches against every applicant on this drive, not just what's currently filtered/shown. Then use
+            "Set status to" above to change all of them at once.
+          </p>
+          <textarea
+            rows={4}
+            value={rollNoText}
+            onChange={(e) => setRollNoText(e.target.value)}
+            placeholder={"24PA1A0501\n24PA1A0502\n24PA1A0503"}
+            className="w-full rounded-lg border border-slate-300 p-2 font-mono text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          />
+          <div className="mt-2 flex gap-2">
+            <Button onClick={handleImportRollNos} className="!px-2 !py-1 text-xs">
+              Select matching applicants
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowRollNoImport(false);
+                setRollNoText("");
+                setRollNoImportResult(null);
+              }}
+              className="!px-2 !py-1 text-xs"
+            >
+              Close
+            </Button>
+          </div>
+          {rollNoImportResult && (
+            <div className="mt-2 space-y-1 text-xs">
+              <p className="text-slate-600">{rollNoImportResult.matched} selected.</p>
+              {rollNoImportResult.notFound.length > 0 && (
+                <p className="flex items-start gap-1.5 text-amber-700">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  Not found among this drive's applicants: {rollNoImportResult.notFound.join(", ")}
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}
