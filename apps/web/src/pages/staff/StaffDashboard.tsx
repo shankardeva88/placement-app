@@ -19,12 +19,13 @@ import {
   ListChecks,
   ChevronDown,
   ChevronUp,
+  AlertTriangle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { Department, Drive, DriveStatus, DriveType, PlacementStatus, Student } from "@placement-app/types";
+import type { AppUser, Department, Drive, DriveStatus, DriveType, PlacementStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useAllApplications } from "../../lib/applicantsLib";
@@ -108,6 +109,25 @@ const ALUMNI_STATUS_LABEL: Record<(typeof ALUMNI_STATUS_ORDER)[number], string> 
   higher_studies: "Higher studies",
 };
 
+// The college's 9 real departments — OTHER is a defensive fallback for an
+// unrecognized branch name on import (see parseDepartment in
+// bulkImportLib.ts), not an actual department to report rollout status for.
+const REAL_DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AI&ML", "AI&DS", "CS&BS"];
+
+type CoverageStatus = "active" | "staffed_no_students" | "students_no_staff" | "not_started";
+const COVERAGE_BADGE: Record<CoverageStatus, BadgeVariant> = {
+  active: "success",
+  staffed_no_students: "warning",
+  students_no_staff: "danger",
+  not_started: "neutral",
+};
+const COVERAGE_LABEL: Record<CoverageStatus, string> = {
+  active: "Active",
+  staffed_no_students: "Staffed, no students yet",
+  students_no_staff: "Students, no staff!",
+  not_started: "Not started",
+};
+
 function StatTile({ label, value, icon: Icon, gradient }: { label: string; value: string; icon: LucideIcon; gradient: string }) {
   return (
     <Card className="p-4">
@@ -157,6 +177,23 @@ function CoordinatorDashboard() {
   const allOffers = useAllOffers(appUser);
   const allBatches = useAllTrainingBatches();
   const sessions = useAllTrainingSessions();
+
+  // Institution-only — rollout status across all 9 departments, the thing
+  // an admin/CPO actually needs once this stops being a single-department
+  // (CSE) tool: which departments have no HOD/coordinator yet (so nobody
+  // can even bulk-import their roster), and which have students but
+  // nobody assigned to them. /users root read is institution-only (see
+  // database.rules.json) — ManageStaff.tsx further narrows its own edit UI
+  // to admin/cpo, but reading the full list for a dashboard summary is
+  // fine for all 4 institution roles.
+  const [allStaff, setAllStaff] = useState<AppUser[] | null>(null);
+  useEffect(() => {
+    if (!isInstitution) return;
+    return onValue(ref(db, DB_NODES.users), (snap) => {
+      const val = snap.val() as Record<string, AppUser> | null;
+      setAllStaff(val ? Object.values(val).filter((u) => u.role !== "student") : []);
+    });
+  }, [isInstitution]);
 
   const [batchFilter, setBatchFilter] = useState<number | "">("");
 
@@ -250,6 +287,51 @@ function CoordinatorDashboard() {
       .sort((a, b) => b[1] - a[1])
       .map(([dept, count]) => ({ key: dept, label: dept, value: count }));
   }, [students]);
+
+  // Not scoped to the batch filter above — rollout status is a whole-
+  // department question ("has anyone set this department up at all"),
+  // not "how's this one batch doing."
+  const departmentCoverage = useMemo(() => {
+    if (!isInstitution || !allStaff || !allStudents) return null;
+    return REAL_DEPARTMENTS.map((dept) => {
+      const staffInDept = allStaff.filter((u) => "department" in u && u.department === dept);
+      const hodCount = staffInDept.filter((u) => u.role === "hod").length;
+      const coordinatorCount = staffInDept.filter((u) => u.role === "coordinator").length;
+      const mentorCount = staffInDept.filter((u) => u.role === "faculty_mentor").length;
+      const studentCount = allStudents.filter((s) => s.department === dept && !s.isAlumni).length;
+      const hasLeadership = hodCount > 0 || coordinatorCount > 0;
+      const status: CoverageStatus =
+        hasLeadership && studentCount > 0
+          ? "active"
+          : hasLeadership
+            ? "staffed_no_students"
+            : studentCount > 0
+              ? "students_no_staff"
+              : "not_started";
+      return { dept, studentCount, hodCount, coordinatorCount, mentorCount, status };
+    });
+  }, [isInstitution, allStaff, allStudents]);
+
+  // Headcount by department (byDepartment, below) says how many students
+  // are where — it doesn't say how they're doing. An admin comparing
+  // departments needs the rate, not just the raw count.
+  const placementRateByDept = useMemo(() => {
+    if (!isInstitution || !students) return null;
+    const byDept = new Map<Department, { total: number; placed: number }>();
+    for (const s of students) {
+      const entry = byDept.get(s.department) ?? { total: 0, placed: 0 };
+      entry.total++;
+      if (s.placementStatus === "placed" || s.placementStatus === "multiple_offers") entry.placed++;
+      byDept.set(s.department, entry);
+    }
+    return Array.from(byDept.entries())
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([dept, { total, placed }]) => ({
+        key: dept,
+        label: dept,
+        value: total > 0 ? Math.round((placed / total) * 100) : 0,
+      }));
+  }, [isInstitution, students]);
 
   const placementShare = useMemo(() => {
     if (!students) return null;
@@ -387,6 +469,57 @@ function CoordinatorDashboard() {
         <StatTile label="Placement rate" value={placementRate != null ? `${placementRate}%` : "…"} icon={TrendingUp} gradient="from-amber-500 to-orange-600" />
       </div>
 
+      {isInstitution && departmentCoverage && (
+        <>
+          <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Department rollout</h2>
+          <Card>
+            <p className="mb-3 text-xs text-slate-500">
+              Whole-department status, not scoped to the batch filter above — set up a missing department's HOD/
+              coordinator/mentors via{" "}
+              <Link to="/staff/manage-staff" className="text-brand-700 underline">
+                Manage Staff
+              </Link>
+              , then bulk-import its roster via{" "}
+              <Link to="/staff/bulk-import-students" className="text-brand-700 underline">
+                Bulk Import Students
+              </Link>
+              .
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                    <th className="py-2 pr-4">Department</th>
+                    <th className="py-2 pr-4">Students</th>
+                    <th className="py-2 pr-4">HOD</th>
+                    <th className="py-2 pr-4">Coordinator</th>
+                    <th className="py-2 pr-4">Mentors</th>
+                    <th className="py-2 pr-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {departmentCoverage.map((row) => (
+                    <tr key={row.dept}>
+                      <td className="py-2 pr-4 font-medium text-slate-800">{row.dept}</td>
+                      <td className="py-2 pr-4 text-slate-600">{row.studentCount}</td>
+                      <td className="py-2 pr-4 text-slate-600">{row.hodCount}</td>
+                      <td className="py-2 pr-4 text-slate-600">{row.coordinatorCount}</td>
+                      <td className="py-2 pr-4 text-slate-600">{row.mentorCount}</td>
+                      <td className="py-2 pr-4">
+                        <span className="inline-flex items-center gap-1.5">
+                          {row.status === "students_no_staff" && <AlertTriangle className="h-3.5 w-3.5 text-red-500" />}
+                          <Badge variant={COVERAGE_BADGE[row.status]}>{COVERAGE_LABEL[row.status]}</Badge>
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
+
       <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Overview</h2>
       {/* xl, not lg — these charts size themselves off the data (see the
           ChartCard comment) and a two-up grid at lg's ~1024px was too
@@ -396,6 +529,20 @@ function CoordinatorDashboard() {
         <ChartCard title="Students by department" subtitle="Current students in your scope.">
           {byDepartment ? <SimpleBarChart data={byDepartment} hue={SEQUENTIAL_BLUE} /> : <p className="py-8 text-center text-sm text-slate-400">Loading…</p>}
         </ChartCard>
+
+        {isInstitution && (
+          <ChartCard title="Placement rate by department" subtitle="% placed or multiple offers, current batch scope — not just headcount.">
+            {placementRateByDept ? (
+              placementRateByDept.length > 0 ? (
+                <SimpleBarChart data={placementRateByDept} hue={SEQUENTIAL_BLUE} valueSuffix="%" />
+              ) : (
+                <p className="py-8 text-center text-sm text-slate-400">No students in this scope yet.</p>
+              )
+            ) : (
+              <p className="py-8 text-center text-sm text-slate-400">Loading…</p>
+            )}
+          </ChartCard>
+        )}
 
         <ChartCard title="Placement status" subtitle="Share of current students by outcome so far.">
           {placementShare ? <StackedShareBar segments={placementShare} /> : <p className="py-8 text-center text-sm text-slate-400">Loading…</p>}
