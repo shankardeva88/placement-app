@@ -70,7 +70,7 @@ const labelClass = "mb-1 block text-sm font-medium text-slate-700";
 
 const MOCK_TYPES: MockInterviewType[] = ["technical", "hr", "group_discussion"];
 
-const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
+const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AI&ML", "AI&DS", "CS&BS", "OTHER"];
 const DESIGNATIONS: FacultyDesignation[] = ["professor", "associate_professor", "assistant_professor"];
 const DESIGNATION_LABEL: Record<FacultyDesignation, string> = {
   professor: "Professor",

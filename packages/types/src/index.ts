@@ -21,7 +21,9 @@ export type Timestamp = number;
  * campus can be added later without a schema migration. */
 export type CampusId = string; // default: "main"
 
-/** Adjust this list to your college's actual 9 departments.
+/** The college's 9 departments, plus OTHER as a defensive fallback for an
+ * unrecognized branch name on import (see parseDepartment in
+ * bulkImportLib.ts) — not a real 10th department, just "needs manual fix."
  * Kept as a string union so autocomplete works everywhere, but stored
  * as plain string in the database (no enum lock-in if a dept is renamed). */
 export type Department =
@@ -31,9 +33,10 @@ export type Department =
   | "MECH"
   | "CIVIL"
   | "IT"
-  | "AIML"
-  | "AIDS"
-  | "OTHER"; // placeholder for the 9th dept — tell me its code and I'll swap this in
+  | "AI&ML"
+  | "AI&DS"
+  | "CS&BS"
+  | "OTHER";
 
 // ----------------------------------------------------------------------------
 // 1. Roles & Users

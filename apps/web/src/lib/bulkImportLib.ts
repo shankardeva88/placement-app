@@ -62,12 +62,15 @@ const DEPARTMENT_ALIASES: Record<string, Department> = {
   civilengineering: "CIVIL",
   it: "IT",
   informationtechnology: "IT",
-  aiml: "AIML",
-  aiandml: "AIML",
-  artificialintelligenceandmachinelearning: "AIML",
-  aids: "AIDS",
-  aianddatascience: "AIDS",
-  artificialintelligenceanddatascience: "AIDS",
+  aiml: "AI&ML",
+  aiandml: "AI&ML",
+  artificialintelligenceandmachinelearning: "AI&ML",
+  aids: "AI&DS",
+  aianddatascience: "AI&DS",
+  artificialintelligenceanddatascience: "AI&DS",
+  csbs: "CS&BS",
+  csandbs: "CS&BS",
+  computerscienceandbusinesssystems: "CS&BS",
 };
 
 export function parseDepartment(raw: string): { value: Department; warning?: string } {

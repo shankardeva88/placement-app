@@ -200,7 +200,7 @@ const ROLE_ALIASES: Record<string, StaffRole> = {
   mentor: "faculty_mentor",
 };
 
-const VALID_DEPARTMENTS = new Set<Department>(["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"]);
+const VALID_DEPARTMENTS = new Set<Department>(["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AI&ML", "AI&DS", "CS&BS", "OTHER"]);
 
 /** Admin-only bulk import — unlike parseMentorRows (always faculty_mentor,
  * one department for the whole sheet), admin manages every role across

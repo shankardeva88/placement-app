@@ -15,8 +15,9 @@ const DEPARTMENTS: Department[] = [
   "MECH",
   "CIVIL",
   "IT",
-  "AIML",
-  "AIDS",
+  "AI&ML",
+  "AI&DS",
+  "CS&BS",
   "OTHER",
 ];
 

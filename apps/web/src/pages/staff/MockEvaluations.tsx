@@ -36,7 +36,7 @@ import { Skeleton } from "../../components/ui/Skeleton";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { TrendLineChart } from "../../components/charts/TrendLineChart";
 
-const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
+const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AI&ML", "AI&DS", "CS&BS", "OTHER"];
 const CAN_CREATE_MODULE_ROLES = ["coordinator", "hod", "dean", "cpo", "admin"];
 const CAN_LOG_EVAL_ROLES = ["faculty_mentor", "coordinator", "hod", "dean", "cpo", "admin"];
 // Coordinator/hod/dean/cpo/admin have no mentees of their own — the

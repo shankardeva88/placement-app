@@ -148,7 +148,7 @@ function parseCsvLine(line: string): string[] {
   return fields;
 }
 
-const VALID_DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
+const VALID_DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AI&ML", "AI&DS", "CS&BS", "OTHER"];
 const VALID_STATUSES: AlumniPlacementStatus[] = ["placed", "unplaced", "entrepreneur", "higher_studies"];
 
 export interface ParsedAlumniRow {

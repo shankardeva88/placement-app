@@ -35,7 +35,7 @@ const AUDIENCE_LABEL: Record<NotificationAudienceType, string> = {
 };
 const DRIVE_SCOPED_AUDIENCE_TYPES: NotificationAudienceType[] = ["eligible_list", "selected_students"];
 
-const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
+const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AI&ML", "AI&DS", "CS&BS", "OTHER"];
 
 function SendNotificationForm({ onDone, drives }: { onDone: () => void; drives: Drive[] }) {
   const { firebaseUser } = useAuth();

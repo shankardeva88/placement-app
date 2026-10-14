@@ -7,7 +7,7 @@ import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { Button } from "../../components/ui/Button";
 import { cgpaToPercent, percentToCgpa } from "../../lib/driveActions";
 
-const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
+const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AI&ML", "AI&DS", "CS&BS", "OTHER"];
 
 const GENDER_OPTIONS: { value: Gender | "any"; label: string }[] = [
   { value: "any", label: "No restriction" },

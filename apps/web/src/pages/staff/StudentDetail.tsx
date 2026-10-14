@@ -50,7 +50,7 @@ function attendanceDotColor(status: "present" | "absent" | "late" | undefined): 
 }
 
 const CAN_MANAGE_ROLES = ["coordinator", "hod", "dean", "principal", "cpo", "admin"];
-const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
+const DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AI&ML", "AI&DS", "CS&BS", "OTHER"];
 const GENDERS: Gender[] = ["male", "female", "other", "prefer_not_to_say"];
 const ENTRANCE_TYPES: EntranceExamType[] = ["EAMCET", "ECET"];
 

@@ -6,7 +6,7 @@ import type { AppUser, Department, DrivePrepAssignment } from "@placement-app/ty
 import { useDeptScopedCollection } from "./useDeptScopedCollection";
 
 const INSTITUTION_ROLES = new Set(["dean", "principal", "cpo", "admin"]);
-const ALL_DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AIML", "AIDS", "OTHER"];
+const ALL_DEPARTMENTS: Department[] = ["CSE", "ECE", "EEE", "MECH", "CIVIL", "IT", "AI&ML", "AI&DS", "CS&BS", "OTHER"];
 
 /** Same shape as useStudentsDirectory, applied to mentorIndex instead of
  * departmentIndex — dean/principal/cpo see every department's mentors,
