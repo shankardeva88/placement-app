@@ -196,6 +196,10 @@ function CoordinatorDashboard() {
   }, [isInstitution]);
 
   const [batchFilter, setBatchFilter] = useState<number | "">("");
+  // Collapsed by default — same reasoning as every other "whole roster"
+  // table on this app (TrainingReport's Summary, FacultyMentorDashboard's
+  // mentee list): useful to drill into, not something to read every visit.
+  const [coverageExpanded, setCoverageExpanded] = useState(false);
 
   // Alumni never belong on a "current students" dashboard — see the
   // Graduate a Batch feature. Batch years offered here come from the
@@ -473,49 +477,67 @@ function CoordinatorDashboard() {
         <>
           <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Department rollout</h2>
           <Card>
-            <p className="mb-3 text-xs text-slate-500">
-              Whole-department status, not scoped to the batch filter above — set up a missing department's HOD/
-              coordinator/mentors via{" "}
-              <Link to="/staff/manage-staff" className="text-brand-700 underline">
-                Manage Staff
-              </Link>
-              , then bulk-import its roster via{" "}
-              <Link to="/staff/bulk-import-students" className="text-brand-700 underline">
-                Bulk Import Students
-              </Link>
-              .
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                    <th className="py-2 pr-4">Department</th>
-                    <th className="py-2 pr-4">Students</th>
-                    <th className="py-2 pr-4">HOD</th>
-                    <th className="py-2 pr-4">Coordinator</th>
-                    <th className="py-2 pr-4">Mentors</th>
-                    <th className="py-2 pr-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {departmentCoverage.map((row) => (
-                    <tr key={row.dept}>
-                      <td className="py-2 pr-4 font-medium text-slate-800">{row.dept}</td>
-                      <td className="py-2 pr-4 text-slate-600">{row.studentCount}</td>
-                      <td className="py-2 pr-4 text-slate-600">{row.hodCount}</td>
-                      <td className="py-2 pr-4 text-slate-600">{row.coordinatorCount}</td>
-                      <td className="py-2 pr-4 text-slate-600">{row.mentorCount}</td>
-                      <td className="py-2 pr-4">
-                        <span className="inline-flex items-center gap-1.5">
-                          {row.status === "students_no_staff" && <AlertTriangle className="h-3.5 w-3.5 text-red-500" />}
-                          <Badge variant={COVERAGE_BADGE[row.status]}>{COVERAGE_LABEL[row.status]}</Badge>
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <button
+              type="button"
+              onClick={() => setCoverageExpanded((v) => !v)}
+              className="flex w-full items-center justify-between gap-2 text-left"
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                {REAL_DEPARTMENTS.length} department(s)
+                {(() => {
+                  const flagged = departmentCoverage.filter((r) => r.status === "students_no_staff").length;
+                  return flagged > 0 && <Badge variant="danger">{flagged} need staff</Badge>;
+                })()}
+              </span>
+              {coverageExpanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+            </button>
+            {coverageExpanded && (
+              <>
+                <p className="mb-3 mt-3 text-xs text-slate-500">
+                  Whole-department status, not scoped to the batch filter above — set up a missing department's HOD/
+                  coordinator/mentors via{" "}
+                  <Link to="/staff/manage-staff" className="text-brand-700 underline">
+                    Manage Staff
+                  </Link>
+                  , then bulk-import its roster via{" "}
+                  <Link to="/staff/bulk-import-students" className="text-brand-700 underline">
+                    Bulk Import Students
+                  </Link>
+                  .
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                        <th className="py-2 pr-4">Department</th>
+                        <th className="py-2 pr-4">Students</th>
+                        <th className="py-2 pr-4">HOD</th>
+                        <th className="py-2 pr-4">Coordinator</th>
+                        <th className="py-2 pr-4">Mentors</th>
+                        <th className="py-2 pr-4">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {departmentCoverage.map((row) => (
+                        <tr key={row.dept}>
+                          <td className="py-2 pr-4 font-medium text-slate-800">{row.dept}</td>
+                          <td className="py-2 pr-4 text-slate-600">{row.studentCount}</td>
+                          <td className="py-2 pr-4 text-slate-600">{row.hodCount}</td>
+                          <td className="py-2 pr-4 text-slate-600">{row.coordinatorCount}</td>
+                          <td className="py-2 pr-4 text-slate-600">{row.mentorCount}</td>
+                          <td className="py-2 pr-4">
+                            <span className="inline-flex items-center gap-1.5">
+                              {row.status === "students_no_staff" && <AlertTriangle className="h-3.5 w-3.5 text-red-500" />}
+                              <Badge variant={COVERAGE_BADGE[row.status]}>{COVERAGE_LABEL[row.status]}</Badge>
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </Card>
         </>
       )}
