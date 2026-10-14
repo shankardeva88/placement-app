@@ -365,6 +365,24 @@ function CoordinatorDashboard() {
     return buckets;
   }, [applications]);
 
+  // Top recruiters by offer count, current batch/department scope — same
+  // "top N" convention as the Alumni Report's recruiting-companies list,
+  // so this doesn't grow into an unreadable, ever-widening bar chart as
+  // more drives run over time.
+  const offersByCompany = useMemo(() => {
+    if (!offers || !drives) return null;
+    const driveById = new Map(drives.map((d) => [d.driveId, d]));
+    const counts = new Map<string, number>();
+    for (const o of offers) {
+      const company = driveById.get(o.driveId)?.companyName ?? "Unknown";
+      counts.set(company, (counts.get(company) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([company, count]) => ({ key: company, label: company, value: count }));
+  }, [offers, drives]);
+
   const alumniLegend = ALUMNI_STATUS_ORDER.map((status, i) => ({
     key: status,
     label: ALUMNI_STATUS_LABEL[status],
@@ -586,6 +604,18 @@ function CoordinatorDashboard() {
                 </Link>
                 .
               </p>
+            )
+          ) : (
+            <p className="py-8 text-center text-sm text-slate-400">Loading…</p>
+          )}
+        </ChartCard>
+
+        <ChartCard title="Top companies by offers" subtitle="Current batch scope — top 10 recruiters by offer count.">
+          {offersByCompany ? (
+            offersByCompany.length > 0 ? (
+              <SimpleBarChart data={offersByCompany} hue={SEQUENTIAL_BLUE} />
+            ) : (
+              <p className="py-8 text-center text-sm text-slate-400">No offers recorded yet.</p>
             )
           ) : (
             <p className="py-8 text-center text-sm text-slate-400">Loading…</p>
