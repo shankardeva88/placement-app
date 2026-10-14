@@ -4,7 +4,7 @@ import { Check, ChevronDown, ChevronUp, FileText, Pencil, Plus, Search, Trash2 }
 import { ref, onValue, get } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { Drive, JoiningReport, Offer, OfferStatus, Student } from "@placement-app/types";
+import type { Department, Drive, JoiningReport, Offer, OfferStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useAllApplications } from "../../lib/applicantsLib";
@@ -497,6 +497,7 @@ export default function StaffOffers() {
   const [driveFilter, setDriveFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<OfferStatus | "">("");
   const [batchFilter, setBatchFilter] = useState<number | "">("");
+  const [deptFilter, setDeptFilter] = useState<Department | "">("");
   const [viewMode, setViewMode] = useState<"company" | "student">("company");
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
 
@@ -536,6 +537,17 @@ export default function StaffOffers() {
     return Array.from(years).sort((a, b) => a - b);
   }, [students]);
 
+  // Same idea, for department — stays empty (and the dropdown below hides
+  // itself) for a dept-scoped coordinator/HOD, since useAllOffers already
+  // only ever hands them their own department's offers. Only an
+  // institution-wide login (admin/dean/cpo/principal) actually sees more
+  // than one value here.
+  const deptOptions = useMemo(() => {
+    const depts = new Set<Department>();
+    for (const s of Object.values(students)) if (s) depts.add(s.department);
+    return Array.from(depts).sort((a, b) => a.localeCompare(b));
+  }, [students]);
+
   const filteredOffers = useMemo(() => {
     if (!offers) return null;
     const term = search.trim().toLowerCase();
@@ -543,13 +555,14 @@ export default function StaffOffers() {
       .filter((o) => !driveFilter || o.driveId === driveFilter)
       .filter((o) => !statusFilter || o.status === statusFilter)
       .filter((o) => !batchFilter || students[o.studentId]?.batchYear === batchFilter)
+      .filter((o) => !deptFilter || students[o.studentId]?.department === deptFilter)
       .filter((o) => {
         if (!term) return true;
         const student = students[o.studentId];
         return !!student && (student.rollNo.toLowerCase().includes(term) || student.name.toLowerCase().includes(term));
       })
       .sort((a, b) => (students[a.studentId]?.rollNo ?? "").localeCompare(students[b.studentId]?.rollNo ?? ""));
-  }, [offers, driveFilter, statusFilter, batchFilter, search, students]);
+  }, [offers, driveFilter, statusFilter, batchFilter, deptFilter, search, students]);
 
   const groupedByDrive = useMemo(() => {
     if (!filteredOffers) return null;
@@ -684,6 +697,20 @@ export default function StaffOffers() {
               {batchYearOptions.map((y) => (
                 <option key={y} value={y}>
                   Batch {y}
+                </option>
+              ))}
+            </select>
+          )}
+          {deptOptions.length > 1 && (
+            <select
+              value={deptFilter}
+              onChange={(e) => setDeptFilter(e.target.value as Department | "")}
+              className={`${inputClass} sm:w-40`}
+            >
+              <option value="">All departments</option>
+              {deptOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d}
                 </option>
               ))}
             </select>

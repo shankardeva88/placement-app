@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Briefcase, Check, ChevronDown, ChevronUp, Plus, Search, Trash2 } from "lucide-react";
-import type { Internship, InternshipMode, InternshipStatus, Student } from "@placement-app/types";
+import type { Department, Internship, InternshipMode, InternshipStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useAllInternships, recordInternship, updateInternship, deleteInternship } from "../../lib/internshipsLib";
@@ -426,6 +426,7 @@ export default function StaffInternships() {
   const [statusFilter, setStatusFilter] = useState<InternshipStatus | "">("");
   const [batchFilter, setBatchFilter] = useState<number | "">("");
   const [durationFilter, setDurationFilter] = useState<number | "">("");
+  const [deptFilter, setDeptFilter] = useState<Department | "">("");
   const [viewMode, setViewMode] = useState<"company" | "student">("company");
   const [editingInternshipId, setEditingInternshipId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -442,6 +443,14 @@ export default function StaffInternships() {
     [internships]
   );
 
+  // Stays empty (dropdown hides itself) for a dept-scoped coordinator/HOD —
+  // useAllInternships already only ever hands them their own department's
+  // records. Only an institution-wide login sees more than one value.
+  const deptOptions = useMemo(
+    () => Array.from(new Set((students ?? []).map((s) => s.department))).sort((a, b) => a.localeCompare(b)),
+    [students]
+  );
+
   const rows = useMemo(() => {
     if (!internships) return null;
     const term = search.trim().toLowerCase();
@@ -450,6 +459,7 @@ export default function StaffInternships() {
       .filter((r) => !statusFilter || r.internship.status === statusFilter)
       .filter((r) => !batchFilter || r.student?.batchYear === batchFilter)
       .filter((r) => !durationFilter || r.internship.durationMonths === durationFilter)
+      .filter((r) => !deptFilter || (r.student?.department ?? r.internship.department) === deptFilter)
       .filter((r) => {
         if (!term) return true;
         return (
@@ -460,7 +470,7 @@ export default function StaffInternships() {
         );
       })
       .sort((a, b) => b.internship.startDate - a.internship.startDate);
-  }, [internships, studentsByUid, search, statusFilter, batchFilter, durationFilter]);
+  }, [internships, studentsByUid, search, statusFilter, batchFilter, durationFilter, deptFilter]);
 
   const stats = useMemo(() => {
     if (!rows) return null;
@@ -610,6 +620,20 @@ export default function StaffInternships() {
               {durationOptions.map((d) => (
                 <option key={d} value={d}>
                   {durationLabel(d)}
+                </option>
+              ))}
+            </select>
+          )}
+          {deptOptions.length > 1 && (
+            <select
+              value={deptFilter}
+              onChange={(e) => setDeptFilter(e.target.value as Department | "")}
+              className={`${inputClass} sm:w-40`}
+            >
+              <option value="">All departments</option>
+              {deptOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d}
                 </option>
               ))}
             </select>

@@ -2098,6 +2098,7 @@ export default function StaffTraining() {
   const [batchYearFilter, setBatchYearFilter] = useState<number | "">("");
   const [skillTrackFilter, setSkillTrackFilter] = useState<SkillTrack | "">("");
   const [statusFilter, setStatusFilter] = useState<BatchStatus | "">("");
+  const [deptFilter, setDeptFilter] = useState<Department | "">("");
 
   const batchYearOptions = useMemo(
     () => Array.from(new Set((batches ?? []).map((b) => b.batchYear))).sort((a, b) => a - b),
@@ -2105,6 +2106,17 @@ export default function StaffTraining() {
   );
   const skillTrackOptions = useMemo(
     () => Array.from(new Set((batches ?? []).map((b) => b.skillTrack))).sort((a, b) => a.localeCompare(b)),
+    [batches]
+  );
+  // Training batches are globally readable (see useAllTrainingBatches'
+  // doc comment), so a dept-scoped coordinator/HOD sees every department
+  // mixed together here, same as before this filter existed — but now
+  // that more than one department actually has batches, narrowing to one
+  // is worth having for everyone, not gated to institution roles the way
+  // Offers/Internships' version is (those two are already dept-scoped at
+  // the data layer, so their dropdown only shows up for admin/cpo/dean).
+  const deptOptions = useMemo(
+    () => Array.from(new Set((batches ?? []).map((b) => b.department))).sort((a, b) => a.localeCompare(b)),
     [batches]
   );
   const statusByBatchId = useMemo(() => {
@@ -2117,13 +2129,14 @@ export default function StaffTraining() {
       .filter((b) => !batchYearFilter || b.batchYear === batchYearFilter)
       .filter((b) => !skillTrackFilter || b.skillTrack === skillTrackFilter)
       .filter((b) => !statusFilter || statusByBatchId[b.batchId] === statusFilter)
+      .filter((b) => !deptFilter || b.department === deptFilter)
       // Ongoing first, then completed — a coordinator cares about what's
       // currently running before what's already wrapped up.
       .sort((a, b) => {
         const rank = (id: string) => (statusByBatchId[id] === "ongoing" ? 0 : 1);
         return rank(a.batchId) - rank(b.batchId);
       });
-  }, [batches, statusByBatchId, batchYearFilter, skillTrackFilter, statusFilter]);
+  }, [batches, statusByBatchId, batchYearFilter, skillTrackFilter, statusFilter, deptFilter]);
 
   return (
     <div>
@@ -2202,6 +2215,20 @@ export default function StaffTraining() {
             <option value="ongoing">Ongoing</option>
             <option value="completed">Completed</option>
           </select>
+          {deptOptions.length > 1 && (
+            <select
+              value={deptFilter}
+              onChange={(e) => setDeptFilter(e.target.value as Department | "")}
+              className={`${inputClass} sm:w-44`}
+            >
+              <option value="">All departments</option>
+              {deptOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
 
