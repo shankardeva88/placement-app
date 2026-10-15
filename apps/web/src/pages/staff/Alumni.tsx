@@ -667,6 +667,16 @@ export default function Alumni() {
     };
   }, [dedupedByRollNo]);
 
+  // Deliberately NOT deduped like `stats` above — "placed" there is unique
+  // people, but this is meant to answer "how many offers total, across
+  // every company" (the sum of every company group's size below), so
+  // someone with offers at two different companies rightly counts twice
+  // here even though they're one person in `stats.placed`.
+  const totalOffers = useMemo(() => {
+    if (!filtered) return null;
+    return filtered.filter((a) => a.placementStatus === "placed" && a.companyName?.trim()).length;
+  }, [filtered]);
+
   // Company-wise, click-to-expand — same pattern as the staff Offers page:
   // a flat table got hard to scan once a batch had 100+ alumni spread across
   // many companies, and "how many did company X place" meant scrolling and
@@ -800,7 +810,11 @@ export default function Alumni() {
     <div>
       <PageHeader
         title="Alumni"
-        subtitle={stats ? `${stats.total} alumni · ${stats.placed} placed · ${stats.entrepreneur} entrepreneur · ${stats.higherStudies} higher studies` : undefined}
+        subtitle={
+          stats
+            ? `${stats.total} alumni · ${stats.placed} placed · ${stats.entrepreneur} entrepreneur · ${stats.higherStudies} higher studies · ${totalOffers ?? 0} total offers`
+            : undefined
+        }
         icon={Users2}
         gradient="from-slate-500 to-slate-700"
         action={
