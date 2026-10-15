@@ -812,7 +812,7 @@ export default function Alumni() {
         title="Alumni"
         subtitle={
           stats
-            ? `${stats.total} alumni · ${stats.placed} placed · ${stats.entrepreneur} entrepreneur · ${stats.higherStudies} higher studies · ${totalOffers ?? 0} total offers`
+            ? `${stats.total} alumni · ${stats.placed} unique placed · ${stats.entrepreneur} entrepreneur · ${stats.higherStudies} higher studies · ${totalOffers ?? 0} total offers`
             : undefined
         }
         icon={Users2}
