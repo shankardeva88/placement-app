@@ -67,6 +67,12 @@ function AddStudentForm({ onDone }: { onDone: () => void }) {
   const { appUser } = useAuth();
   const { showToast } = useToast();
   const myDept = appUser && "department" in appUser ? appUser.department : undefined;
+  // Locked to just their own department for a dept-scoped coordinator/HOD
+  // — the write rule only ever lets them create a student in their own
+  // department anyway, so letting them pick any of the other 8 just set up
+  // a submit that would silently fail. Institution roles (no department of
+  // their own) still get the full list.
+  const departmentOptions = myDept ? [myDept] : DEPARTMENTS;
   const [rollNo, setRollNo] = useState("");
   const [name, setName] = useState("");
   const [gender, setGender] = useState<Gender>("prefer_not_to_say");
@@ -146,7 +152,7 @@ function AddStudentForm({ onDone }: { onDone: () => void }) {
           <div>
             <label className={labelClass}>Department</label>
             <select value={department} onChange={(e) => setDepartment(e.target.value as Department)} className={inputClass}>
-              {DEPARTMENTS.map((d) => (
+              {departmentOptions.map((d) => (
                 <option key={d} value={d}>
                   {d}
                 </option>
@@ -238,6 +244,8 @@ function SignupApprovalsSection({ onDone }: { onDone: () => void }) {
   const { appUser } = useAuth();
   const { showToast } = useToast();
   const myDept = appUser && "department" in appUser ? appUser.department : undefined;
+  // Same reasoning as AddStudentForm's departmentOptions above.
+  const departmentOptions = myDept ? [myDept] : DEPARTMENTS;
   const allowlist = useSignupAllowlist(appUser);
   const [email, setEmail] = useState("");
   const [department, setDepartment] = useState<Department>(myDept ?? "CSE");
@@ -290,7 +298,7 @@ function SignupApprovalsSection({ onDone }: { onDone: () => void }) {
         <div>
           <label className={labelClass}>Department</label>
           <select value={department} onChange={(e) => setDepartment(e.target.value as Department)} className={inputClass}>
-            {DEPARTMENTS.map((d) => (
+            {departmentOptions.map((d) => (
               <option key={d} value={d}>
                 {d}
               </option>
@@ -372,6 +380,17 @@ export default function Students() {
   const batchYears = useMemo(() => {
     if (!students) return [];
     return Array.from(new Set(students.map((s) => s.batchYear))).sort((a, b) => a - b);
+  }, [students]);
+
+  // Built from the loaded roster, not the hardcoded DEPARTMENTS list — a
+  // dept-scoped coordinator/HOD only ever gets their own department's
+  // students back from useStudentsDirectory anyway, so showing all 9
+  // departments as filter options was always going to leave 8 of them
+  // matching nothing. Below, the filter itself only renders once there's
+  // actually more than one value here (i.e. for an institution login).
+  const deptOptions = useMemo(() => {
+    if (!students) return [];
+    return Array.from(new Set(students.map((s) => s.department))).sort((a, b) => a.localeCompare(b));
   }, [students]);
 
   // Two unrelated "training" concepts share this page: s.trainings is
@@ -667,17 +686,19 @@ export default function Students() {
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          <div>
-            <label className={labelClass}>Department</label>
-            <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value as Department | "")} className={inputClass}>
-              <option value="">All departments</option>
-              {DEPARTMENTS.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </div>
+          {deptOptions.length > 1 && (
+            <div>
+              <label className={labelClass}>Department</label>
+              <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value as Department | "")} className={inputClass}>
+                <option value="">All departments</option>
+                {deptOptions.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className={labelClass}>Batch</label>
             <select
