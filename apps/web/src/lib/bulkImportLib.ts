@@ -16,29 +16,49 @@ export function normalizeHeader(h: string): string {
 
 const HEADER_MAP: Record<string, string> = {
   [normalizeHeader("Roll Number")]: "rollNo",
+  [normalizeHeader("Roll No")]: "rollNo",
   [normalizeHeader("Full Name(As per Aadhar)")]: "name",
+  [normalizeHeader("Full Name")]: "name",
+  [normalizeHeader("Name")]: "name",
   [normalizeHeader("Gender")]: "gender",
   [normalizeHeader("Branch")]: "department",
   [normalizeHeader("DEPT")]: "department",
+  [normalizeHeader("Department")]: "department",
   [normalizeHeader("B.Tech CGPA")]: "cgpa",
   [normalizeHeader("CGPA")]: "cgpa",
   [normalizeHeader("Backlogs")]: "activeBacklogs",
   [normalizeHeader("Year of Passedout")]: "batchYear",
   [normalizeHeader("Batch")]: "batchYear",
+  [normalizeHeader("Batch Year")]: "batchYear",
+  [normalizeHeader("Current Semester")]: "currentSemester",
+  [normalizeHeader("Semester")]: "currentSemester",
   [normalizeHeader("Phone Number")]: "studentPhone",
+  [normalizeHeader("Student Phone")]: "studentPhone",
+  [normalizeHeader("Mobile Number")]: "studentPhone",
   [normalizeHeader("Date of Birth")]: "dateOfBirth",
   [normalizeHeader("X Class Percentage %")]: "tenthPercentage",
+  [normalizeHeader("10th Percentage")]: "tenthPercentage",
   [normalizeHeader("X Class Year of passing")]: "tenthYearOfPassing",
+  [normalizeHeader("10th Year Of Passing")]: "tenthYearOfPassing",
+  [normalizeHeader("10th School")]: "tenthSchool",
   [normalizeHeader("XII/Diploma Percentage %")]: "twelfthPercentage",
+  [normalizeHeader("12th Percentage")]: "twelfthPercentage",
   [normalizeHeader("XII/Diploma Year of passing")]: "twelfthYearOfPassing",
+  [normalizeHeader("12th Year Of Passing")]: "twelfthYearOfPassing",
+  [normalizeHeader("12th School")]: "twelfthSchool",
   [normalizeHeader("Email Address (College Domain Mail ID)")]: "email",
   [normalizeHeader("Email")]: "email",
+  [normalizeHeader("College Email")]: "email",
   [normalizeHeader("Personal Email")]: "personalEmail",
+  [normalizeHeader("Parent Name")]: "parentName",
+  [normalizeHeader("Parent Phone")]: "parentPhone",
+  [normalizeHeader("Address")]: "address",
   [normalizeHeader("Entrance Type")]: "entranceType",
   [normalizeHeader("EAMCET/ECET")]: "entranceType",
   [normalizeHeader("Rank")]: "entranceRank",
   [normalizeHeader("Entrance Rank")]: "entranceRank",
   [normalizeHeader("Resume Link (It should be accessible by everyone)")]: "resumeUrl",
+  [normalizeHeader("Resume Link")]: "resumeUrl",
   // Password is always the roll number (see createBulkStudent) — mapped here
   // only so a "Password" column in the sheet doesn't show up as unmapped;
   // parseStudentRows below warns if it's present but doesn't match the roll number.
@@ -132,16 +152,22 @@ export interface ParsedStudentRow {
   cgpa: number;
   activeBacklogs: number;
   batchYear: number;
+  currentSemester?: number; // defaults to 8 (final year) in writeStudentRecords when the column's absent
   studentPhone: string;
   dateOfBirth?: number;
   tenthPercentage?: number;
   tenthYearOfPassing?: number;
+  tenthSchool?: string;
   twelfthPercentage?: number;
   twelfthYearOfPassing?: number;
+  twelfthSchool?: string;
   entranceType?: EntranceExamType;
   entranceRank?: string; // usually numeric, but can be a category like "SPOT" or "BCAT" — see the Student.entranceRank doc comment
   email: string; // college email — becomes the login
   personalEmail: string;
+  parentName: string;
+  parentPhone: string;
+  address: string;
   resumeUrl: string;
   warnings: string[];
   errors: string[]; // non-empty means this row can't be imported as-is
@@ -203,6 +229,14 @@ export function parseStudentRows(headers: string[], rawRows: string[][]): ParseR
     // filter conversation. Treat a bad value the same as a bad rollNo/name/CGPA.
     if (batchYear == null) errors.push(`Passout year "${batchYearRaw}" isn't a number`);
 
+    // Optional — absent means writeStudentRecords falls back to 8 (final
+    // year), the original assumption this tool was built around. Given,
+    // not blocking: now that bulk import covers every batch year (not just
+    // a graduating CSE roster), a bad value shouldn't stop the whole row.
+    const currentSemesterRaw = get(row, "currentSemester");
+    const currentSemester = currentSemesterRaw ? parseNumber(currentSemesterRaw) : undefined;
+    if (currentSemesterRaw && currentSemester == null) warnings.push(`Semester "${currentSemesterRaw}" isn't a number — defaulted to 8`);
+
     const dateOfBirth = parseIndianDate(get(row, "dateOfBirth"));
     if (get(row, "dateOfBirth") && !dateOfBirth) warnings.push("Date of birth couldn't be parsed");
 
@@ -229,16 +263,22 @@ export function parseStudentRows(headers: string[], rawRows: string[][]): ParseR
       cgpa: cgpa ?? 0,
       activeBacklogs: activeBacklogs ?? 0,
       batchYear: batchYear ?? 0, // never used: batchYear==null already pushed a blocking error above
+      currentSemester,
       studentPhone: get(row, "studentPhone"),
       dateOfBirth,
       tenthPercentage,
       tenthYearOfPassing,
+      tenthSchool: get(row, "tenthSchool"),
       twelfthPercentage,
       twelfthYearOfPassing,
+      twelfthSchool: get(row, "twelfthSchool"),
       entranceType,
       entranceRank,
       email,
       personalEmail: get(row, "personalEmail"),
+      parentName: get(row, "parentName"),
+      parentPhone: get(row, "parentPhone"),
+      address: get(row, "address"),
       resumeUrl,
       warnings,
       errors,
@@ -313,7 +353,7 @@ async function writeStudentRecords(uid: string, row: ParsedStudentRow) {
       email: row.email,
       department: row.department,
       batchYear: row.batchYear,
-      currentSemester: 8, // final year, per the source roster being the current passout batch
+      currentSemester: row.currentSemester ?? 8, // defaults to final year unless a Current Semester column says otherwise
       cgpa: row.cgpa,
       activeBacklogs: row.activeBacklogs,
       gender: row.gender,
@@ -327,11 +367,16 @@ async function writeStudentRecords(uid: string, row: ParsedStudentRow) {
     };
     if (row.studentPhone) studentRecord.studentPhone = row.studentPhone;
     if (row.personalEmail) studentRecord.personalEmail = row.personalEmail;
+    if (row.parentName) studentRecord.parentName = row.parentName;
+    if (row.parentPhone) studentRecord.parentPhone = row.parentPhone;
+    if (row.address) studentRecord.address = row.address;
     if (row.dateOfBirth) studentRecord.dateOfBirth = row.dateOfBirth;
     if (row.tenthPercentage != null) studentRecord.tenthPercentage = row.tenthPercentage;
     if (row.tenthYearOfPassing != null) studentRecord.tenthYearOfPassing = row.tenthYearOfPassing;
+    if (row.tenthSchool) studentRecord.tenthSchool = row.tenthSchool;
     if (row.twelfthPercentage != null) studentRecord.twelfthPercentage = row.twelfthPercentage;
     if (row.twelfthYearOfPassing != null) studentRecord.twelfthYearOfPassing = row.twelfthYearOfPassing;
+    if (row.twelfthSchool) studentRecord.twelfthSchool = row.twelfthSchool;
     if (row.entranceType) studentRecord.entranceType = row.entranceType;
     if (row.entranceRank) studentRecord.entranceRank = row.entranceRank;
     if (row.resumeUrl) studentRecord.resumeUrl = row.resumeUrl;
