@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { Briefcase, Check, ChevronDown, ChevronUp, Plus, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Briefcase, Check, ChevronDown, ChevronUp, Plus, Search, Trash2, Upload } from "lucide-react";
 import type { Department, Internship, InternshipMode, InternshipStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
@@ -276,6 +276,114 @@ function AddInternshipForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+// Same shared-fields-once idea as a company's bulk offer list — a college-
+// level internship drive often means "50 students across 4 departments all
+// got the same Infosys 3-month remote internship," not 50 separate company/
+// role/duration entries. Fill the company/role/duration/etc. fields once
+// (reusing InternshipForm as-is) and apply them to every roll number pasted
+// below, instead of repeating the single-student form 50 times.
+function BulkAddInternshipForm({ onDone }: { onDone: () => void }) {
+  const { appUser, firebaseUser } = useAuth();
+  const { showToast } = useToast();
+  const students = useStudentsDirectory(appUser);
+  const [rollNoText, setRollNoText] = useState("");
+  const [matchResult, setMatchResult] = useState<{ matched: Student[]; notFound: string[] } | null>(null);
+  const [progress, setProgress] = useState(0);
+
+  function handleFindStudents() {
+    if (!students) return;
+    const rollNoToStudent = new Map(students.map((s) => [s.rollNo.trim().toLowerCase(), s]));
+    const requested = rollNoText
+      .split(/[\n,\t]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const matched: Student[] = [];
+    const notFound: string[] = [];
+    for (const rollNo of requested) {
+      const s = rollNoToStudent.get(rollNo.toLowerCase());
+      if (s) matched.push(s);
+      else notFound.push(rollNo);
+    }
+    setMatchResult({ matched, notFound });
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className={labelClass}>Roll numbers — one per line, or comma/tab separated</label>
+        <textarea
+          rows={5}
+          value={rollNoText}
+          onChange={(e) => setRollNoText(e.target.value)}
+          placeholder={"24PA1A0501\n24PA1A0502\n24PA1A0503"}
+          className="w-full rounded-lg border border-slate-300 p-2 font-mono text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+        />
+        <Button type="button" variant="secondary" onClick={handleFindStudents} disabled={!students} className="mt-2 !px-3 !py-1.5 text-xs">
+          Find students
+        </Button>
+        {matchResult && (
+          <div className="mt-2 space-y-1 text-xs">
+            <p className="text-slate-600">{matchResult.matched.length} matched.</p>
+            {matchResult.notFound.length > 0 && (
+              <p className="flex items-start gap-1.5 text-amber-700">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                Not found: {matchResult.notFound.join(", ")}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {matchResult && matchResult.matched.length > 0 && (
+        <>
+          <InternshipForm
+            submitLabel={`Record internship for ${matchResult.matched.length} student(s)`}
+            onCancel={onDone}
+            onSubmit={async (values) => {
+              if (!firebaseUser) return;
+              const batch = matchResult.matched;
+              setProgress(0);
+              const CONCURRENCY = 20;
+              let failed = 0;
+              for (let i = 0; i < batch.length; i += CONCURRENCY) {
+                const chunk = batch.slice(i, i + CONCURRENCY);
+                const results = await Promise.allSettled(
+                  chunk.map((student) =>
+                    recordInternship({
+                      studentId: student.uid,
+                      department: student.department,
+                      companyName: values.companyName,
+                      role: values.role,
+                      durationMonths: values.durationMonths,
+                      startDate: new Date(values.startDate).getTime(),
+                      stipend: values.stipend === "" ? undefined : Number(values.stipend),
+                      mode: values.mode || undefined,
+                      status: values.status,
+                      offerLetterUrl: values.offerLetterUrl || undefined,
+                      completionCertificateUrl: values.completionCertificateUrl || undefined,
+                      createdBy: firebaseUser.uid,
+                    })
+                  )
+                );
+                failed += results.filter((r) => r.status === "rejected").length;
+                setProgress((p) => p + chunk.length);
+              }
+              const created = batch.length - failed;
+              showToast(failed > 0 ? `${created} recorded, ${failed} failed` : `${created} internship(s) recorded`);
+              if (failed === 0) onDone();
+            }}
+          />
+          {progress > 0 && progress < matchResult.matched.length && (
+            <p className="text-xs text-slate-500">
+              {progress} of {matchResult.matched.length} done…
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function InternshipCard({ internship, student }: { internship: Internship; student: Student | null }) {
   const { showToast } = useToast();
   const [editing, setEditing] = useState(false);
@@ -421,7 +529,7 @@ export default function StaffInternships() {
   const { showToast } = useToast();
   const internships = useAllInternships(appUser);
   const students = useStudentsDirectory(appUser);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState<"none" | "single" | "bulk">("none");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<InternshipStatus | "">("");
   const [batchFilter, setBatchFilter] = useState<number | "">("");
@@ -547,19 +655,36 @@ export default function StaffInternships() {
         icon={Briefcase}
         gradient="from-cyan-500 to-blue-600"
         action={
-          !creating && (
-            <Button onClick={() => setCreating(true)}>
-              <Plus className="h-4 w-4" />
-              Record Internship
-            </Button>
+          creating === "none" && (
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setCreating("bulk")}>
+                <Upload className="h-4 w-4" />
+                Bulk Record
+              </Button>
+              <Button onClick={() => setCreating("single")}>
+                <Plus className="h-4 w-4" />
+                Record Internship
+              </Button>
+            </div>
           )
         }
       />
 
-      {creating && (
+      {creating === "single" && (
         <Card className="mb-6">
           <h3 className="mb-4 text-base font-semibold text-slate-900">Record internship</h3>
-          <AddInternshipForm onDone={() => setCreating(false)} />
+          <AddInternshipForm onDone={() => setCreating("none")} />
+        </Card>
+      )}
+
+      {creating === "bulk" && (
+        <Card className="mb-6">
+          <h3 className="mb-1 text-base font-semibold text-slate-900">Bulk record internship</h3>
+          <p className="mb-4 text-sm text-slate-500">
+            Same company/role/duration/etc. applied to every student whose roll number you paste in — for when a
+            batch of students across one or more departments all got the same internship.
+          </p>
+          <BulkAddInternshipForm onDone={() => setCreating("none")} />
         </Card>
       )}
 
@@ -649,7 +774,7 @@ export default function StaffInternships() {
       )}
 
       {internships === null && <Skeleton className="h-24" />}
-      {internships !== null && internships.length === 0 && !creating && (
+      {internships !== null && internships.length === 0 && creating === "none" && (
         <EmptyState
           icon={Briefcase}
           title="No internships recorded yet"
