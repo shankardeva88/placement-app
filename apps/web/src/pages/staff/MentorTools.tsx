@@ -767,61 +767,41 @@ function MyMenteesSection() {
   );
 }
 
-// A dept-scoped coordinator/HOD's own mentor list is already one
-// department, so deptFilter/the dropdown below just stay unused for them
-// (deptOptions never exceeds 1 value). Only an institution-wide login
-// (admin/dean/cpo) facing several hundred faculty across 9 departments
-// actually needs this — picking a department first turns "scroll past 500
-// names" into "scroll past 50."
-function MentorPicker({ value, onChange }: { value: string; onChange: (uid: string) => void }) {
+// deptFilter is controlled by the caller (AssignMentorSection renders its
+// own department dropdown on the line above this one) rather than owned
+// here, so the two stack as separate rows — department first, then the
+// mentor list it narrows — instead of being squeezed side by side.
+function MentorPicker({
+  value,
+  onChange,
+  deptFilter,
+}: {
+  value: string;
+  onChange: (uid: string) => void;
+  deptFilter?: Department | "";
+}) {
   const { appUser } = useAuth();
   const mentors = useMentorDirectory(appUser);
-  const [deptFilter, setDeptFilter] = useState<Department | "">("");
-
-  const facultyMentors = useMemo(() => (mentors ?? []).filter((m) => m.role === "faculty_mentor"), [mentors]);
-
-  const deptOptions = useMemo(
-    () =>
-      Array.from(new Set(facultyMentors.filter((m) => "department" in m).map((m) => (m as { department: Department }).department))).sort(
-        (a, b) => a.localeCompare(b)
-      ),
-    [facultyMentors]
-  );
 
   const sorted = useMemo(
     () =>
-      facultyMentors
+      (mentors ?? [])
+        .filter((m) => m.role === "faculty_mentor")
         .filter((m) => !deptFilter || ("department" in m && m.department === deptFilter))
         .slice()
         .sort((a, b) => a.name.localeCompare(b.name)),
-    [facultyMentors, deptFilter]
+    [mentors, deptFilter]
   );
 
   return (
-    <div className="flex flex-col gap-2 sm:flex-row">
-      {deptOptions.length > 1 && (
-        <select
-          value={deptFilter}
-          onChange={(e) => setDeptFilter(e.target.value as Department | "")}
-          className={`${inputClass} sm:w-44`}
-        >
-          <option value="">All departments</option>
-          {deptOptions.map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-        </select>
-      )}
-      <select required value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
-        <option value="">{mentors === null ? "Loading…" : "Select a mentor"}</option>
-        {sorted.map((m) => (
-          <option key={m.uid} value={m.uid}>
-            {m.name}
-          </option>
-        ))}
-      </select>
-    </div>
+    <select required value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
+      <option value="">{mentors === null ? "Loading…" : "Select a mentor"}</option>
+      {sorted.map((m) => (
+        <option key={m.uid} value={m.uid}>
+          {m.name}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -840,6 +820,7 @@ function AssignMentorSection() {
   const [rosterBatchFilter, setRosterBatchFilter] = useState<number | "">("");
   const [rosterDeptFilter, setRosterDeptFilter] = useState<Department | "">("");
   const [rosterSearch, setRosterSearch] = useState("");
+  const [mentorDeptFilter, setMentorDeptFilter] = useState<Department | "">("");
 
   const batchYears = useMemo(
     () => Array.from(new Set((students ?? []).map((s) => s.batchYear))).sort((a, b) => a - b),
@@ -870,6 +851,19 @@ function AssignMentorSection() {
 
   const studentsByUid = useMemo(() => Object.fromEntries((students ?? []).map((s) => [s.uid, s])), [students]);
   const mentorsByUid = useMemo(() => Object.fromEntries((mentors ?? []).map((m) => [m.uid, m])), [mentors]);
+
+  // Narrows the mentor dropdown below (not deptOptions above — mentors can
+  // span a different set of departments than the student roster if, say,
+  // only some departments have mentors assigned yet). Stays hidden for a
+  // dept-scoped coordinator/HOD, same "only show if there's more than one"
+  // rule as everywhere else.
+  const mentorDeptOptions = useMemo(
+    () =>
+      Array.from(new Set((mentors ?? []).filter((m) => "department" in m).map((m) => (m as { department: Department }).department))).sort(
+        (a, b) => a.localeCompare(b)
+      ),
+    [mentors]
+  );
 
   // Who's currently assigned to whom, for both the pre-check below and the
   // roster table under the form. studentId maps to mappingId (not a bare
@@ -1058,9 +1052,23 @@ function AssignMentorSection() {
           )}
         </div>
 
+        {mentorDeptOptions.length > 1 && (
+          <select
+            value={mentorDeptFilter}
+            onChange={(e) => setMentorDeptFilter(e.target.value as Department | "")}
+            className={`${inputClass} sm:w-48`}
+          >
+            <option value="">All departments</option>
+            {mentorDeptOptions.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="sm:col-span-2">
-            <MentorPicker value={facultyId} onChange={handleMentorChange} />
+            <MentorPicker value={facultyId} onChange={handleMentorChange} deptFilter={mentorDeptFilter} />
           </div>
           <Button type="submit" loading={submitting} disabled={selectedIds.size === 0}>
             Assign to {selectedIds.size || ""} student{selectedIds.size === 1 ? "" : "s"}
