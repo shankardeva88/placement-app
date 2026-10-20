@@ -767,26 +767,61 @@ function MyMenteesSection() {
   );
 }
 
+// A dept-scoped coordinator/HOD's own mentor list is already one
+// department, so deptFilter/the dropdown below just stay unused for them
+// (deptOptions never exceeds 1 value). Only an institution-wide login
+// (admin/dean/cpo) facing several hundred faculty across 9 departments
+// actually needs this — picking a department first turns "scroll past 500
+// names" into "scroll past 50."
 function MentorPicker({ value, onChange }: { value: string; onChange: (uid: string) => void }) {
   const { appUser } = useAuth();
   const mentors = useMentorDirectory(appUser);
+  const [deptFilter, setDeptFilter] = useState<Department | "">("");
+
+  const facultyMentors = useMemo(() => (mentors ?? []).filter((m) => m.role === "faculty_mentor"), [mentors]);
+
+  const deptOptions = useMemo(
+    () =>
+      Array.from(new Set(facultyMentors.filter((m) => "department" in m).map((m) => (m as { department: Department }).department))).sort(
+        (a, b) => a.localeCompare(b)
+      ),
+    [facultyMentors]
+  );
+
   const sorted = useMemo(
     () =>
-      (mentors ?? [])
-        .filter((m) => m.role === "faculty_mentor")
+      facultyMentors
+        .filter((m) => !deptFilter || ("department" in m && m.department === deptFilter))
         .slice()
         .sort((a, b) => a.name.localeCompare(b.name)),
-    [mentors]
+    [facultyMentors, deptFilter]
   );
+
   return (
-    <select required value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
-      <option value="">{mentors === null ? "Loading…" : "Select a mentor"}</option>
-      {sorted.map((m) => (
-        <option key={m.uid} value={m.uid}>
-          {m.name}
-        </option>
-      ))}
-    </select>
+    <div className="flex flex-col gap-2 sm:flex-row">
+      {deptOptions.length > 1 && (
+        <select
+          value={deptFilter}
+          onChange={(e) => setDeptFilter(e.target.value as Department | "")}
+          className={`${inputClass} sm:w-44`}
+        >
+          <option value="">All departments</option>
+          {deptOptions.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </select>
+      )}
+      <select required value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
+        <option value="">{mentors === null ? "Loading…" : "Select a mentor"}</option>
+        {sorted.map((m) => (
+          <option key={m.uid} value={m.uid}>
+            {m.name}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
 
