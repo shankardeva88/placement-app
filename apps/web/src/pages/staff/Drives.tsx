@@ -233,32 +233,46 @@ export default function StaffDrives() {
   const [roundFilter, setRoundFilter] = useState("");
   const [batchFilter, setBatchFilter] = useState<number | "">("");
   const applications = useAllApplications(appUser);
+  const myDept = appUser && "department" in appUser ? appUser.department : undefined;
+
+  // Drives are readable staff-wide with no department restriction at the
+  // data layer (students need to browse them too — see database.rules.json),
+  // so "which drives are actually relevant to my department" has to be
+  // filtered client-side — same reasoning and logic as CoordinatorDashboard's
+  // scopedDrives. Without this a coordinator/hod saw every drive ever
+  // created, including ones restricted to departments that aren't theirs.
+  // Institution roles (no department of their own) still see everything.
+  const scopedDrives = useMemo(() => {
+    if (!drives) return drives;
+    if (!myDept) return drives;
+    return drives.filter((d) => (d.eligibility.departments ?? []).length === 0 || d.eligibility.departments.includes(myDept));
+  }, [drives, myDept]);
 
   // Every distinct round name in use across drives, for the filter dropdown
   // — built from actual data since round names are free text per drive, not
   // a fixed set.
   const roundNameOptions = useMemo(() => {
-    if (!drives) return [];
+    if (!scopedDrives) return [];
     const names = new Set<string>();
-    for (const d of drives) for (const r of d.rounds ?? []) names.add(r.name);
+    for (const d of scopedDrives) for (const r of d.rounds ?? []) names.add(r.name);
     return Array.from(names).sort((a, b) => a.localeCompare(b));
-  }, [drives]);
+  }, [scopedDrives]);
 
   // Same for batch years actually used in eligibility.batchYears — added
   // ahead of upcoming drives that will target next year's graduating batch
   // (2029, 2030, ...), so the dropdown grows with new drives rather than
   // needing a hardcoded year list maintained here.
   const batchYearOptions = useMemo(() => {
-    if (!drives) return [];
+    if (!scopedDrives) return [];
     const years = new Set<number>();
-    for (const d of drives) for (const y of d.eligibility?.batchYears ?? []) years.add(y);
+    for (const d of scopedDrives) for (const y of d.eligibility?.batchYears ?? []) years.add(y);
     return Array.from(years).sort((a, b) => a - b);
-  }, [drives]);
+  }, [scopedDrives]);
 
   const filteredDrives = useMemo(() => {
-    if (!drives) return drives;
+    if (!scopedDrives) return scopedDrives;
     const term = search.trim().toLowerCase();
-    return drives.filter((d) => {
+    return scopedDrives.filter((d) => {
       if (typeFilter && d.type !== typeFilter) return false;
       if (statusFilter && d.status !== statusFilter) return false;
       if (roundFilter && currentRoundName(d) !== roundFilter) return false;
@@ -273,7 +287,7 @@ export default function StaffDrives() {
       if (!term) return true;
       return d.companyName.toLowerCase().includes(term) || driveRoleSummary(d).toLowerCase().includes(term);
     });
-  }, [drives, search, typeFilter, statusFilter, roundFilter, batchFilter]);
+  }, [scopedDrives, search, typeFilter, statusFilter, roundFilter, batchFilter]);
 
   // Only counts applicants within the coordinator/hod's own department scope
   // (applicationsDeptIndex, see the doc comment on useDriveApplicants in
@@ -320,10 +334,10 @@ export default function StaffDrives() {
   return (
     <div>
       <PageHeader
-        title={drives ? `Drives (${drives.length})` : "Drives"}
+        title={scopedDrives ? `Drives (${scopedDrives.length})` : "Drives"}
         subtitle={
-          drives && filteredDrives && filteredDrives.length !== drives.length
-            ? `${filteredDrives.length} of ${drives.length} drive(s)`
+          scopedDrives && filteredDrives && filteredDrives.length !== scopedDrives.length
+            ? `${filteredDrives.length} of ${scopedDrives.length} drive(s)`
             : "Create and manage placement drives."
         }
         icon={Briefcase}
@@ -345,17 +359,21 @@ export default function StaffDrives() {
         </Card>
       )}
 
-      {drives === null && (
+      {scopedDrives === null && (
         <div className="space-y-4">
           <Skeleton className="h-40" />
         </div>
       )}
 
-      {drives !== null && drives.length === 0 && !creating && (
-        <EmptyState icon={Briefcase} title="No drives yet" subtitle="Create your first placement drive." />
+      {scopedDrives !== null && scopedDrives.length === 0 && !creating && (
+        <EmptyState
+          icon={Briefcase}
+          title={myDept ? `No drives for ${myDept} yet` : "No drives yet"}
+          subtitle={myDept ? "Nothing open to your department right now." : "Create your first placement drive."}
+        />
       )}
 
-      {drives !== null && drives.length > 0 && (
+      {scopedDrives !== null && scopedDrives.length > 0 && (
         <div className="mb-4 flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -422,7 +440,7 @@ export default function StaffDrives() {
         </div>
       )}
 
-      {drives !== null && drives.length > 0 && filteredDrives?.length === 0 && (
+      {scopedDrives !== null && scopedDrives.length > 0 && filteredDrives?.length === 0 && (
         <EmptyState icon={Search} title="No drives match this search/filter" />
       )}
 
