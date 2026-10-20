@@ -1052,25 +1052,25 @@ function AssignMentorSection() {
           )}
         </div>
 
-        {mentorDeptOptions.length > 1 && (
-          <select
-            value={mentorDeptFilter}
-            onChange={(e) => setMentorDeptFilter(e.target.value as Department | "")}
-            className={`${inputClass} sm:w-48`}
-          >
-            <option value="">All departments</option>
-            {mentorDeptOptions.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-        )}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="sm:col-span-2">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          {mentorDeptOptions.length > 1 && (
+            <select
+              value={mentorDeptFilter}
+              onChange={(e) => setMentorDeptFilter(e.target.value as Department | "")}
+              className={`${inputClass} sm:w-44 sm:shrink-0`}
+            >
+              <option value="">All departments</option>
+              {mentorDeptOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          )}
+          <div className="sm:flex-1">
             <MentorPicker value={facultyId} onChange={handleMentorChange} deptFilter={mentorDeptFilter} />
           </div>
-          <Button type="submit" loading={submitting} disabled={selectedIds.size === 0}>
+          <Button type="submit" loading={submitting} disabled={selectedIds.size === 0} className="sm:shrink-0">
             Assign to {selectedIds.size || ""} student{selectedIds.size === 1 ? "" : "s"}
           </Button>
         </div>
