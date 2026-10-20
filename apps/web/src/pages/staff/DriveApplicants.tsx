@@ -4,7 +4,7 @@ import { AlertTriangle, ArrowLeft, Check, Download, Search, Trash2, Upload, User
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { Application, ApplicationStatus, Drive, Gender, Student } from "@placement-app/types";
+import type { Application, ApplicationStatus, Department, Drive, Gender, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import {
   useDriveApplicants,
@@ -144,6 +144,7 @@ export default function DriveApplicants() {
   const [bulkTotal, setBulkTotal] = useState(0);
   const [sortBy, setSortBy] = useState<"default" | "rollNo" | "cgpa">("rollNo");
   const [search, setSearch] = useState("");
+  const [deptFilter, setDeptFilter] = useState<Department | "">("");
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "">("");
   const [roundFilter, setRoundFilter] = useState("");
   const [attendanceFilter, setAttendanceFilter] = useState<"present" | "absent" | "unmarked" | "">("");
@@ -162,11 +163,24 @@ export default function DriveApplicants() {
   const [rollNoText, setRollNoText] = useState("");
   const [rollNoImportResult, setRollNoImportResult] = useState<{ matched: number; notFound: string[] } | null>(null);
 
+  // Only meaningful once a drive spans more than one department — built
+  // from this drive's actual applicants, not a hardcoded department list,
+  // same reasoning as every other "only show if there's more than one
+  // value" filter added this round (Offers/Internships/Training).
+  // "Details restricted" rows (different department, no student record
+  // visible to this actor) can never match a department filter either way.
+  const deptOptions = useMemo(() => {
+    if (!rows) return [];
+    return Array.from(new Set(rows.filter((r) => r.student).map((r) => r.student!.department))).sort((a, b) => a.localeCompare(b));
+  }, [rows]);
+
   // A "details restricted" row (different department, see the empty-state
   // branch below) has no student record to search/filter on — search and
   // the status filter still apply (status/roll-no-search work off the
   // application itself where possible), but it can never match a name
-  // search since there's no name to check.
+  // search since there's no name to check. Department filter lives at this
+  // tier too (not down with status/round) — it's a scoping decision like
+  // search, so the status/round chip counts below should reflect it.
   //
   // Split out from statusFilter/roundFilter (search-only base, below) so the
   // status/round summary chips can count "how many at each status/round"
@@ -175,9 +189,12 @@ export default function DriveApplicants() {
   const searchFilteredRows = useMemo(() => {
     if (!rows) return rows;
     const term = search.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((r) => r.student && (r.student.rollNo.toLowerCase().includes(term) || r.student.name.toLowerCase().includes(term)));
-  }, [rows, search]);
+    return rows.filter((r) => {
+      if (deptFilter && r.student?.department !== deptFilter) return false;
+      if (!term) return true;
+      return !!r.student && (r.student.rollNo.toLowerCase().includes(term) || r.student.name.toLowerCase().includes(term));
+    });
+  }, [rows, search, deptFilter]);
 
   const filteredRows = useMemo(() => {
     if (!searchFilteredRows) return searchFilteredRows;
@@ -700,6 +717,26 @@ export default function DriveApplicants() {
             />
           </div>
           <div className="flex items-center gap-2">
+            {deptOptions.length > 1 && (
+              <>
+                <label htmlFor="applicants-dept-filter" className="text-xs font-medium text-slate-500">
+                  Dept
+                </label>
+                <select
+                  id="applicants-dept-filter"
+                  value={deptFilter}
+                  onChange={(e) => setDeptFilter(e.target.value as Department | "")}
+                  className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                >
+                  <option value="">All departments</option>
+                  {deptOptions.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
             <label htmlFor="applicants-status-filter" className="text-xs font-medium text-slate-500">
               Status
             </label>
