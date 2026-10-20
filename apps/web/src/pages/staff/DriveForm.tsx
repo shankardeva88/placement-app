@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { Plus, X } from "lucide-react";
+import { AlertTriangle, Plus, Upload, X } from "lucide-react";
 import type { Department, Drive, DriveRole, DriveRound, DriveType, Gender, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
@@ -62,6 +62,9 @@ function SelectedStudentsPicker({
   const [skillFilter, setSkillFilter] = useState("");
   const [trainingFilter, setTrainingFilter] = useState("");
   const [query, setQuery] = useState("");
+  const [showRollNoImport, setShowRollNoImport] = useState(false);
+  const [rollNoText, setRollNoText] = useState("");
+  const [rollNoImportResult, setRollNoImportResult] = useState<{ matched: number; notFound: string[] } | null>(null);
 
   const batchYears = useMemo(
     () => Array.from(new Set(students.map((s) => s.batchYear))).sort((a, b) => a - b),
@@ -111,6 +114,32 @@ function SelectedStudentsPicker({
     const matchingIds = new Set(filtered.map((s) => s.uid));
     onChange(selectedIds.filter((id) => matchingIds.has(id)));
   }
+  // Scales past one-by-one checkbox clicking once a drive is eligible for
+  // several departments — a coordinator/admin handed a shortlist (say, from
+  // a company's pre-screening) can paste roll numbers instead of hunting
+  // each one down in a list spanning hundreds of students across 4+
+  // departments. Matches against the full `students` prop, not `filtered`,
+  // so an active department/batch filter can't make a real student falsely
+  // report as "not found." Merges into whatever's already checked.
+  function handleImportRollNos() {
+    const rollNoToUid = new Map(students.map((s) => [s.rollNo.trim().toLowerCase(), s.uid]));
+    const requested = rollNoText
+      .split(/[\n,\t]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const notFound: string[] = [];
+    const matchedIds: string[] = [];
+    for (const rollNo of requested) {
+      const uid = rollNoToUid.get(rollNo.toLowerCase());
+      if (uid) matchedIds.push(uid);
+      else notFound.push(rollNo);
+    }
+    const next = new Set(selectedIds);
+    for (const id of matchedIds) next.add(id);
+    onChange(Array.from(next));
+    setRollNoImportResult({ matched: matchedIds.length, notFound });
+  }
+
   const filteredIdSet = useMemo(() => new Set(filtered.map((s) => s.uid)), [filtered]);
   const selectedNotMatchingCount = selectedIds.filter((id) => !filteredIdSet.has(id)).length;
   const filtersActive =
@@ -207,11 +236,22 @@ function SelectedStudentsPicker({
         />
       </div>
 
-      <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
         <span>{selectedIds.length} selected</span>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <button type="button" onClick={selectAllFiltered} className="font-medium text-brand-700 hover:underline">
             Select all {filtered.length} filtered
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowRollNoImport((v) => !v);
+              setRollNoImportResult(null);
+            }}
+            className="inline-flex items-center gap-1 font-medium text-brand-700 hover:underline"
+          >
+            <Upload className="h-3 w-3" />
+            Import roll numbers
           </button>
           {filtersActive && selectedNotMatchingCount > 0 && (
             <button type="button" onClick={removeSelectedNotMatchingFilters} className="font-medium text-red-600 hover:underline">
@@ -225,6 +265,50 @@ function SelectedStudentsPicker({
           )}
         </div>
       </div>
+
+      {showRollNoImport && (
+        <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="mb-2 text-xs text-slate-500">
+            Paste roll numbers — one per line, or comma/tab separated — to check those students regardless of the
+            filters above. Matches against every student in scope, not just what's currently filtered/shown.
+          </p>
+          <textarea
+            rows={4}
+            value={rollNoText}
+            onChange={(e) => setRollNoText(e.target.value)}
+            placeholder={"24PA1A0501\n24PA1A0502\n24PA1A0503"}
+            className="w-full rounded-lg border border-slate-300 p-2 font-mono text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          />
+          <div className="mt-2 flex gap-2">
+            <Button type="button" onClick={handleImportRollNos} className="!px-2 !py-1 text-xs">
+              Select matching students
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setShowRollNoImport(false);
+                setRollNoText("");
+                setRollNoImportResult(null);
+              }}
+              className="!px-2 !py-1 text-xs"
+            >
+              Close
+            </Button>
+          </div>
+          {rollNoImportResult && (
+            <div className="mt-2 space-y-1 text-xs">
+              <p className="text-slate-600">{rollNoImportResult.matched} selected.</p>
+              {rollNoImportResult.notFound.length > 0 && (
+                <p className="flex items-start gap-1.5 text-amber-700">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  Not found: {rollNoImportResult.notFound.join(", ")}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mt-1 max-h-56 overflow-y-auto rounded-lg border border-slate-200">
         {filtered.length === 0 && <p className="p-2 text-sm text-slate-400">No students match these filters.</p>}
