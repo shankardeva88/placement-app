@@ -801,11 +801,23 @@ function AssignMentorSection() {
   const [submitting, setSubmitting] = useState(false);
   const [rosterMentorFilter, setRosterMentorFilter] = useState("");
   const [assignBatchFilter, setAssignBatchFilter] = useState<number | "">("");
+  const [assignDeptFilter, setAssignDeptFilter] = useState<Department | "">("");
   const [rosterBatchFilter, setRosterBatchFilter] = useState<number | "">("");
+  const [rosterDeptFilter, setRosterDeptFilter] = useState<Department | "">("");
   const [rosterSearch, setRosterSearch] = useState("");
 
   const batchYears = useMemo(
     () => Array.from(new Set((students ?? []).map((s) => s.batchYear))).sort((a, b) => a - b),
+    [students]
+  );
+
+  // Stays empty (both dropdowns below hide themselves) for a dept-scoped
+  // coordinator/HOD — useStudentsDirectory already only ever hands them
+  // their own department's roster. Only an institution-wide login
+  // (admin/dean/cpo) sees more than one value here, same as every other
+  // "only show if there's more than one department" filter this session.
+  const deptOptions = useMemo(
+    () => Array.from(new Set((students ?? []).map((s) => s.department))).sort((a, b) => a.localeCompare(b)),
     [students]
   );
 
@@ -814,9 +826,10 @@ function AssignMentorSection() {
       (students ?? [])
         .filter((s) => !s.isAlumni)
         .filter((s) => !assignBatchFilter || s.batchYear === assignBatchFilter)
+        .filter((s) => !assignDeptFilter || s.department === assignDeptFilter)
         .slice()
         .sort((a, b) => a.rollNo.localeCompare(b.rollNo)),
-    [students, assignBatchFilter]
+    [students, assignBatchFilter, assignDeptFilter]
   );
   const allSelected = sortedStudents.length > 0 && selectedIds.size === sortedStudents.length;
 
@@ -870,6 +883,7 @@ function AssignMentorSection() {
         const student = studentsByUid[uid];
         if (!student) continue;
         if (rosterBatchFilter && student.batchYear !== rosterBatchFilter) continue;
+        if (rosterDeptFilter && student.department !== rosterDeptFilter) continue;
         if (q && !student.rollNo.toLowerCase().includes(q) && !student.name.toLowerCase().includes(q) && !mentorName.toLowerCase().includes(q)) {
           continue;
         }
@@ -877,7 +891,7 @@ function AssignMentorSection() {
       }
     }
     return rows.sort((a, b) => a.mentorName.localeCompare(b.mentorName) || a.student.rollNo.localeCompare(b.student.rollNo));
-  }, [menteesByMentor, mentorsByUid, studentsByUid, rosterMentorFilter, rosterBatchFilter, rosterSearch]);
+  }, [menteesByMentor, mentorsByUid, studentsByUid, rosterMentorFilter, rosterBatchFilter, rosterDeptFilter, rosterSearch]);
 
   async function handleRemoveMapping(row: { mentorName: string; student: Student; mappingId: string }) {
     if (!window.confirm(`Remove ${row.student.name} from ${row.mentorName}'s mentees? This can't be undone.`)) return;
@@ -956,18 +970,34 @@ function AssignMentorSection() {
         student's mentor, just pick the new one and select them — their old assignment is replaced, not duplicated.
       </p>
       <form onSubmit={handleSubmit} className="space-y-3">
-        <select
-          value={assignBatchFilter}
-          onChange={(e) => setAssignBatchFilter(e.target.value ? Number(e.target.value) : "")}
-          className={`${inputClass} sm:w-48`}
-        >
-          <option value="">All batches</option>
-          {batchYears.map((y) => (
-            <option key={y} value={y}>
-              Batch {y}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={assignBatchFilter}
+            onChange={(e) => setAssignBatchFilter(e.target.value ? Number(e.target.value) : "")}
+            className={`${inputClass} sm:w-48`}
+          >
+            <option value="">All batches</option>
+            {batchYears.map((y) => (
+              <option key={y} value={y}>
+                Batch {y}
+              </option>
+            ))}
+          </select>
+          {deptOptions.length > 1 && (
+            <select
+              value={assignDeptFilter}
+              onChange={(e) => setAssignDeptFilter(e.target.value as Department | "")}
+              className={`${inputClass} sm:w-48`}
+            >
+              <option value="">All departments</option>
+              {deptOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
         <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-200">
           <label className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
             <input type="checkbox" checked={allSelected} onChange={toggleAll} />
@@ -1026,6 +1056,20 @@ function AssignMentorSection() {
                 </option>
               ))}
             </select>
+            {deptOptions.length > 1 && (
+              <select
+                value={rosterDeptFilter}
+                onChange={(e) => setRosterDeptFilter(e.target.value as Department | "")}
+                className={`${inputClass} sm:w-40`}
+              >
+                <option value="">All departments</option>
+                {deptOptions.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            )}
             {mentorsWithMentees.length > 0 && (
               <select
                 value={rosterMentorFilter}
