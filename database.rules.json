@@ -136,6 +136,8 @@
         // rule uses for every other roster field.
         "cgpa": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && root.child('users').child(auth.uid).child('department').val() === (data.exists() ? data.child('department') : newData.parent().child('department')).val() ) )" },
         "semesterWiseSgpa": { ".write": "auth != null && $studentId === auth.uid" },
+        "backlogHistory": { ".write": "auth != null && $studentId === auth.uid" },
+        "academicGap": { ".write": "auth != null && $studentId === auth.uid" },
         "currentSemester": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && root.child('users').child(auth.uid).child('department').val() === (data.exists() ? data.child('department') : newData.parent().child('department')).val() ) )" },
         "activeBacklogs": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && root.child('users').child(auth.uid).child('department').val() === (data.exists() ? data.child('department') : newData.parent().child('department')).val() ) )" },
         "updatedAt": { ".write": "auth != null && ( $studentId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'dean' || root.child('users').child(auth.uid).child('role').val() === 'cpo' || root.child('users').child(auth.uid).child('role').val() === 'admin' || ( ( root.child('users').child(auth.uid).child('role').val() === 'coordinator' || root.child('users').child(auth.uid).child('role').val() === 'hod' ) && root.child('users').child(auth.uid).child('department').val() === (data.exists() ? data.child('department') : newData.parent().child('department')).val() ) )" },
@@ -189,6 +191,8 @@
         "skills": { ".write": "auth != null && $studentId === auth.uid" },
         "certifications": { ".write": "auth != null && $studentId === auth.uid" },
         "projects": { ".write": "auth != null && $studentId === auth.uid" },
+        "jobPreferences": { ".write": "auth != null && $studentId === auth.uid" },
+        "languageSkills": { ".write": "auth != null && $studentId === auth.uid" },
         "lastSignificantUpdateAt": { ".write": "auth != null && $studentId === auth.uid" },
 
         // Student's own "please review my profile" ping (see Timestamp doc

@@ -30,6 +30,8 @@ export default function AcademicRecord() {
     return initial;
   });
   const [activeBacklogs, setActiveBacklogs] = useState(student?.activeBacklogs ?? 0);
+  const [backlogHistory, setBacklogHistory] = useState(student?.backlogHistory ?? "");
+  const [academicGap, setAcademicGap] = useState(student?.academicGap ?? false);
   const [cgpa, setCgpa] = useState(student?.cgpa ?? 0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +102,8 @@ export default function AcademicRecord() {
         cgpa,
         activeBacklogs,
         currentSemester: semesterCount,
+        backlogHistory,
+        academicGap,
       });
       showToast("Academic record updated");
       navigate("/dashboard");
@@ -177,6 +181,20 @@ export default function AcademicRecord() {
                 className={inputClass}
               />
             </div>
+            <div className="col-span-2">
+              <label className="mb-1 block text-sm font-medium text-slate-700">History of backlogs (optional)</label>
+              <input
+                type="text"
+                placeholder="e.g. 2 backlogs cleared in sem 3"
+                value={backlogHistory}
+                onChange={(e) => setBacklogHistory(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <label className="col-span-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input type="checkbox" checked={academicGap} onChange={(e) => setAcademicGap(e.target.checked)} />
+              I have an academic gap (a year or more between 10th/12th/degree)
+            </label>
             <div>
               <label className="mb-1 flex items-center justify-between text-sm font-medium text-slate-700">
                 <span>CGPA</span>

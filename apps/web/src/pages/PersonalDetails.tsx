@@ -179,6 +179,21 @@ export default function PersonalDetails() {
     student?.projects?.map((p) => ({ title: p.title, description: p.description ?? "", techUsed: p.techUsed ?? "", url: p.url ?? "" })) ?? []
   );
 
+  const [willingToRelocate, setWillingToRelocate] = useState(student?.jobPreferences?.willingToRelocate ?? false);
+  const [preferredLocations, setPreferredLocations] = useState(student?.jobPreferences?.preferredLocations ?? "");
+  const [willingAnywhereInIndia, setWillingAnywhereInIndia] = useState(student?.jobPreferences?.willingAnywhereInIndia ?? false);
+  const [willingNightShifts, setWillingNightShifts] = useState(student?.jobPreferences?.willingNightShifts ?? false);
+  const [willingToSignBond, setWillingToSignBond] = useState(student?.jobPreferences?.willingToSignBond ?? false);
+  const [maxBondPeriod, setMaxBondPeriod] = useState(student?.jobPreferences?.maxBondPeriod ?? "");
+  const [willingNonDevRole, setWillingNonDevRole] = useState(student?.jobPreferences?.willingNonDevRole ?? false);
+  const [willingShortNoticeInterviews, setWillingShortNoticeInterviews] = useState(
+    student?.jobPreferences?.willingShortNoticeInterviews ?? false
+  );
+
+  const [japaneseCertified, setJapaneseCertified] = useState(student?.languageSkills?.japaneseCertified ?? false);
+  const [japaneseProficiencyLevel, setJapaneseProficiencyLevel] = useState(student?.languageSkills?.japaneseProficiencyLevel ?? "");
+  const [otherForeignLanguages, setOtherForeignLanguages] = useState(student?.languageSkills?.otherForeignLanguages ?? "");
+
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -239,6 +254,17 @@ export default function PersonalDetails() {
     setProjects(
       student.projects?.map((p) => ({ title: p.title, description: p.description ?? "", techUsed: p.techUsed ?? "", url: p.url ?? "" })) ?? []
     );
+    setWillingToRelocate(student.jobPreferences?.willingToRelocate ?? false);
+    setPreferredLocations(student.jobPreferences?.preferredLocations ?? "");
+    setWillingAnywhereInIndia(student.jobPreferences?.willingAnywhereInIndia ?? false);
+    setWillingNightShifts(student.jobPreferences?.willingNightShifts ?? false);
+    setWillingToSignBond(student.jobPreferences?.willingToSignBond ?? false);
+    setMaxBondPeriod(student.jobPreferences?.maxBondPeriod ?? "");
+    setWillingNonDevRole(student.jobPreferences?.willingNonDevRole ?? false);
+    setWillingShortNoticeInterviews(student.jobPreferences?.willingShortNoticeInterviews ?? false);
+    setJapaneseCertified(student.languageSkills?.japaneseCertified ?? false);
+    setJapaneseProficiencyLevel(student.languageSkills?.japaneseProficiencyLevel ?? "");
+    setOtherForeignLanguages(student.languageSkills?.otherForeignLanguages ?? "");
   }
 
   function handleCancel() {
@@ -306,6 +332,21 @@ export default function PersonalDetails() {
             ...(p.techUsed.trim() ? { techUsed: p.techUsed.trim() } : {}),
             ...(p.url.trim() ? { url: p.url.trim() } : {}),
           })),
+        jobPreferences: {
+          willingToRelocate,
+          ...(preferredLocations.trim() ? { preferredLocations: preferredLocations.trim() } : {}),
+          willingAnywhereInIndia,
+          willingNightShifts,
+          willingToSignBond,
+          ...(maxBondPeriod.trim() ? { maxBondPeriod: maxBondPeriod.trim() } : {}),
+          willingNonDevRole,
+          willingShortNoticeInterviews,
+        },
+        languageSkills: {
+          japaneseCertified,
+          ...(japaneseProficiencyLevel.trim() ? { japaneseProficiencyLevel: japaneseProficiencyLevel.trim() } : {}),
+          ...(otherForeignLanguages.trim() ? { otherForeignLanguages: otherForeignLanguages.trim() } : {}),
+        },
       });
       showToast("Verified and saved");
       setEditing(false);
@@ -911,6 +952,140 @@ export default function PersonalDetails() {
                 </button>
               )}
             </div>
+          </Section>
+
+          <Section title="Job preferences">
+            <Field label="Willing to relocate?">
+              <ViewOrEdit editing={editing} display={willingToRelocate ? "Yes" : "No"}>
+                <select
+                  value={willingToRelocate ? "yes" : "no"}
+                  onChange={(e) => setWillingToRelocate(e.target.value === "yes")}
+                  className={inputClass}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </ViewOrEdit>
+            </Field>
+            <Field label="Preferred job locations">
+              <ViewOrEdit editing={editing} display={preferredLocations}>
+                <input
+                  type="text"
+                  placeholder="e.g. Hyderabad, Bangalore"
+                  value={preferredLocations}
+                  onChange={(e) => setPreferredLocations(e.target.value)}
+                  className={inputClass}
+                />
+              </ViewOrEdit>
+            </Field>
+            <Field label="Willing to work anywhere in India?">
+              <ViewOrEdit editing={editing} display={willingAnywhereInIndia ? "Yes" : "No"}>
+                <select
+                  value={willingAnywhereInIndia ? "yes" : "no"}
+                  onChange={(e) => setWillingAnywhereInIndia(e.target.value === "yes")}
+                  className={inputClass}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </ViewOrEdit>
+            </Field>
+            <Field label="Willing to work night/rotational shifts?">
+              <ViewOrEdit editing={editing} display={willingNightShifts ? "Yes" : "No"}>
+                <select
+                  value={willingNightShifts ? "yes" : "no"}
+                  onChange={(e) => setWillingNightShifts(e.target.value === "yes")}
+                  className={inputClass}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </ViewOrEdit>
+            </Field>
+            <Field label="Willing to sign a service agreement / bond?">
+              <ViewOrEdit editing={editing} display={willingToSignBond ? "Yes" : "No"}>
+                <select
+                  value={willingToSignBond ? "yes" : "no"}
+                  onChange={(e) => setWillingToSignBond(e.target.value === "yes")}
+                  className={inputClass}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </ViewOrEdit>
+            </Field>
+            <Field label="Maximum bond period you'd accept">
+              <ViewOrEdit editing={editing} display={maxBondPeriod}>
+                <input
+                  type="text"
+                  placeholder="e.g. 1 year"
+                  value={maxBondPeriod}
+                  onChange={(e) => setMaxBondPeriod(e.target.value)}
+                  className={inputClass}
+                />
+              </ViewOrEdit>
+            </Field>
+            <Field label="Willing to work a non-development role if required?">
+              <ViewOrEdit editing={editing} display={willingNonDevRole ? "Yes" : "No"}>
+                <select
+                  value={willingNonDevRole ? "yes" : "no"}
+                  onChange={(e) => setWillingNonDevRole(e.target.value === "yes")}
+                  className={inputClass}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </ViewOrEdit>
+            </Field>
+            <Field label="Willing to attend assessments/interviews at short notice?">
+              <ViewOrEdit editing={editing} display={willingShortNoticeInterviews ? "Yes" : "No"}>
+                <select
+                  value={willingShortNoticeInterviews ? "yes" : "no"}
+                  onChange={(e) => setWillingShortNoticeInterviews(e.target.value === "yes")}
+                  className={inputClass}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </ViewOrEdit>
+            </Field>
+          </Section>
+
+          <Section title="Languages">
+            <Field label="Japanese language certification?">
+              <ViewOrEdit editing={editing} display={japaneseCertified ? "Yes" : "No"}>
+                <select
+                  value={japaneseCertified ? "yes" : "no"}
+                  onChange={(e) => setJapaneseCertified(e.target.value === "yes")}
+                  className={inputClass}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </ViewOrEdit>
+            </Field>
+            <Field label="Japanese proficiency level">
+              <ViewOrEdit editing={editing} display={japaneseProficiencyLevel}>
+                <input
+                  type="text"
+                  placeholder="e.g. N3"
+                  value={japaneseProficiencyLevel}
+                  onChange={(e) => setJapaneseProficiencyLevel(e.target.value)}
+                  className={inputClass}
+                />
+              </ViewOrEdit>
+            </Field>
+            <Field label="Other foreign languages known">
+              <ViewOrEdit editing={editing} display={otherForeignLanguages}>
+                <input
+                  type="text"
+                  placeholder="e.g. French, German"
+                  value={otherForeignLanguages}
+                  onChange={(e) => setOtherForeignLanguages(e.target.value)}
+                  className={inputClass}
+                />
+              </ViewOrEdit>
+            </Field>
           </Section>
         </form>
       </Card>

@@ -69,6 +69,19 @@ const HEADER_MAP: Record<string, string> = {
   [normalizeHeader("GeeksforGeeks Profile")]: "gfgUrl",
   [normalizeHeader("Vedic.dev Profile Link")]: "vedicDevUrl",
   [normalizeHeader("Primary Programming Language")]: "primaryLanguage",
+  [normalizeHeader("Academic Gap")]: "academicGap",
+  [normalizeHeader("History of Backlogs")]: "backlogHistory",
+  [normalizeHeader("Are you willing to relocate for a job?")]: "willingToRelocate",
+  [normalizeHeader("Preferred Job Locations")]: "preferredLocations",
+  [normalizeHeader("Are you willing to work anywhere in India based on company requirements?")]: "willingAnywhereInIndia",
+  [normalizeHeader("Are you willing to work in night shifts / rotational shifts?")]: "willingNightShifts",
+  [normalizeHeader("Are you willing to sign a service agreement / bond?")]: "willingToSignBond",
+  [normalizeHeader("Maximum Bond Period You Are Willing to Accept")]: "maxBondPeriod",
+  [normalizeHeader("Are you willing to work in a non-development role if required by the company?")]: "willingNonDevRole",
+  [normalizeHeader("Are you willing to attend company-specific assessments and interviews at short notice?")]: "willingShortNoticeInterviews",
+  [normalizeHeader("Do you have any Japanese language certification?")]: "japaneseCertified",
+  [normalizeHeader("Japanese Language Proficiency Level (if applicable)")]: "japaneseProficiencyLevel",
+  [normalizeHeader("Other Foreign Languages Known")]: "otherForeignLanguages",
   // Password is always the roll number (see createBulkStudent) — mapped here
   // only so a "Password" column in the sheet doesn't show up as unmapped;
   // parseStudentRows below warns if it's present but doesn't match the roll number.
@@ -117,6 +130,14 @@ export function parseGender(raw: string): { value: Gender; warning?: string } {
   if (["o", "other"].includes(key)) return { value: "other" };
   if (!key) return { value: "prefer_not_to_say" };
   return { value: "prefer_not_to_say", warning: `Gender "${raw}" not recognized` };
+}
+
+export function parseYesNo(raw: string): { value: boolean | undefined; warning?: string } {
+  const key = normalizeHeader(raw);
+  if (!key) return { value: undefined };
+  if (["y", "yes", "true", "1"].includes(key)) return { value: true };
+  if (["n", "no", "false", "0"].includes(key)) return { value: false };
+  return { value: undefined, warning: `"${raw}" not recognized as Yes/No — left blank` };
 }
 
 export function parseEntranceType(raw: string): { value: EntranceExamType | undefined; warning?: string } {
@@ -188,6 +209,19 @@ export interface ParsedStudentRow {
   gfgUrl: string;
   vedicDevUrl: string;
   primaryLanguage: string;
+  academicGap?: boolean;
+  backlogHistory: string;
+  willingToRelocate?: boolean;
+  preferredLocations: string;
+  willingAnywhereInIndia?: boolean;
+  willingNightShifts?: boolean;
+  willingToSignBond?: boolean;
+  maxBondPeriod: string;
+  willingNonDevRole?: boolean;
+  willingShortNoticeInterviews?: boolean;
+  japaneseCertified?: boolean;
+  japaneseProficiencyLevel: string;
+  otherForeignLanguages: string;
   warnings: string[];
   errors: string[]; // non-empty means this row can't be imported as-is
 }
@@ -273,6 +307,23 @@ export function parseStudentRows(headers: string[], rawRows: string[][]): ParseR
     const resumeUrl = get(row, "resumeUrl");
     if (!resumeUrl) warnings.push("No resume link");
 
+    const { value: academicGap, warning: academicGapWarning } = parseYesNo(get(row, "academicGap"));
+    if (academicGapWarning) warnings.push(`Academic gap: ${academicGapWarning}`);
+    const { value: willingToRelocate, warning: relocateWarning } = parseYesNo(get(row, "willingToRelocate"));
+    if (relocateWarning) warnings.push(`Willing to relocate: ${relocateWarning}`);
+    const { value: willingAnywhereInIndia, warning: anywhereWarning } = parseYesNo(get(row, "willingAnywhereInIndia"));
+    if (anywhereWarning) warnings.push(`Willing anywhere in India: ${anywhereWarning}`);
+    const { value: willingNightShifts, warning: nightShiftsWarning } = parseYesNo(get(row, "willingNightShifts"));
+    if (nightShiftsWarning) warnings.push(`Willing night shifts: ${nightShiftsWarning}`);
+    const { value: willingToSignBond, warning: bondWarning } = parseYesNo(get(row, "willingToSignBond"));
+    if (bondWarning) warnings.push(`Willing to sign bond: ${bondWarning}`);
+    const { value: willingNonDevRole, warning: nonDevWarning } = parseYesNo(get(row, "willingNonDevRole"));
+    if (nonDevWarning) warnings.push(`Willing non-dev role: ${nonDevWarning}`);
+    const { value: willingShortNoticeInterviews, warning: shortNoticeWarning } = parseYesNo(get(row, "willingShortNoticeInterviews"));
+    if (shortNoticeWarning) warnings.push(`Willing short-notice interviews: ${shortNoticeWarning}`);
+    const { value: japaneseCertified, warning: japaneseWarning } = parseYesNo(get(row, "japaneseCertified"));
+    if (japaneseWarning) warnings.push(`Japanese certification: ${japaneseWarning}`);
+
     return {
       rowIndex: i + 1,
       rollNo,
@@ -308,6 +359,19 @@ export function parseStudentRows(headers: string[], rawRows: string[][]): ParseR
       gfgUrl: get(row, "gfgUrl"),
       vedicDevUrl: get(row, "vedicDevUrl"),
       primaryLanguage: get(row, "primaryLanguage"),
+      academicGap,
+      backlogHistory: get(row, "backlogHistory"),
+      willingToRelocate,
+      preferredLocations: get(row, "preferredLocations"),
+      willingAnywhereInIndia,
+      willingNightShifts,
+      willingToSignBond,
+      maxBondPeriod: get(row, "maxBondPeriod"),
+      willingNonDevRole,
+      willingShortNoticeInterviews,
+      japaneseCertified,
+      japaneseProficiencyLevel: get(row, "japaneseProficiencyLevel"),
+      otherForeignLanguages: get(row, "otherForeignLanguages"),
       warnings,
       errors,
     };
@@ -417,6 +481,25 @@ async function writeStudentRecords(uid: string, row: ParsedStudentRow) {
     if (row.gfgUrl) studentRecord.gfgUrl = row.gfgUrl;
     if (row.vedicDevUrl) studentRecord.vedicDevUrl = row.vedicDevUrl;
     if (row.primaryLanguage) studentRecord.primaryLanguage = row.primaryLanguage;
+    if (row.academicGap != null) studentRecord.academicGap = row.academicGap;
+    if (row.backlogHistory) studentRecord.backlogHistory = row.backlogHistory;
+
+    const jobPreferences: Record<string, unknown> = {};
+    if (row.willingToRelocate != null) jobPreferences.willingToRelocate = row.willingToRelocate;
+    if (row.preferredLocations) jobPreferences.preferredLocations = row.preferredLocations;
+    if (row.willingAnywhereInIndia != null) jobPreferences.willingAnywhereInIndia = row.willingAnywhereInIndia;
+    if (row.willingNightShifts != null) jobPreferences.willingNightShifts = row.willingNightShifts;
+    if (row.willingToSignBond != null) jobPreferences.willingToSignBond = row.willingToSignBond;
+    if (row.maxBondPeriod) jobPreferences.maxBondPeriod = row.maxBondPeriod;
+    if (row.willingNonDevRole != null) jobPreferences.willingNonDevRole = row.willingNonDevRole;
+    if (row.willingShortNoticeInterviews != null) jobPreferences.willingShortNoticeInterviews = row.willingShortNoticeInterviews;
+    if (Object.keys(jobPreferences).length > 0) studentRecord.jobPreferences = jobPreferences;
+
+    const languageSkills: Record<string, unknown> = {};
+    if (row.japaneseCertified != null) languageSkills.japaneseCertified = row.japaneseCertified;
+    if (row.japaneseProficiencyLevel) languageSkills.japaneseProficiencyLevel = row.japaneseProficiencyLevel;
+    if (row.otherForeignLanguages) languageSkills.otherForeignLanguages = row.otherForeignLanguages;
+    if (Object.keys(languageSkills).length > 0) studentRecord.languageSkills = languageSkills;
 
     await update(ref(db), {
       [`${DB_NODES.users}/${uid}`]: {

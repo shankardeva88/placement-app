@@ -40,6 +40,13 @@ function formatRelativeTime(ts: number): string {
   return new Date(ts).toLocaleDateString();
 }
 
+// undefined (never answered) stays undefined so Field's own "—" fallback
+// applies, instead of this printing "No" for a question nobody's answered.
+function yesNo(value: boolean | undefined): string | undefined {
+  if (value == null) return undefined;
+  return value ? "Yes" : "No";
+}
+
 // Same colouring as the Training page's own Student Status lookup and the
 // student/mentor attendance strips.
 function attendanceDotColor(status: "present" | "absent" | "late" | undefined): string {
@@ -477,6 +484,8 @@ export default function StudentDetail() {
             <Field label="Mentor">{mentorName ?? (mentorMapping ? mentorMapping.facultyId : "Not assigned")}</Field>
             <Field label="CGPA">{student.cgpa}</Field>
             <Field label="Active backlogs">{student.activeBacklogs}</Field>
+            <Field label="Backlog history">{student.backlogHistory}</Field>
+            <Field label="Academic gap">{student.academicGap == null ? undefined : student.academicGap ? "Yes" : "No"}</Field>
             <Field label="Placement status">
               <span className="capitalize">{student.placementStatus.replace("_", " ")}</span>
             </Field>
@@ -485,6 +494,22 @@ export default function StudentDetail() {
             <Field label="Entrance type">{student.entranceType}</Field>
             <Field label="Entrance rank">{student.entranceRank}</Field>
           </SectionCard>
+
+          {(student.jobPreferences || student.languageSkills) && (
+            <SectionCard title="Placement preferences">
+              <Field label="Willing to relocate">{yesNo(student.jobPreferences?.willingToRelocate)}</Field>
+              <Field label="Preferred locations">{student.jobPreferences?.preferredLocations}</Field>
+              <Field label="Willing anywhere in India">{yesNo(student.jobPreferences?.willingAnywhereInIndia)}</Field>
+              <Field label="Willing night/rotational shifts">{yesNo(student.jobPreferences?.willingNightShifts)}</Field>
+              <Field label="Willing to sign a bond">{yesNo(student.jobPreferences?.willingToSignBond)}</Field>
+              <Field label="Max bond period">{student.jobPreferences?.maxBondPeriod}</Field>
+              <Field label="Willing non-dev role">{yesNo(student.jobPreferences?.willingNonDevRole)}</Field>
+              <Field label="Willing short-notice interviews">{yesNo(student.jobPreferences?.willingShortNoticeInterviews)}</Field>
+              <Field label="Japanese certification">{yesNo(student.languageSkills?.japaneseCertified)}</Field>
+              <Field label="Japanese proficiency">{student.languageSkills?.japaneseProficiencyLevel}</Field>
+              <Field label="Other foreign languages">{student.languageSkills?.otherForeignLanguages}</Field>
+            </SectionCard>
+          )}
 
           {semesterEntries.length > 0 && (
             <SectionCard title="Semester-wise SGPA">

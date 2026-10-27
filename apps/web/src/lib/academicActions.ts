@@ -7,6 +7,8 @@ export interface AcademicRecordInput {
   cgpa: number;
   activeBacklogs: number;
   currentSemester: number;
+  backlogHistory: string;
+  academicGap: boolean;
 }
 
 /** Scoped update() touching only the fields the students/$id child-write

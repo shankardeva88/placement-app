@@ -1,7 +1,7 @@
 import { ref, update, serverTimestamp } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { BloodGroup, EntranceExamType, Gender } from "@placement-app/types";
+import type { BloodGroup, EntranceExamType, Gender, JobPreferences, LanguageSkills } from "@placement-app/types";
 
 export interface PersonalDetailsInput {
   studentPhone: string;
@@ -52,6 +52,8 @@ export interface PersonalDetailsInput {
   skills: string[];
   certifications: { name: string; url?: string }[];
   projects: { title: string; description?: string; techUsed?: string; url?: string }[];
+  jobPreferences: JobPreferences;
+  languageSkills: LanguageSkills;
 }
 
 /** Every field this writes has its own scoped self-write bypass in

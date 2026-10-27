@@ -104,6 +104,26 @@ export type Gender = "male" | "female" | "other" | "prefer_not_to_say";
 export type BloodGroup = "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-";
 export type EntranceExamType = "EAMCET" | "ECET"; // EAMCET: direct 1st-year admission; ECET: lateral entry (diploma → degree)
 
+// A placement team's "will you accept X" shortlist questions — all
+// optional/undefined until the student actually answers (never defaulted to
+// false, which would misrepresent "hasn't said" as "said no").
+export interface JobPreferences {
+  willingToRelocate?: boolean;
+  preferredLocations?: string;
+  willingAnywhereInIndia?: boolean;
+  willingNightShifts?: boolean;
+  willingToSignBond?: boolean;
+  maxBondPeriod?: string; // free text — "1 year", "18 months", whatever the student writes
+  willingNonDevRole?: boolean;
+  willingShortNoticeInterviews?: boolean;
+}
+
+export interface LanguageSkills {
+  japaneseCertified?: boolean;
+  japaneseProficiencyLevel?: string;
+  otherForeignLanguages?: string;
+}
+
 export interface Student {
   studentId: string; // RTDB key under /students
   uid: string; // Firebase Auth UID
@@ -119,6 +139,11 @@ export interface Student {
   cgpa: number;
   semesterWiseSgpa?: Record<string, number>; // { "sem1": 8.2, "sem2": 7.9, ... }
   activeBacklogs: number;
+  // Free text, not a count — "2 backlogs cleared in sem 3" reads better than
+  // a number that duplicates activeBacklogs (current count) without saying
+  // what already happened. Academic Record, same place activeBacklogs lives.
+  backlogHistory?: string;
+  academicGap?: boolean; // any gap year(s) between 10th/12th/degree
 
   tenthPercentage?: number;
   tenthSchool?: string;
@@ -204,6 +229,12 @@ export interface Student {
   // to see. Student-managed only (no bulk import/update path — too
   // structured for a flat CSV row, same reasoning as certifications above).
   projects?: { title: string; description?: string; techUsed?: string; url?: string }[];
+
+  // One object each, not flat top-level fields — keeps this whole group to
+  // a single self-write rule in database.rules.json (same convention as
+  // semesterWiseSgpa) instead of one rule per sub-field.
+  jobPreferences?: JobPreferences;
+  languageSkills?: LanguageSkills;
 
   // Completed external/corporate trainings (Infosys Springboard, SAP, etc.)
   // — training name -> the raw label from the coordinator's tracking sheet
