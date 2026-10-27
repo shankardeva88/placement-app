@@ -544,54 +544,31 @@ export default function StudentDetail() {
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Skills & links</h3>
             <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
               <Field label="Skills">{(student.skills ?? []).join(", ")}</Field>
-              <div>
-                <dt className="text-slate-500">Resume</dt>
-                <dd className="font-medium text-slate-900">
-                  {student.resumeUrl ? (
-                    <a href={student.resumeUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-700 hover:underline">
-                      View <ExternalLink className="h-3 w-3" />
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">LinkedIn</dt>
-                <dd className="font-medium text-slate-900">
-                  {student.linkedinUrl ? (
-                    <a href={student.linkedinUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-700 hover:underline">
-                      View <ExternalLink className="h-3 w-3" />
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">GitHub</dt>
-                <dd className="font-medium text-slate-900">
-                  {student.githubUrl ? (
-                    <a href={student.githubUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-700 hover:underline">
-                      View <ExternalLink className="h-3 w-3" />
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Portfolio</dt>
-                <dd className="font-medium text-slate-900">
-                  {student.portfolioUrl ? (
-                    <a href={student.portfolioUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-700 hover:underline">
-                      View <ExternalLink className="h-3 w-3" />
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </dd>
-              </div>
+              <Field label="Primary language">{student.primaryLanguage}</Field>
+              {([
+                ["Resume", student.resumeUrl],
+                ["LinkedIn", student.linkedinUrl],
+                ["GitHub", student.githubUrl],
+                ["Portfolio", student.portfolioUrl],
+                ["LeetCode", student.leetcodeUrl],
+                ["HackerRank", student.hackerrankUrl],
+                ["CodeChef", student.codechefUrl],
+                ["GeeksforGeeks", student.gfgUrl],
+                ["Vedic.dev", student.vedicDevUrl],
+              ] as const).map(([label, url]) => (
+                <div key={label}>
+                  <dt className="text-slate-500">{label}</dt>
+                  <dd className="font-medium text-slate-900">
+                    {url ? (
+                      <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-700 hover:underline">
+                        View <ExternalLink className="h-3 w-3" />
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </dd>
+                </div>
+              ))}
             </dl>
           </Card>
 
@@ -607,6 +584,28 @@ export default function StudentDetail() {
                         View <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
+          {(student.projects ?? []).length > 0 && (
+            <Card className="mb-4">
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Projects</h3>
+              <ul className="divide-y divide-slate-100">
+                {(student.projects ?? []).map((proj, i) => (
+                  <li key={i} className="py-2 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-medium text-slate-800">{proj.title}</span>
+                      {proj.url && (
+                        <a href={proj.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-700 hover:underline">
+                          View <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                    {proj.description && <p className="mt-0.5 text-slate-600">{proj.description}</p>}
+                    {proj.techUsed && <p className="mt-0.5 text-xs text-slate-500">{proj.techUsed}</p>}
                   </li>
                 ))}
               </ul>

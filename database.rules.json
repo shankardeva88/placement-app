@@ -178,10 +178,17 @@
         "linkedinUrl": { ".write": "auth != null && $studentId === auth.uid" },
         "githubUrl": { ".write": "auth != null && $studentId === auth.uid" },
         "portfolioUrl": { ".write": "auth != null && $studentId === auth.uid" },
+        "leetcodeUrl": { ".write": "auth != null && $studentId === auth.uid" },
+        "hackerrankUrl": { ".write": "auth != null && $studentId === auth.uid" },
+        "codechefUrl": { ".write": "auth != null && $studentId === auth.uid" },
+        "gfgUrl": { ".write": "auth != null && $studentId === auth.uid" },
+        "vedicDevUrl": { ".write": "auth != null && $studentId === auth.uid" },
+        "primaryLanguage": { ".write": "auth != null && $studentId === auth.uid" },
         "resumeUrl": { ".write": "auth != null && $studentId === auth.uid" },
         "photoUrl": { ".write": "auth != null && $studentId === auth.uid" },
         "skills": { ".write": "auth != null && $studentId === auth.uid" },
         "certifications": { ".write": "auth != null && $studentId === auth.uid" },
+        "projects": { ".write": "auth != null && $studentId === auth.uid" },
         "lastSignificantUpdateAt": { ".write": "auth != null && $studentId === auth.uid" },
 
         // Student's own "please review my profile" ping (see Timestamp doc

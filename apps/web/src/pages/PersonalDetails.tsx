@@ -162,12 +162,21 @@ export default function PersonalDetails() {
   const [linkedinUrl, setLinkedinUrl] = useState(student?.linkedinUrl ?? "");
   const [githubUrl, setGithubUrl] = useState(student?.githubUrl ?? "");
   const [portfolioUrl, setPortfolioUrl] = useState(student?.portfolioUrl ?? "");
+  const [leetcodeUrl, setLeetcodeUrl] = useState(student?.leetcodeUrl ?? "");
+  const [hackerrankUrl, setHackerrankUrl] = useState(student?.hackerrankUrl ?? "");
+  const [codechefUrl, setCodechefUrl] = useState(student?.codechefUrl ?? "");
+  const [gfgUrl, setGfgUrl] = useState(student?.gfgUrl ?? "");
+  const [vedicDevUrl, setVedicDevUrl] = useState(student?.vedicDevUrl ?? "");
+  const [primaryLanguage, setPrimaryLanguage] = useState(student?.primaryLanguage ?? "");
   const [resumeUrl, setResumeUrl] = useState(student?.resumeUrl ?? "");
   const [photoUrl, setPhotoUrl] = useState(student?.photoUrl ?? "");
 
   const [skillsText, setSkillsText] = useState(student?.skills?.join(", ") ?? "");
   const [certifications, setCertifications] = useState(
     student?.certifications?.map((c) => ({ name: c.name, url: c.url ?? "" })) ?? []
+  );
+  const [projects, setProjects] = useState(
+    student?.projects?.map((p) => ({ title: p.title, description: p.description ?? "", techUsed: p.techUsed ?? "", url: p.url ?? "" })) ?? []
   );
 
   const [error, setError] = useState<string | null>(null);
@@ -217,10 +226,19 @@ export default function PersonalDetails() {
     setLinkedinUrl(student.linkedinUrl ?? "");
     setGithubUrl(student.githubUrl ?? "");
     setPortfolioUrl(student.portfolioUrl ?? "");
+    setLeetcodeUrl(student.leetcodeUrl ?? "");
+    setHackerrankUrl(student.hackerrankUrl ?? "");
+    setCodechefUrl(student.codechefUrl ?? "");
+    setGfgUrl(student.gfgUrl ?? "");
+    setVedicDevUrl(student.vedicDevUrl ?? "");
+    setPrimaryLanguage(student.primaryLanguage ?? "");
     setResumeUrl(student.resumeUrl ?? "");
     setPhotoUrl(student.photoUrl ?? "");
     setSkillsText(student.skills?.join(", ") ?? "");
     setCertifications(student.certifications?.map((c) => ({ name: c.name, url: c.url ?? "" })) ?? []);
+    setProjects(
+      student.projects?.map((p) => ({ title: p.title, description: p.description ?? "", techUsed: p.techUsed ?? "", url: p.url ?? "" })) ?? []
+    );
   }
 
   function handleCancel() {
@@ -265,6 +283,12 @@ export default function PersonalDetails() {
         linkedinUrl,
         githubUrl,
         portfolioUrl,
+        leetcodeUrl,
+        hackerrankUrl,
+        codechefUrl,
+        gfgUrl,
+        vedicDevUrl,
+        primaryLanguage,
         resumeUrl,
         photoUrl,
         skills: skillsText
@@ -274,6 +298,14 @@ export default function PersonalDetails() {
         certifications: certifications
           .filter((c) => c.name.trim())
           .map((c) => (c.url.trim() ? { name: c.name.trim(), url: c.url.trim() } : { name: c.name.trim() })),
+        projects: projects
+          .filter((p) => p.title.trim())
+          .map((p) => ({
+            title: p.title.trim(),
+            ...(p.description.trim() ? { description: p.description.trim() } : {}),
+            ...(p.techUsed.trim() ? { techUsed: p.techUsed.trim() } : {}),
+            ...(p.url.trim() ? { url: p.url.trim() } : {}),
+          })),
       });
       showToast("Verified and saved");
       setEditing(false);
@@ -655,6 +687,75 @@ export default function PersonalDetails() {
             </Field>
           </Section>
 
+          <Section title="Coding profiles">
+            <Field label="LeetCode">
+              <ViewOrEdit editing={editing} display={leetcodeUrl}>
+                <input
+                  type="url"
+                  placeholder="https://leetcode.com/..."
+                  value={leetcodeUrl}
+                  onChange={(e) => setLeetcodeUrl(e.target.value)}
+                  className={inputClass}
+                />
+              </ViewOrEdit>
+            </Field>
+            <Field label="HackerRank">
+              <ViewOrEdit editing={editing} display={hackerrankUrl}>
+                <input
+                  type="url"
+                  placeholder="https://hackerrank.com/..."
+                  value={hackerrankUrl}
+                  onChange={(e) => setHackerrankUrl(e.target.value)}
+                  className={inputClass}
+                />
+              </ViewOrEdit>
+            </Field>
+            <Field label="CodeChef">
+              <ViewOrEdit editing={editing} display={codechefUrl}>
+                <input
+                  type="url"
+                  placeholder="https://codechef.com/users/..."
+                  value={codechefUrl}
+                  onChange={(e) => setCodechefUrl(e.target.value)}
+                  className={inputClass}
+                />
+              </ViewOrEdit>
+            </Field>
+            <Field label="GeeksforGeeks">
+              <ViewOrEdit editing={editing} display={gfgUrl}>
+                <input
+                  type="url"
+                  placeholder="https://geeksforgeeks.org/user/..."
+                  value={gfgUrl}
+                  onChange={(e) => setGfgUrl(e.target.value)}
+                  className={inputClass}
+                />
+              </ViewOrEdit>
+            </Field>
+            <Field label="Vedic.dev">
+              <ViewOrEdit editing={editing} display={vedicDevUrl}>
+                <input
+                  type="url"
+                  placeholder="https://vedic.dev/..."
+                  value={vedicDevUrl}
+                  onChange={(e) => setVedicDevUrl(e.target.value)}
+                  className={inputClass}
+                />
+              </ViewOrEdit>
+            </Field>
+            <Field label="Primary programming language">
+              <ViewOrEdit editing={editing} display={primaryLanguage}>
+                <input
+                  type="text"
+                  placeholder="e.g. Java"
+                  value={primaryLanguage}
+                  onChange={(e) => setPrimaryLanguage(e.target.value)}
+                  className={inputClass}
+                />
+              </ViewOrEdit>
+            </Field>
+          </Section>
+
           <Section title="Skills">
             <div className="sm:col-span-2">
               <Field label="Skills (comma separated)">
@@ -727,6 +828,86 @@ export default function PersonalDetails() {
                 >
                   <Plus className="h-4 w-4" />
                   Add certification
+                </button>
+              )}
+            </div>
+          </Section>
+
+          <Section title="Projects">
+            <div className="space-y-3 sm:col-span-2">
+              {!editing && projects.length === 0 && <p className="text-sm text-slate-400">—</p>}
+              {editing
+                ? projects.map((proj, i) => (
+                    <div key={i} className="space-y-2 rounded-lg border border-slate-200 p-3">
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="text"
+                          placeholder="Project title"
+                          value={proj.title}
+                          onChange={(e) =>
+                            setProjects((prev) => prev.map((p, idx) => (idx === i ? { ...p, title: e.target.value } : p)))
+                          }
+                          className={`${inputClass} flex-1`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setProjects((prev) => prev.filter((_, idx) => idx !== i))}
+                          className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-red-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <textarea
+                        rows={2}
+                        placeholder="Description and key features"
+                        value={proj.description}
+                        onChange={(e) =>
+                          setProjects((prev) => prev.map((p, idx) => (idx === i ? { ...p, description: e.target.value } : p)))
+                        }
+                        className={inputClass}
+                      />
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <input
+                          type="text"
+                          placeholder="Technologies used"
+                          value={proj.techUsed}
+                          onChange={(e) =>
+                            setProjects((prev) => prev.map((p, idx) => (idx === i ? { ...p, techUsed: e.target.value } : p)))
+                          }
+                          className={inputClass}
+                        />
+                        <input
+                          type="url"
+                          placeholder="GitHub / demo link (optional)"
+                          value={proj.url}
+                          onChange={(e) =>
+                            setProjects((prev) => prev.map((p, idx) => (idx === i ? { ...p, url: e.target.value } : p)))
+                          }
+                          className={inputClass}
+                        />
+                      </div>
+                    </div>
+                  ))
+                : projects.map((proj, i) => (
+                    <div key={i} className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                      <p className="font-medium">{proj.title}</p>
+                      {proj.description && <p className="mt-0.5 text-slate-600">{proj.description}</p>}
+                      {proj.techUsed && <p className="mt-0.5 text-xs text-slate-500">{proj.techUsed}</p>}
+                      {proj.url && (
+                        <a href={proj.url} target="_blank" rel="noreferrer" className="mt-0.5 inline-block text-brand-700 hover:underline">
+                          link
+                        </a>
+                      )}
+                    </div>
+                  ))}
+              {editing && (
+                <button
+                  type="button"
+                  onClick={() => setProjects((prev) => [...prev, { title: "", description: "", techUsed: "", url: "" }])}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-800"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add project
                 </button>
               )}
             </div>

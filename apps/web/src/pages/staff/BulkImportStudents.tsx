@@ -94,7 +94,7 @@ export default function BulkImportStudents() {
     <div>
       <PageHeader
         title="Bulk Import Students"
-        subtitle="Paste roster data — roll number, name, dept, CGPA, email, and batch are required; gender, semester, backlogs, phone, DOB, 10th/12th (+ school), personal email, parent name/phone, address, and resume link are optional and can be filled in by the student later."
+        subtitle="Paste roster data — roll number, name, dept, CGPA, email, and batch are required; gender, semester, backlogs, phone, DOB, 10th/12th (+ school), personal email, parent name/phone, address, resume/LinkedIn/GitHub/portfolio/coding-profile links, and primary language are optional and can be filled in by the student later."
         icon={Upload}
         gradient="from-violet-500 to-purple-600"
       />

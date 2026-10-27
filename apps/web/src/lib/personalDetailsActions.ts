@@ -40,11 +40,18 @@ export interface PersonalDetailsInput {
   linkedinUrl: string;
   githubUrl: string;
   portfolioUrl: string;
+  leetcodeUrl: string;
+  hackerrankUrl: string;
+  codechefUrl: string;
+  gfgUrl: string;
+  vedicDevUrl: string;
+  primaryLanguage: string;
   resumeUrl: string;
   photoUrl: string;
 
   skills: string[];
   certifications: { name: string; url?: string }[];
+  projects: { title: string; description?: string; techUsed?: string; url?: string }[];
 }
 
 /** Every field this writes has its own scoped self-write bypass in

@@ -174,6 +174,17 @@ export interface Student {
   githubUrl?: string;
   portfolioUrl?: string;
 
+  // Competitive-programming / coding-practice profiles — same tier as the
+  // professional links above, split out since placement drives increasingly
+  // ask for these by name. primaryLanguage is the one they'd lead an
+  // interview with, distinct from the broader free-text `skills` list below.
+  leetcodeUrl?: string;
+  hackerrankUrl?: string;
+  codechefUrl?: string;
+  gfgUrl?: string; // GeeksforGeeks
+  vedicDevUrl?: string;
+  primaryLanguage?: string;
+
   // Directly-viewable image link (not a Drive share page like resumeUrl below)
   // — a Drive share link opens Drive's viewer, not the raw image, so it can't
   // be dropped into an <img src>. Students are pointed at a host that gives a
@@ -188,6 +199,11 @@ export interface Student {
   // `student.skills ?? []`, never `student.skills.anything` directly.
   skills: string[];
   certifications?: { name: string; url?: string; issuedAt?: Timestamp }[];
+  // Self-reported, up to a couple of highlight projects — not tied to any
+  // drive or assignment, just what a student wants on record for companies
+  // to see. Student-managed only (no bulk import/update path — too
+  // structured for a flat CSV row, same reasoning as certifications above).
+  projects?: { title: string; description?: string; techUsed?: string; url?: string }[];
 
   // Completed external/corporate trainings (Infosys Springboard, SAP, etc.)
   // — training name -> the raw label from the coordinator's tracking sheet

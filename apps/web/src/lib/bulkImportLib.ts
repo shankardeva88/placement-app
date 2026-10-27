@@ -59,6 +59,16 @@ const HEADER_MAP: Record<string, string> = {
   [normalizeHeader("Entrance Rank")]: "entranceRank",
   [normalizeHeader("Resume Link (It should be accessible by everyone)")]: "resumeUrl",
   [normalizeHeader("Resume Link")]: "resumeUrl",
+  [normalizeHeader("Latest Resume")]: "resumeUrl",
+  [normalizeHeader("LinkedIn Profile Link")]: "linkedinUrl",
+  [normalizeHeader("GitHub Profile Link")]: "githubUrl",
+  [normalizeHeader("Portfolio Website Link")]: "portfolioUrl",
+  [normalizeHeader("LeetCode Profile Link")]: "leetcodeUrl",
+  [normalizeHeader("HackerRank Profile Link")]: "hackerrankUrl",
+  [normalizeHeader("CodeChef Profile Link")]: "codechefUrl",
+  [normalizeHeader("GeeksforGeeks Profile")]: "gfgUrl",
+  [normalizeHeader("Vedic.dev Profile Link")]: "vedicDevUrl",
+  [normalizeHeader("Primary Programming Language")]: "primaryLanguage",
   // Password is always the roll number (see createBulkStudent) — mapped here
   // only so a "Password" column in the sheet doesn't show up as unmapped;
   // parseStudentRows below warns if it's present but doesn't match the roll number.
@@ -169,6 +179,15 @@ export interface ParsedStudentRow {
   parentPhone: string;
   address: string;
   resumeUrl: string;
+  linkedinUrl: string;
+  githubUrl: string;
+  portfolioUrl: string;
+  leetcodeUrl: string;
+  hackerrankUrl: string;
+  codechefUrl: string;
+  gfgUrl: string;
+  vedicDevUrl: string;
+  primaryLanguage: string;
   warnings: string[];
   errors: string[]; // non-empty means this row can't be imported as-is
 }
@@ -280,6 +299,15 @@ export function parseStudentRows(headers: string[], rawRows: string[][]): ParseR
       parentPhone: get(row, "parentPhone"),
       address: get(row, "address"),
       resumeUrl,
+      linkedinUrl: get(row, "linkedinUrl"),
+      githubUrl: get(row, "githubUrl"),
+      portfolioUrl: get(row, "portfolioUrl"),
+      leetcodeUrl: get(row, "leetcodeUrl"),
+      hackerrankUrl: get(row, "hackerrankUrl"),
+      codechefUrl: get(row, "codechefUrl"),
+      gfgUrl: get(row, "gfgUrl"),
+      vedicDevUrl: get(row, "vedicDevUrl"),
+      primaryLanguage: get(row, "primaryLanguage"),
       warnings,
       errors,
     };
@@ -380,6 +408,15 @@ async function writeStudentRecords(uid: string, row: ParsedStudentRow) {
     if (row.entranceType) studentRecord.entranceType = row.entranceType;
     if (row.entranceRank) studentRecord.entranceRank = row.entranceRank;
     if (row.resumeUrl) studentRecord.resumeUrl = row.resumeUrl;
+    if (row.linkedinUrl) studentRecord.linkedinUrl = row.linkedinUrl;
+    if (row.githubUrl) studentRecord.githubUrl = row.githubUrl;
+    if (row.portfolioUrl) studentRecord.portfolioUrl = row.portfolioUrl;
+    if (row.leetcodeUrl) studentRecord.leetcodeUrl = row.leetcodeUrl;
+    if (row.hackerrankUrl) studentRecord.hackerrankUrl = row.hackerrankUrl;
+    if (row.codechefUrl) studentRecord.codechefUrl = row.codechefUrl;
+    if (row.gfgUrl) studentRecord.gfgUrl = row.gfgUrl;
+    if (row.vedicDevUrl) studentRecord.vedicDevUrl = row.vedicDevUrl;
+    if (row.primaryLanguage) studentRecord.primaryLanguage = row.primaryLanguage;
 
     await update(ref(db), {
       [`${DB_NODES.users}/${uid}`]: {
