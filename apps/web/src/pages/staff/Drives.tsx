@@ -327,15 +327,22 @@ export default function StaffDrives() {
 
   // Same department-scoped applications, broken down into the applied →
   // shortlisted → not attended → in round → rejected → selected funnel per
-  // drive, for the at-a-glance stats line on each card.
+  // drive, for the at-a-glance stats line on each card. "shortlisted" is the
+  // cumulative, ever-shortlisted count (status is anything past "applied"),
+  // not just whoever's current status literally equals "shortlisted" right
+  // now — once a shortlisted applicant gets pushed into round 1, their
+  // status flips to "in_round" and they'd otherwise vanish from the count,
+  // which is exactly what looked like a bug: shortlisted dropping as more
+  // people advanced. in_round/rejected/selected below are the breakdown of
+  // where that same shortlisted pool currently stands, not a separate group.
   const statsByDrive = useMemo(() => {
     if (!applications) return null;
     const stats: Record<string, DriveStats> = {};
     for (const a of applications) {
       const s = stats[a.driveId] ?? (stats[a.driveId] = { applied: 0, shortlisted: 0, notAttended: 0, inRound: 0, rejected: 0, selected: 0 });
       s.applied++;
-      if (a.status === "shortlisted") s.shortlisted++;
-      else if (a.status === "in_round") s.inRound++;
+      if (a.status !== "applied" && a.status !== "withdrawn") s.shortlisted++;
+      if (a.status === "in_round") s.inRound++;
       else if (a.status === "rejected") s.rejected++;
       else if (a.status === "selected") s.selected++;
       if (a.attendance === "absent") s.notAttended++;
