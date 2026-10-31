@@ -57,11 +57,6 @@ const CHIP_CLASSES: Record<BadgeVariant, string> = {
   warning: "bg-amber-100 text-amber-800 hover:bg-amber-200",
   danger: "bg-red-100 text-red-700 hover:bg-red-200",
 };
-// Status chips skip "in_round" — it's broken out into one chip per actual
-// round name instead (see roundCounts), which is the whole point: "in round"
-// alone doesn't say which one, and that's the exact gap this summary closes.
-const STATUS_CHIP_OPTIONS = STATUS_OPTIONS.filter((s) => s !== "in_round");
-
 // Every round chip used to be the same amber — with 3-4 rounds you
 // couldn't tell at a glance which chip (or which filtered list) was which.
 // One distinct hue per round position instead, cycled if a drive somehow
@@ -196,10 +191,21 @@ export default function DriveApplicants() {
     });
   }, [rows, search, deptFilter]);
 
+  // "shortlisted" means the whole shortlisted pool (anyone past "applied"),
+  // not just whoever's current status literally equals "shortlisted" right
+  // now — otherwise pushing someone into round 1 (status flips to
+  // "in_round") would make them vanish from a "shortlisted" filter too,
+  // same bug as the funnel counts below.
   const filteredRows = useMemo(() => {
     if (!searchFilteredRows) return searchFilteredRows;
     return searchFilteredRows.filter((r) => {
-      if (statusFilter && r.application.status !== statusFilter) return false;
+      if (statusFilter) {
+        if (statusFilter === "shortlisted") {
+          if (r.application.status === "applied" || r.application.status === "withdrawn") return false;
+        } else if (r.application.status !== statusFilter) {
+          return false;
+        }
+      }
       if (roundFilter && r.application.currentRoundId !== roundFilter) return false;
       if (attendanceFilter === "unmarked" ? !!r.application.attendance : attendanceFilter && r.application.attendance !== attendanceFilter) {
         return false;
@@ -208,13 +214,23 @@ export default function DriveApplicants() {
     });
   }, [searchFilteredRows, statusFilter, roundFilter, attendanceFilter]);
 
-  // Counts behind the summary chips — round counts match whatever's
-  // currently sitting at that round regardless of status (same semantics as
-  // the Round filter dropdown itself: rejected-but-still-tagged applicants
-  // included), not just "in_round" ones.
-  const statusCounts = useMemo(() => {
-    const counts: Partial<Record<ApplicationStatus, number>> = {};
-    for (const r of searchFilteredRows ?? []) counts[r.application.status] = (counts[r.application.status] ?? 0) + 1;
+  // Counts behind the summary chips. "shortlisted" is cumulative (see
+  // filteredRows above) — in_round/rejected/selected are the breakdown of
+  // where that same shortlisted pool currently stands, not a separate
+  // group. "applied" here is the total applicant count, the funnel's
+  // headline denominator — not just whoever's literally still sitting
+  // unprocessed (that's still available via the Status filter dropdown).
+  const funnelCounts = useMemo(() => {
+    const counts = { applied: 0, shortlisted: 0, inRound: 0, rejected: 0, selected: 0, withdrawn: 0 };
+    for (const r of searchFilteredRows ?? []) {
+      counts.applied++;
+      const st = r.application.status;
+      if (st !== "applied" && st !== "withdrawn") counts.shortlisted++;
+      if (st === "in_round") counts.inRound++;
+      else if (st === "rejected") counts.rejected++;
+      else if (st === "selected") counts.selected++;
+      else if (st === "withdrawn") counts.withdrawn++;
+    }
     return counts;
   }, [searchFilteredRows]);
 
@@ -617,23 +633,75 @@ export default function DriveApplicants() {
       {rows !== null && rows.length > 0 && (
         <div className="mb-3 flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
           <div className="flex flex-wrap items-center gap-2">
-          {STATUS_CHIP_OPTIONS.map((s) => {
-            const count = statusCounts[s] ?? 0;
-            if (count === 0) return null;
-            const active = statusFilter === s;
-            return (
-              <button
-                key={s}
-                type="button"
-                onClick={() => toggleStatusChip(s)}
-                className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${CHIP_CLASSES[STATUS_BADGE[s]]} ${
-                  active ? "ring-2 ring-offset-1 ring-brand-500" : ""
-                }`}
-              >
-                {s.replace("_", " ")} ({count})
-              </button>
-            );
-          })}
+          <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${CHIP_CLASSES.brand}`}>
+            Applied ({funnelCounts.applied})
+          </span>
+          {funnelCounts.shortlisted > 0 && (
+            <button
+              type="button"
+              onClick={() => toggleStatusChip("shortlisted")}
+              className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${CHIP_CLASSES.brand} ${
+                statusFilter === "shortlisted" ? "ring-2 ring-offset-1 ring-brand-500" : ""
+              }`}
+            >
+              Shortlisted ({funnelCounts.shortlisted})
+            </button>
+          )}
+          {attendanceCounts.absent > 0 && (
+            <button
+              type="button"
+              onClick={() => toggleAttendanceChip("absent")}
+              className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${CHIP_CLASSES.danger} ${
+                attendanceFilter === "absent" ? "ring-2 ring-offset-1 ring-brand-500" : ""
+              }`}
+            >
+              Not Attended ({attendanceCounts.absent})
+            </button>
+          )}
+          {funnelCounts.inRound > 0 && (
+            <button
+              type="button"
+              onClick={() => toggleStatusChip("in_round")}
+              className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${CHIP_CLASSES.warning} ${
+                statusFilter === "in_round" ? "ring-2 ring-offset-1 ring-brand-500" : ""
+              }`}
+            >
+              In Round ({funnelCounts.inRound})
+            </button>
+          )}
+          {funnelCounts.rejected > 0 && (
+            <button
+              type="button"
+              onClick={() => toggleStatusChip("rejected")}
+              className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${CHIP_CLASSES.danger} ${
+                statusFilter === "rejected" ? "ring-2 ring-offset-1 ring-brand-500" : ""
+              }`}
+            >
+              Rejected ({funnelCounts.rejected})
+            </button>
+          )}
+          {funnelCounts.selected > 0 && (
+            <button
+              type="button"
+              onClick={() => toggleStatusChip("selected")}
+              className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${CHIP_CLASSES.success} ${
+                statusFilter === "selected" ? "ring-2 ring-offset-1 ring-brand-500" : ""
+              }`}
+            >
+              Selected ({funnelCounts.selected})
+            </button>
+          )}
+          {funnelCounts.withdrawn > 0 && (
+            <button
+              type="button"
+              onClick={() => toggleStatusChip("withdrawn")}
+              className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${CHIP_CLASSES.neutral} ${
+                statusFilter === "withdrawn" ? "ring-2 ring-offset-1 ring-brand-500" : ""
+              }`}
+            >
+              Withdrawn ({funnelCounts.withdrawn})
+            </button>
+          )}
           {drive?.rounds?.map((r, i) => {
             const count = roundCounts[r.roundId] ?? 0;
             if (count === 0) return null;
@@ -663,29 +731,19 @@ export default function DriveApplicants() {
 
           {/* Attendance is a different question from where someone is in the
               pipeline — kept in its own group on the right so it doesn't
-              read as just another status. */}
-          {(attendanceCounts.present > 0 || attendanceCounts.absent > 0 || attendanceCounts.unmarked > 0) && (
+              read as just another status. "Not attended" itself moved into
+              the main funnel row above, between Shortlisted and In Round. */}
+          {(attendanceCounts.present > 0 || attendanceCounts.unmarked > 0) && (
             <div className="flex flex-wrap items-center gap-2">
               {attendanceCounts.present > 0 && (
                 <button
                   type="button"
                   onClick={() => toggleAttendanceChip("present")}
-                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${CHIP_CLASSES.success} ${
+                  className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${CHIP_CLASSES.success} ${
                     attendanceFilter === "present" ? "ring-2 ring-offset-1 ring-brand-500" : ""
                   }`}
                 >
                   Present ({attendanceCounts.present})
-                </button>
-              )}
-              {attendanceCounts.absent > 0 && (
-                <button
-                  type="button"
-                  onClick={() => toggleAttendanceChip("absent")}
-                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${CHIP_CLASSES.danger} ${
-                    attendanceFilter === "absent" ? "ring-2 ring-offset-1 ring-brand-500" : ""
-                  }`}
-                >
-                  Absent ({attendanceCounts.absent})
                 </button>
               )}
               {attendanceCounts.unmarked > 0 && (

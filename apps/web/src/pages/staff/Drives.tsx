@@ -30,6 +30,17 @@ const DRIVE_BADGE: Record<DriveStatus, BadgeVariant> = {
 const STATUS_OPTIONS: DriveStatus[] = ["upcoming", "ongoing", "completed", "cancelled"];
 const DRIVE_TYPE_OPTIONS: DriveType[] = ["full_time", "internship", "internship_plus_full_time"];
 
+// Same palette/look as the funnel chips on the Applicants page (see
+// DriveApplicants.tsx) — colored pills with capitalized labels, so the
+// at-a-glance stats read consistently between the two pages.
+const CHIP_CLASSES: Record<BadgeVariant, string> = {
+  neutral: "bg-slate-100 text-slate-600",
+  brand: "bg-brand-100 text-brand-700",
+  success: "bg-emerald-100 text-emerald-700",
+  warning: "bg-amber-100 text-amber-800",
+  danger: "bg-red-100 text-red-700",
+};
+
 // Round names are free text per drive (see the DriveRound.name doc comment
 // — "Aptitude", "GD", "Technical Interview", "HR", or whatever a coordinator
 // types), not a fixed enum, so "current round" means whichever one is
@@ -133,16 +144,26 @@ function DriveCard({ drive, applicantCount, stats }: { drive: Drive; applicantCo
               this a coordinator had to open each drive's Applicants page one
               at a time to see how many applied/shortlisted/rejected/selected.
               Zero-count buckets are hidden, same convention as the chips on
-              the Applicants page itself. */}
+              the Applicants page, and same colored-pill look. */}
           {stats && stats.applied > 0 && (
-            <p className="mt-1 text-xs text-slate-500">
-              {stats.applied} applied
-              {stats.shortlisted > 0 && ` · ${stats.shortlisted} shortlisted`}
-              {stats.notAttended > 0 && ` · ${stats.notAttended} not attended`}
-              {stats.inRound > 0 && ` · ${stats.inRound} in round`}
-              {stats.rejected > 0 && ` · ${stats.rejected} rejected`}
-              {stats.selected > 0 && ` · ${stats.selected} selected`}
-            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CHIP_CLASSES.brand}`}>Applied ({stats.applied})</span>
+              {stats.shortlisted > 0 && (
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CHIP_CLASSES.brand}`}>Shortlisted ({stats.shortlisted})</span>
+              )}
+              {stats.notAttended > 0 && (
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CHIP_CLASSES.danger}`}>Not Attended ({stats.notAttended})</span>
+              )}
+              {stats.inRound > 0 && (
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CHIP_CLASSES.warning}`}>In Round ({stats.inRound})</span>
+              )}
+              {stats.rejected > 0 && (
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CHIP_CLASSES.danger}`}>Rejected ({stats.rejected})</span>
+              )}
+              {stats.selected > 0 && (
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CHIP_CLASSES.success}`}>Selected ({stats.selected})</span>
+              )}
+            </div>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
