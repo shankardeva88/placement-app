@@ -50,7 +50,16 @@ function toEligibility(values: DriveFormValues) {
   };
 }
 
-function DriveCard({ drive, applicantCount }: { drive: Drive; applicantCount: number | null }) {
+interface DriveStats {
+  applied: number;
+  shortlisted: number;
+  notAttended: number;
+  inRound: number;
+  rejected: number;
+  selected: number;
+}
+
+function DriveCard({ drive, applicantCount, stats }: { drive: Drive; applicantCount: number | null; stats: DriveStats | null }) {
   const { showToast } = useToast();
   const [editing, setEditing] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
@@ -120,6 +129,21 @@ function DriveCard({ drive, applicantCount }: { drive: Drive; applicantCount: nu
         <div>
           <h3 className="text-base font-semibold text-slate-900">{drive.companyName}</h3>
           <p className="text-sm text-slate-500">{driveRoleSummary(drive)}</p>
+          {/* At-a-glance applicant funnel, right on the list card — without
+              this a coordinator had to open each drive's Applicants page one
+              at a time to see how many applied/shortlisted/rejected/selected.
+              Zero-count buckets are hidden, same convention as the chips on
+              the Applicants page itself. */}
+          {stats && stats.applied > 0 && (
+            <p className="mt-1 text-xs text-slate-500">
+              {stats.applied} applied
+              {stats.shortlisted > 0 && ` · ${stats.shortlisted} shortlisted`}
+              {stats.notAttended > 0 && ` · ${stats.notAttended} not attended`}
+              {stats.inRound > 0 && ` · ${stats.inRound} in round`}
+              {stats.rejected > 0 && ` · ${stats.rejected} rejected`}
+              {stats.selected > 0 && ` · ${stats.selected} selected`}
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Badge variant="brand">{driveCtcSummary(drive)}</Badge>
@@ -301,6 +325,24 @@ export default function StaffDrives() {
     return counts;
   }, [applications]);
 
+  // Same department-scoped applications, broken down into the applied →
+  // shortlisted → not attended → in round → rejected → selected funnel per
+  // drive, for the at-a-glance stats line on each card.
+  const statsByDrive = useMemo(() => {
+    if (!applications) return null;
+    const stats: Record<string, DriveStats> = {};
+    for (const a of applications) {
+      const s = stats[a.driveId] ?? (stats[a.driveId] = { applied: 0, shortlisted: 0, notAttended: 0, inRound: 0, rejected: 0, selected: 0 });
+      s.applied++;
+      if (a.status === "shortlisted") s.shortlisted++;
+      else if (a.status === "in_round") s.inRound++;
+      else if (a.status === "rejected") s.rejected++;
+      else if (a.status === "selected") s.selected++;
+      if (a.attendance === "absent") s.notAttended++;
+    }
+    return stats;
+  }, [applications]);
+
   useEffect(() => {
     return onValue(ref(db, DB_NODES.drives), (snap) => {
       const val = snap.val() as Record<string, Drive> | null;
@@ -450,6 +492,7 @@ export default function StaffDrives() {
             key={drive.driveId}
             drive={drive}
             applicantCount={applicantCountByDrive ? (applicantCountByDrive[drive.driveId] ?? 0) : null}
+            stats={statsByDrive ? (statsByDrive[drive.driveId] ?? { applied: 0, shortlisted: 0, notAttended: 0, inRound: 0, rejected: 0, selected: 0 }) : null}
           />
         ))}
       </div>
