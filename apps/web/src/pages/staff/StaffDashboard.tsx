@@ -25,7 +25,7 @@ import type { LucideIcon } from "lucide-react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { AppUser, Department, Drive, DriveStatus, DriveType, PlacementStatus, Student } from "@placement-app/types";
+import type { AlumniRecord, AppUser, Department, Drive, DriveStatus, DriveType, PlacementStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useAllApplications } from "../../lib/applicantsLib";
@@ -432,6 +432,82 @@ function CoordinatorDashboard() {
     });
   }, [alumni]);
 
+  // Same dedup-by-rollNo + "total offers" definition as the Alumni page's
+  // own stats (see Alumni.tsx) — kept identical on purpose so this number
+  // and that page's never disagree. "placed" here is unique people;
+  // totalOffers deliberately counts one row per offer (not deduped), so
+  // someone with offers at two companies counts twice there, same as on
+  // the Alumni page.
+  const alumniStats = useMemo(() => {
+    if (!alumni) return null;
+    const byRollNo = new Map<string, AlumniRecord>();
+    for (const a of alumni) {
+      const existing = byRollNo.get(a.rollNo);
+      if (!existing || a.updatedAt > existing.updatedAt) byRollNo.set(a.rollNo, a);
+    }
+    const deduped = Array.from(byRollNo.values());
+    return {
+      total: deduped.length,
+      placed: deduped.filter((a) => a.placementStatus === "placed").length,
+      unplaced: deduped.filter((a) => a.placementStatus === "unplaced").length,
+      entrepreneur: deduped.filter((a) => a.placementStatus === "entrepreneur").length,
+      higherStudies: deduped.filter((a) => a.placementStatus === "higher_studies").length,
+    };
+  }, [alumni]);
+
+  const alumniTotalOffers = useMemo(() => {
+    if (!alumni) return null;
+    return alumni.filter((a) => a.placementStatus === "placed" && a.companyName?.trim()).length;
+  }, [alumni]);
+
+  // % placed-or-multiple-offers per passed-out batch, derived from the
+  // segment counts already computed above for the outcomes chart — the
+  // alumni-side equivalent of "Placement rate by department" below, so a
+  // batch's outcome mix (the stacked chart) and its headline rate (this
+  // one) are read together instead of the rate living nowhere.
+  const alumniPlacementRateByYear = useMemo(() => {
+    if (!alumniByYear) return null;
+    return alumniByYear.map((col) => {
+      const total = col.segments.reduce((sum, s) => sum + s.value, 0);
+      const placed =
+        (col.segments.find((s) => s.key === "placed")?.value ?? 0) + (col.segments.find((s) => s.key === "multiple_offers")?.value ?? 0);
+      return { key: col.key, label: col.label, value: total > 0 ? Math.round((placed / total) * 100) : 0 };
+    });
+  }, [alumniByYear]);
+
+  // The headline number that answers "how many offers has this institution
+  // ever gotten its students" without silently shrinking every time a batch
+  // graduates — allOffers is current students across every batch (not the
+  // batch-filtered `offers` above), plus every placed alumni offer. Not
+  // scoped to the batch filter — "all-time" means all-time regardless of
+  // which batch is selected above.
+  const allTimeOffersCount = useMemo(() => {
+    if (allOffers == null || alumniTotalOffers == null) return null;
+    return allOffers.length + alumniTotalOffers;
+  }, [allOffers, alumniTotalOffers]);
+
+  // Same merge for the recruiter breakdown — a company that hired heavily
+  // from an already-graduated batch shouldn't look like it never recruited
+  // here just because its offers live in the Alumni archive now.
+  const offersByCompanyAllTime = useMemo(() => {
+    if (!allOffers || !drives || !alumni) return null;
+    const driveById = new Map(drives.map((d) => [d.driveId, d]));
+    const counts = new Map<string, number>();
+    for (const o of allOffers) {
+      const company = driveById.get(o.driveId)?.companyName ?? "Unknown";
+      counts.set(company, (counts.get(company) ?? 0) + 1);
+    }
+    for (const a of alumni) {
+      const company = a.placementStatus === "placed" ? a.companyName?.trim() : undefined;
+      if (!company) continue;
+      counts.set(company, (counts.get(company) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([company, count]) => ({ key: company, label: company, value: count }));
+  }, [allOffers, drives, alumni]);
+
   return (
     <div>
       <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600 px-5 py-4 text-white shadow-md shadow-brand-200">
@@ -463,9 +539,13 @@ function CoordinatorDashboard() {
         </div>
       </div>
 
+      {/* "Current students" labeled explicitly, not just "All batches" —
+          every number/chart under this heading excludes alumni, and that
+          distinction is the whole point once a batch graduates and its
+          offers move to the Alumni archive section further down. */}
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          {batchFilter ? `Batch ${batchFilter}` : "All batches"}
+          Current students — {batchFilter ? `Batch ${batchFilter}` : "All batches"}
         </h2>
         {batchYears.length > 0 && (
           <select
@@ -487,7 +567,7 @@ function CoordinatorDashboard() {
         <StatTile label="Students" value={students != null ? String(students.length) : "…"} icon={Users} gradient="from-emerald-500 to-teal-600" />
         <StatTile label="Active drives" value={activeDrives != null ? String(activeDrives) : "…"} icon={Briefcase} gradient="from-blue-500 to-indigo-600" />
         <StatTile label="Applicants" value={applications != null ? String(applications.length) : "…"} icon={FileText} gradient="from-sky-500 to-cyan-600" />
-        <StatTile label="Offers" value={offers != null ? String(offers.length) : "…"} icon={Award} gradient="from-pink-500 to-rose-600" />
+        <StatTile label="Offers (current)" value={offers != null ? String(offers.length) : "…"} icon={Award} gradient="from-pink-500 to-rose-600" />
         <StatTile label="Placement rate" value={placementRate != null ? `${placementRate}%` : "…"} icon={TrendingUp} gradient="from-amber-500 to-orange-600" />
       </div>
 
@@ -560,7 +640,7 @@ function CoordinatorDashboard() {
         </>
       )}
 
-      <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Overview</h2>
+      <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Current students overview</h2>
       {/* xl, not lg — these charts size themselves off the data (see the
           ChartCard comment) and a two-up grid at lg's ~1024px was too
           narrow for most of them not to need the scroll-within-card
@@ -592,6 +672,34 @@ function CoordinatorDashboard() {
           {applicationsTrend ? <TrendLineChart data={applicationsTrend} /> : <p className="py-8 text-center text-sm text-slate-400">Loading…</p>}
         </ChartCard>
 
+        <ChartCard title="Top companies by offers (current)" subtitle="Current students/batch scope only — not alumni. Top 10 recruiters by offer count.">
+          {offersByCompany ? (
+            offersByCompany.length > 0 ? (
+              <SimpleBarChart data={offersByCompany} hue={SEQUENTIAL_BLUE} />
+            ) : (
+              <p className="py-8 text-center text-sm text-slate-400">No offers recorded yet.</p>
+            )
+          ) : (
+            <p className="py-8 text-center text-sm text-slate-400">Loading…</p>
+          )}
+        </ChartCard>
+      </div>
+
+      {/* Its own section, clearly separated from the current-student numbers
+          above — this is a different dataset (the Alumni archive, not the
+          Offer records) and was previously sandwiched between two
+          current-student charts with nothing distinguishing it, which is
+          exactly what made "alumni vs current batch" confusing. Not scoped
+          to the batch filter above — alumni batches aren't in that list. */}
+      <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Alumni archive — passed-out batches</h2>
+      <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <StatTile label="Alumni" value={alumniStats != null ? String(alumniStats.total) : "…"} icon={Users2} gradient="from-slate-500 to-slate-700" />
+        <StatTile label="Unique placed" value={alumniStats != null ? String(alumniStats.placed) : "…"} icon={Award} gradient="from-pink-500 to-rose-600" />
+        <StatTile label="Total offers" value={alumniTotalOffers != null ? String(alumniTotalOffers) : "…"} icon={FileText} gradient="from-sky-500 to-cyan-600" />
+        <StatTile label="Entrepreneur" value={alumniStats != null ? String(alumniStats.entrepreneur) : "…"} icon={Briefcase} gradient="from-blue-500 to-indigo-600" />
+        <StatTile label="Higher studies" value={alumniStats != null ? String(alumniStats.higherStudies) : "…"} icon={GraduationCap} gradient="from-amber-500 to-orange-600" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <ChartCard title="Alumni outcomes by batch" subtitle="From the Alumni archive — passed-out batches.">
           {alumniByYear ? (
             alumniByYear.length > 0 ? (
@@ -610,10 +718,30 @@ function CoordinatorDashboard() {
           )}
         </ChartCard>
 
-        <ChartCard title="Top companies by offers" subtitle="Current batch scope — top 10 recruiters by offer count.">
-          {offersByCompany ? (
-            offersByCompany.length > 0 ? (
-              <SimpleBarChart data={offersByCompany} hue={SEQUENTIAL_BLUE} />
+        <ChartCard title="Alumni placement rate by batch" subtitle="% unique placed or multiple offers, per passed-out batch year.">
+          {alumniPlacementRateByYear ? (
+            alumniPlacementRateByYear.length > 0 ? (
+              <SimpleBarChart data={alumniPlacementRateByYear} hue={SEQUENTIAL_BLUE} valueSuffix="%" />
+            ) : (
+              <p className="py-8 text-center text-sm text-slate-400">No alumni records yet.</p>
+            )
+          ) : (
+            <p className="py-8 text-center text-sm text-slate-400">Loading…</p>
+          )}
+        </ChartCard>
+      </div>
+
+      {/* The number that doesn't drop every time a batch graduates — current
+          students' offers plus every placed alumni offer, combined. */}
+      <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">All-time — current + alumni combined</h2>
+      <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <StatTile label="Total offers (all-time)" value={allTimeOffersCount != null ? String(allTimeOffersCount) : "…"} icon={Award} gradient="from-pink-500 to-rose-600" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <ChartCard title="Top companies by offers (all-time)" subtitle="Current students + alumni combined — top 10 recruiters by offer count.">
+          {offersByCompanyAllTime ? (
+            offersByCompanyAllTime.length > 0 ? (
+              <SimpleBarChart data={offersByCompanyAllTime} hue={SEQUENTIAL_BLUE} />
             ) : (
               <p className="py-8 text-center text-sm text-slate-400">No offers recorded yet.</p>
             )
