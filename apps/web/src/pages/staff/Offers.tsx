@@ -308,9 +308,11 @@ function BulkRecordOfferForm({ onDone }: { onDone: () => void }) {
   const [designation, setDesignation] = useState("");
   const [offerLetterUrl, setOfferLetterUrl] = useState("");
   const [rollNoText, setRollNoText] = useState("");
-  const [matchResult, setMatchResult] = useState<{ matched: Student[]; notFound: string[] } | null>(null);
+  const [notFound, setNotFound] = useState<string[]>([]);
+  const [selectedUids, setSelectedUids] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [progressTotal, setProgressTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -341,36 +343,61 @@ function BulkRecordOfferForm({ onDone }: { onDone: () => void }) {
     const selectedIds = new Set(
       applications.filter((a) => a.driveId === driveId && a.status === "selected").map((a) => a.studentId)
     );
-    return students.filter((s) => selectedIds.has(s.uid) && (!batchFilter || s.batchYear === batchFilter));
+    return students
+      .filter((s) => selectedIds.has(s.uid) && (!batchFilter || s.batchYear === batchFilter))
+      .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
   }, [driveId, applications, students, batchFilter]);
 
+  const allSelected = selectedApplicants.length > 0 && selectedApplicants.every((s) => selectedUids.has(s.uid));
+
+  function toggleSelectAll() {
+    setSelectedUids(allSelected ? new Set() : new Set(selectedApplicants.map((s) => s.uid)));
+  }
+
+  function toggleOne(uid: string) {
+    setSelectedUids((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+  }
+
+  // Pasted roll numbers merge into whatever's already checked, rather than
+  // replacing it — same convention as the other roll-no imports in this app
+  // (e.g. the Drive Applicants picker), so pasting a second batch (or using
+  // this alongside the checkbox list) doesn't wipe out a prior selection.
   function handleFindStudents() {
     const rollNoToStudent = new Map(selectedApplicants.map((s) => [s.rollNo.trim().toLowerCase(), s]));
     const requested = rollNoText
       .split(/[\n,\t]+/)
       .map((s) => s.trim())
       .filter(Boolean);
-    const matched: Student[] = [];
-    const notFound: string[] = [];
-    for (const rollNo of requested) {
-      const s = rollNoToStudent.get(rollNo.toLowerCase());
-      if (s) matched.push(s);
-      else notFound.push(rollNo);
-    }
-    setMatchResult({ matched, notFound });
+    const missing: string[] = [];
+    setSelectedUids((prev) => {
+      const next = new Set(prev);
+      for (const rollNo of requested) {
+        const s = rollNoToStudent.get(rollNo.toLowerCase());
+        if (s) next.add(s.uid);
+        else missing.push(rollNo);
+      }
+      return next;
+    });
+    setNotFound(missing);
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!driveId || !matchResult || matchResult.matched.length === 0) {
-      setError("Pick a drive and find at least one matching student first.");
+    const batch = selectedApplicants.filter((s) => selectedUids.has(s.uid));
+    if (!driveId || batch.length === 0) {
+      setError("Pick a drive and select at least one student first.");
       return;
     }
     setError(null);
     setSubmitting(true);
     setProgress(0);
+    setProgressTotal(batch.length);
     try {
-      const batch = matchResult.matched;
       const CONCURRENCY = 20;
       let failed = 0;
       for (let i = 0; i < batch.length; i += CONCURRENCY) {
@@ -402,7 +429,8 @@ function BulkRecordOfferForm({ onDone }: { onDone: () => void }) {
               const y = e.target.value ? Number(e.target.value) : "";
               setBatchFilter(y);
               setDriveId("");
-              setMatchResult(null);
+              setSelectedUids(new Set());
+              setNotFound([]);
             }}
             className={inputClass}
           >
@@ -421,7 +449,8 @@ function BulkRecordOfferForm({ onDone }: { onDone: () => void }) {
             value={driveId}
             onChange={(e) => {
               setDriveId(e.target.value);
-              setMatchResult(null);
+              setSelectedUids(new Set());
+              setNotFound([]);
             }}
             className={inputClass}
           >
@@ -451,46 +480,73 @@ function BulkRecordOfferForm({ onDone }: { onDone: () => void }) {
       </div>
 
       <div>
-        <label className={labelClass}>Roll numbers — one per line, or comma/tab separated</label>
+        <label className={labelClass}>Students selected for this drive</label>
         {!driveId ? (
           <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-400">Pick a drive above first.</p>
+        ) : applications === null || students === null ? (
+          <p className="text-sm text-slate-400">Loading…</p>
+        ) : selectedApplicants.length === 0 ? (
+          <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-400">
+            No student is marked "selected" for this drive{batchFilter ? ` in batch ${batchFilter}` : ""} yet — update
+            their application status on the drive's Applicants page first.
+          </p>
         ) : (
           <>
+            {/* The whole list is usually what you want — all 60 got the same
+                role/package — so Select all is right next to the list, not
+                buried; the roll-no paste below stays for picking a subset or
+                double-checking against a company's own shortlist. */}
+            <div className="mb-2 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={toggleSelectAll}
+                className="text-xs font-medium text-brand-600 hover:text-brand-700"
+              >
+                {allSelected ? "Clear all" : `Select all ${selectedApplicants.length}`}
+              </button>
+              <span className="text-xs text-slate-500">{selectedUids.size} of {selectedApplicants.length} selected</span>
+            </div>
+            <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+              {selectedApplicants.map((s) => (
+                <label key={s.uid} className="flex items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-slate-50">
+                  <input type="checkbox" checked={selectedUids.has(s.uid)} onChange={() => toggleOne(s.uid)} />
+                  <span className="font-medium text-slate-800">{s.rollNo}</span>
+                  <span className="text-slate-500">{s.name}</span>
+                </label>
+              ))}
+            </div>
+
+            <label className={`${labelClass} mt-3`}>Or paste roll numbers to add to the selection — one per line, or comma/tab separated</label>
             <textarea
-              rows={5}
+              rows={3}
               value={rollNoText}
               onChange={(e) => setRollNoText(e.target.value)}
               placeholder={"24PA1A0501\n24PA1A0502\n24PA1A0503"}
               className="w-full rounded-lg border border-slate-300 p-2 font-mono text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
             <Button type="button" variant="secondary" onClick={handleFindStudents} className="mt-2 !px-3 !py-1.5 text-xs">
-              Find students
+              Add to selection
             </Button>
-            {matchResult && (
-              <div className="mt-2 space-y-1 text-xs">
-                <p className="text-slate-600">{matchResult.matched.length} matched.</p>
-                {matchResult.notFound.length > 0 && (
-                  <p className="flex items-start gap-1.5 text-amber-700">
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    Not found or not marked "selected" for this drive: {matchResult.notFound.join(", ")}
-                  </p>
-                )}
-              </div>
+            {notFound.length > 0 && (
+              <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                Not found or not marked "selected" for this drive: {notFound.join(", ")}
+              </p>
             )}
           </>
         )}
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
-      {progress > 0 && progress < (matchResult?.matched.length ?? 0) && (
+      {progress > 0 && progress < progressTotal && (
         <p className="text-xs text-slate-500">
-          {progress} of {matchResult?.matched.length} done…
+          {progress} of {progressTotal} done…
         </p>
       )}
 
       <div className="flex gap-2">
-        <Button type="submit" loading={submitting} disabled={!matchResult || matchResult.matched.length === 0}>
-          Record offer for {matchResult?.matched.length ?? 0} student(s)
+        <Button type="submit" loading={submitting} disabled={selectedUids.size === 0}>
+          Record offer for {selectedUids.size} student(s)
         </Button>
         <Button type="button" variant="secondary" onClick={onDone}>
           Cancel
