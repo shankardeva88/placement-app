@@ -148,12 +148,13 @@ function ChartCard({ title, subtitle, children }: { title: string; subtitle?: st
     <Card>
       <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
       {subtitle && <p className="mb-3 text-xs text-slate-500">{subtitle}</p>}
-      {/* These charts size their own SVG from the data (more departments,
-          more weeks, more alumni batches → a wider chart) with no upper
-          bound — inside a 2-up grid that overflowed the card instead of
-          scrolling, breaking the whole page's layout once there was enough
-          data. Scrolls within the card now instead. */}
-      <div className={`overflow-x-auto ${subtitle ? "" : "mt-3"}`}>{children}</div>
+      {/* No overflow wrapper here — SimpleBarChart/StackedColumnChart/
+          TrendLineChart each already scroll their own SVG horizontally when
+          it's wider than the card (see those components). Wrapping them in
+          a second overflow-x-auto div nested the two scroll containers,
+          which showed up as two separate horizontal scrollbars (one just
+          inside the card's edge, one at the card's own edge) instead of one. */}
+      <div className={subtitle ? "" : "mt-3"}>{children}</div>
     </Card>
   );
 }
