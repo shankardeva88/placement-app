@@ -98,9 +98,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     </div>
   );
 
+  // Single scroll container (the document) — see StaffShell.tsx for why the
+  // previous fixed h-screen + internally-scrolled <main> pattern showed up
+  // as two scrollbars. Sidebar/header stay pinned via `sticky` instead.
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-white to-brand-50">
-      <aside className="hidden w-64 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-white lg:flex">
+    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-white to-brand-50">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-white lg:flex">
         <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-indigo-600 text-sm font-semibold text-white shadow-sm shadow-brand-200">
             P
@@ -127,8 +130,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white/70 px-4 py-3 backdrop-blur-md lg:px-8">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-slate-200 bg-white/70 px-4 py-3 backdrop-blur-md lg:px-8">
           <button onClick={() => setDrawerOpen(true)} className="text-slate-500 lg:hidden" aria-label="Open menu">
             <Menu className="h-5 w-5" />
           </button>
@@ -139,7 +142,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">
+        <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">
           {/* max-w-6xl — was max-w-4xl, noticeably narrower than the
               coordinator/mentor shell (StaffShell.tsx) at the same
               breakpoint, which left a lot of empty space on both sides on a

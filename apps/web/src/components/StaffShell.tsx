@@ -166,9 +166,15 @@ export function StaffShell({ children }: { children: ReactNode }) {
     </div>
   );
 
+  // One scroll container — the document itself — not a fixed h-screen shell
+  // with its own internally-scrolled <main>. That pattern needs min-h-0 on
+  // every flex ancestor to actually clip instead of growing taller than the
+  // viewport, and missing it here showed up as two scrollbars (the body's
+  // and <main>'s) stacked right next to each other. Sidebar/header use
+  // `sticky` instead to stay pinned while the page scrolls as one piece.
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-white to-brand-50">
-      <aside className="hidden w-64 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-white lg:flex">
+    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-white to-brand-50">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-white lg:flex">
         <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-indigo-600 text-sm font-semibold text-white shadow-sm shadow-brand-200">
             P
@@ -198,8 +204,8 @@ export function StaffShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white/70 px-4 py-3 backdrop-blur-md lg:px-8">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-slate-200 bg-white/70 px-4 py-3 backdrop-blur-md lg:px-8">
           <button onClick={() => setDrawerOpen(true)} className="text-slate-500 lg:hidden" aria-label="Open menu">
             <Menu className="h-5 w-5" />
           </button>
@@ -216,7 +222,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">
+        <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-6xl">{children}</div>
         </main>
       </div>

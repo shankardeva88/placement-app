@@ -12,7 +12,7 @@ export interface BarDatum {
  * category identity so no legend is needed. */
 export function SimpleBarChart({
   data,
-  height = 200,
+  height = 220,
   hue = SEQUENTIAL_BLUE,
   valueSuffix = "",
 }: {
@@ -24,7 +24,14 @@ export function SimpleBarChart({
   const uid = useId();
   const [hovered, setHovered] = useState<string | null>(null);
 
-  const width = Math.max(320, data.length * 64);
+  // A fixed 64px slot per bar left long category names (company names,
+  // full department names) overlapping their neighbors — the slot now
+  // scales with the longest label actually present, up to a cap, so a
+  // chart of a few long-named categories gets the room it needs without
+  // every chart (most have short labels) growing unnecessarily wide.
+  const maxLabelLen = Math.max(1, ...data.map((d) => d.label.length));
+  const perBarWidth = Math.max(64, Math.min(140, maxLabelLen * 7 + 24));
+  const width = Math.max(320, data.length * perBarWidth);
   const padding = { top: 24, right: 12, bottom: 28, left: 12 };
   const plotHeight = height - padding.top - padding.bottom;
   const plotWidth = width - padding.left - padding.right;
@@ -32,7 +39,16 @@ export function SimpleBarChart({
   const maxValue = Math.max(1, ...data.map((d) => d.value));
   const niceMax = Math.ceil(maxValue / 5) * 5 || 5;
   const barSlot = plotWidth / Math.max(1, data.length);
-  const barWidth = Math.min(24, barSlot * 0.55);
+  const barWidth = Math.min(28, barSlot * 0.55);
+
+  // Even with a wider slot, a handful of very long names can still exceed
+  // it — truncate with an ellipsis rather than let adjacent labels collide
+  // and run together ("collapsed" into one unreadable block). The hover
+  // tooltip and the bar's own aria-label still carry the full name.
+  const maxChars = Math.max(4, Math.floor(barSlot / 6.5));
+  function truncateLabel(label: string): string {
+    return label.length > maxChars ? `${label.slice(0, maxChars - 1)}…` : label;
+  }
 
   if (data.length === 0 || data.every((d) => d.value === 0)) {
     return <p className="py-8 text-center text-sm text-slate-400">No data yet.</p>;
@@ -91,7 +107,8 @@ export function SimpleBarChart({
                 fontSize={11}
                 fill={CHART_INK.muted}
               >
-                {d.label}
+                <title>{d.label}</title>
+                {truncateLabel(d.label)}
               </text>
               {isHovered && (
                 <foreignObject x={Math.max(0, x - 40)} y={Math.max(0, y - 40)} width={120} height={32}>
