@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { Check, ChevronDown, ChevronUp, FileText, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronUp, FileText, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
 import { ref, onValue, get } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
@@ -286,6 +286,220 @@ function RecordOfferForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+// Same shared-fields-once idea as the bulk internship recorder — a drive's
+// "selected" list is often 50-60 students all getting the same role/package,
+// not 60 separate single-offer entries. Pick the drive once, fill
+// designation/CTC once, and apply to every roll number pasted below —
+// matched against that drive's own "selected" applicants only (same
+// safeguard RecordOfferForm already has above), so a mistyped roll can't
+// grant an offer to someone who was never actually selected for this drive.
+// Offer letter link is left optional here too — the whole point is a
+// coordinator can record the offer immediately and let each student
+// upload their own letter link later from their side.
+function BulkRecordOfferForm({ onDone }: { onDone: () => void }) {
+  const { appUser } = useAuth();
+  const { showToast } = useToast();
+  const students = useStudentsDirectory(appUser);
+  const applications = useAllApplications(appUser);
+  const [drives, setDrives] = useState<Drive[]>([]);
+  const [batchFilter, setBatchFilter] = useState<number | "">("");
+  const [driveId, setDriveId] = useState("");
+  const [ctc, setCtc] = useState(0);
+  const [designation, setDesignation] = useState("");
+  const [offerLetterUrl, setOfferLetterUrl] = useState("");
+  const [rollNoText, setRollNoText] = useState("");
+  const [matchResult, setMatchResult] = useState<{ matched: Student[]; notFound: string[] } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    return onValue(ref(db, DB_NODES.drives), (snap) => {
+      const val = snap.val() as Record<string, Drive> | null;
+      setDrives(val ? Object.values(val) : []);
+    });
+  }, []);
+
+  const batchYearOptions = useMemo(
+    () => Array.from(new Set((students ?? []).map((s) => s.batchYear))).sort((a, b) => a - b),
+    [students]
+  );
+
+  const drivesForBatch = useMemo(() => {
+    if (!batchFilter) return drives;
+    return drives.filter((d) => {
+      if (d.selectedStudentIds && d.selectedStudentIds.length > 0) {
+        return d.selectedStudentIds.some((uid) => students?.find((s) => s.uid === uid)?.batchYear === batchFilter);
+      }
+      const years = d.eligibility?.batchYears ?? [];
+      return years.length === 0 || years.includes(batchFilter);
+    });
+  }, [drives, batchFilter, students]);
+
+  const selectedApplicants = useMemo(() => {
+    if (!driveId || !applications || !students) return [];
+    const selectedIds = new Set(
+      applications.filter((a) => a.driveId === driveId && a.status === "selected").map((a) => a.studentId)
+    );
+    return students.filter((s) => selectedIds.has(s.uid) && (!batchFilter || s.batchYear === batchFilter));
+  }, [driveId, applications, students, batchFilter]);
+
+  function handleFindStudents() {
+    const rollNoToStudent = new Map(selectedApplicants.map((s) => [s.rollNo.trim().toLowerCase(), s]));
+    const requested = rollNoText
+      .split(/[\n,\t]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const matched: Student[] = [];
+    const notFound: string[] = [];
+    for (const rollNo of requested) {
+      const s = rollNoToStudent.get(rollNo.toLowerCase());
+      if (s) matched.push(s);
+      else notFound.push(rollNo);
+    }
+    setMatchResult({ matched, notFound });
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!driveId || !matchResult || matchResult.matched.length === 0) {
+      setError("Pick a drive and find at least one matching student first.");
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    setProgress(0);
+    try {
+      const batch = matchResult.matched;
+      const CONCURRENCY = 20;
+      let failed = 0;
+      for (let i = 0; i < batch.length; i += CONCURRENCY) {
+        const chunk = batch.slice(i, i + CONCURRENCY);
+        const results = await Promise.allSettled(
+          chunk.map((student) =>
+            recordOffer({ studentUid: student.uid, department: student.department, driveId, ctc, designation, offerLetterUrl })
+          )
+        );
+        failed += results.filter((r) => r.status === "rejected").length;
+        setProgress((p) => p + chunk.length);
+      }
+      const recorded = batch.length - failed;
+      showToast(failed > 0 ? `${recorded} recorded, ${failed} failed` : `${recorded} offer(s) recorded`);
+      if (failed === 0) onDone();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label className={labelClass}>Batch (optional, narrows Drive below)</label>
+          <select
+            value={batchFilter}
+            onChange={(e) => {
+              const y = e.target.value ? Number(e.target.value) : "";
+              setBatchFilter(y);
+              setDriveId("");
+              setMatchResult(null);
+            }}
+            className={inputClass}
+          >
+            <option value="">All batches</option>
+            {batchYearOptions.map((y) => (
+              <option key={y} value={y}>
+                Batch {y}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={labelClass}>Drive</label>
+          <select
+            required
+            value={driveId}
+            onChange={(e) => {
+              setDriveId(e.target.value);
+              setMatchResult(null);
+            }}
+            className={inputClass}
+          >
+            <option value="">Select a drive</option>
+            {drivesForBatch.map((d) => (
+              <option key={d.driveId} value={d.driveId}>
+                {d.companyName} — {driveRoleSummary(d)}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label className={labelClass}>Designation</label>
+          <input type="text" required value={designation} onChange={(e) => setDesignation(e.target.value)} className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>CTC (LPA)</label>
+          <input type="number" step="0.1" min={0} required value={ctc} onChange={(e) => setCtc(Number(e.target.value))} className={inputClass} />
+        </div>
+      </div>
+      <div>
+        <label className={labelClass}>Offer letter link (optional — leave blank if students will upload their own later)</label>
+        <input type="url" value={offerLetterUrl} onChange={(e) => setOfferLetterUrl(e.target.value)} className={inputClass} />
+      </div>
+
+      <div>
+        <label className={labelClass}>Roll numbers — one per line, or comma/tab separated</label>
+        {!driveId ? (
+          <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-400">Pick a drive above first.</p>
+        ) : (
+          <>
+            <textarea
+              rows={5}
+              value={rollNoText}
+              onChange={(e) => setRollNoText(e.target.value)}
+              placeholder={"24PA1A0501\n24PA1A0502\n24PA1A0503"}
+              className="w-full rounded-lg border border-slate-300 p-2 font-mono text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            />
+            <Button type="button" variant="secondary" onClick={handleFindStudents} className="mt-2 !px-3 !py-1.5 text-xs">
+              Find students
+            </Button>
+            {matchResult && (
+              <div className="mt-2 space-y-1 text-xs">
+                <p className="text-slate-600">{matchResult.matched.length} matched.</p>
+                {matchResult.notFound.length > 0 && (
+                  <p className="flex items-start gap-1.5 text-amber-700">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    Not found or not marked "selected" for this drive: {matchResult.notFound.join(", ")}
+                  </p>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {progress > 0 && progress < (matchResult?.matched.length ?? 0) && (
+        <p className="text-xs text-slate-500">
+          {progress} of {matchResult?.matched.length} done…
+        </p>
+      )}
+
+      <div className="flex gap-2">
+        <Button type="submit" loading={submitting} disabled={!matchResult || matchResult.matched.length === 0}>
+          Record offer for {matchResult?.matched.length ?? 0} student(s)
+        </Button>
+        <Button type="button" variant="secondary" onClick={onDone}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 // Inline, not a reused RecordOfferForm — that form's student/drive pickers
 // are identity fields baked into the deterministic offerId (studentUid_
 // driveId) and can't change on an existing offer anyway; this only ever
@@ -489,7 +703,7 @@ export default function StaffOffers() {
   const offers = useAllOffers(appUser);
   const joiningReports = useAllJoiningReports(appUser);
   const { showToast } = useToast();
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState<"none" | "single" | "bulk">("none");
   const [drives, setDrives] = useState<Record<string, Drive>>({});
   const [students, setStudents] = useState<Record<string, Student | null>>({});
 
@@ -632,19 +846,36 @@ export default function StaffOffers() {
         icon={FileText}
         gradient="from-emerald-500 to-teal-600"
         action={
-          !creating && (
-            <Button onClick={() => setCreating(true)}>
-              <Plus className="h-4 w-4" />
-              Record Offer
-            </Button>
+          creating === "none" && (
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setCreating("bulk")}>
+                <Upload className="h-4 w-4" />
+                Bulk Record
+              </Button>
+              <Button onClick={() => setCreating("single")}>
+                <Plus className="h-4 w-4" />
+                Record Offer
+              </Button>
+            </div>
           )
         }
       />
 
-      {creating && (
+      {creating === "single" && (
         <Card className="mb-6">
           <h3 className="mb-4 text-base font-semibold text-slate-900">Record offer</h3>
-          <RecordOfferForm onDone={() => setCreating(false)} />
+          <RecordOfferForm onDone={() => setCreating("none")} />
+        </Card>
+      )}
+
+      {creating === "bulk" && (
+        <Card className="mb-6">
+          <h3 className="mb-1 text-base font-semibold text-slate-900">Bulk record offer</h3>
+          <p className="mb-4 text-sm text-slate-500">
+            Same designation/CTC/offer letter applied to every student whose roll number you paste in — for when a
+            drive selected a whole batch of students for the same role and package.
+          </p>
+          <BulkRecordOfferForm onDone={() => setCreating("none")} />
         </Card>
       )}
 
