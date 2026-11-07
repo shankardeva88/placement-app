@@ -619,6 +619,136 @@ function EditOfferForm({
   );
 }
 
+// A bulk-recorded drive (same role/package for everyone) means a mistake
+// in the shared fields — e.g. a wrong designation typed once — hits every
+// one of those offers at the same time, and fixing them back one by one
+// through EditOfferForm would be exactly the repetitive task Bulk Record
+// exists to avoid in the first place. Same shared-fields + checklist idea
+// as BulkRecordOfferForm, but for updateOfferDetails on offers that
+// already exist, scoped to one company's group.
+function BulkEditOffersForm({
+  offers,
+  students,
+  onDone,
+}: {
+  offers: Offer[];
+  students: Record<string, Student | null>;
+  onDone: () => void;
+}) {
+  const { showToast } = useToast();
+  const [designation, setDesignation] = useState(offers[0]?.designation ?? "");
+  const [ctc, setCtc] = useState(offers[0]?.ctc ?? 0);
+  const [offerLetterUrl, setOfferLetterUrl] = useState(offers[0]?.offerLetterUrl ?? "");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(offers.map((o) => o.offerId)));
+  const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [progressTotal, setProgressTotal] = useState(0);
+
+  const allSelected = offers.length > 0 && offers.every((o) => selectedIds.has(o.offerId));
+
+  function toggleSelectAll() {
+    setSelectedIds(allSelected ? new Set() : new Set(offers.map((o) => o.offerId)));
+  }
+
+  function toggleOne(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const targets = offers.filter((o) => selectedIds.has(o.offerId));
+    if (targets.length === 0) return;
+    setSubmitting(true);
+    setProgress(0);
+    setProgressTotal(targets.length);
+    try {
+      const CONCURRENCY = 20;
+      let failed = 0;
+      for (let i = 0; i < targets.length; i += CONCURRENCY) {
+        const chunk = targets.slice(i, i + CONCURRENCY);
+        const results = await Promise.allSettled(chunk.map((o) => updateOfferDetails(o.offerId, { designation, ctc, offerLetterUrl })));
+        failed += results.filter((r) => r.status === "rejected").length;
+        setProgress((p) => p + chunk.length);
+      }
+      const updated = targets.length - failed;
+      showToast(failed > 0 ? `${updated} updated, ${failed} failed` : `${updated} offer(s) updated`);
+      if (failed === 0) onDone();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3 rounded-lg bg-slate-50 p-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div>
+          <label className={labelClass}>Designation</label>
+          <input type="text" required value={designation} onChange={(e) => setDesignation(e.target.value)} className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>CTC (LPA)</label>
+          <input
+            type="number"
+            step="0.1"
+            min={0}
+            required
+            value={ctc}
+            onChange={(e) => setCtc(Number(e.target.value))}
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Offer letter link</label>
+          <input type="url" value={offerLetterUrl} onChange={(e) => setOfferLetterUrl(e.target.value)} className={inputClass} />
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-1 flex items-center justify-between">
+          <button type="button" onClick={toggleSelectAll} className="text-xs font-medium text-brand-600 hover:text-brand-700">
+            {allSelected ? "Clear all" : `Select all ${offers.length}`}
+          </button>
+          <span className="text-xs text-slate-500">
+            {selectedIds.size} of {offers.length} selected
+          </span>
+        </div>
+        <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
+          {offers.map((o) => {
+            const student = students[o.studentId];
+            return (
+              <label key={o.offerId} className="flex items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-slate-100">
+                <input type="checkbox" checked={selectedIds.has(o.offerId)} onChange={() => toggleOne(o.offerId)} />
+                <span className="font-medium text-slate-800">{student?.rollNo ?? o.studentId}</span>
+                <span className="text-slate-500">{student?.name ?? ""}</span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      {progress > 0 && progress < progressTotal && (
+        <p className="text-xs text-slate-500">
+          {progress} of {progressTotal} done…
+        </p>
+      )}
+
+      <div className="flex gap-2">
+        <Button type="submit" loading={submitting} disabled={selectedIds.size === 0} className="!px-3 !py-1.5 text-xs">
+          Update {selectedIds.size} offer(s)
+        </Button>
+        <Button type="button" variant="secondary" onClick={onDone} className="!px-3 !py-1.5 text-xs">
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 // Company-first, click-to-expand — a flat list of every offer got unwieldy
 // once a company had 5+ students on it; this groups by drive so the default
 // view is "which companies", and the student-by-student detail (including
@@ -644,6 +774,7 @@ function CompanyOffersGroup({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
+  const [bulkEditing, setBulkEditing] = useState(false);
   const acceptedCount = offers.filter((o) => o.status === "accepted").length;
 
   return (
@@ -664,6 +795,25 @@ function CompanyOffersGroup({
 
       {expanded && (
         <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+          {offers.length > 1 && (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-slate-500">
+                Everyone here usually got the same role/package — fix a shared mistake for all of them at once instead
+                of one by one.
+              </p>
+              {!bulkEditing && (
+                <button
+                  type="button"
+                  onClick={() => setBulkEditing(true)}
+                  className="flex shrink-0 items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Bulk Edit
+                </button>
+              )}
+            </div>
+          )}
+          {bulkEditing && <BulkEditOffersForm offers={offers} students={students} onDone={() => setBulkEditing(false)} />}
           {offers.map((o) => {
             const student = students[o.studentId];
             const report = joiningReports[o.offerId];
