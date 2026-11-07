@@ -42,7 +42,6 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { CATEGORICAL, SEQUENTIAL_BLUE } from "../../components/charts/chartTokens";
 import { SimpleBarChart } from "../../components/charts/SimpleBarChart";
-import { StackedShareBar } from "../../components/charts/StackedShareBar";
 import { StackedColumnChart } from "../../components/charts/StackedColumnChart";
 import { TrendLineChart } from "../../components/charts/TrendLineChart";
 
@@ -279,7 +278,31 @@ function CoordinatorDashboard() {
   }, [scopedBatches, sessions]);
 
   const activeDrives = scopedDrives?.filter((d) => d.status === "upcoming" || d.status === "ongoing").length;
-  const placedCount = students?.filter((s) => s.placementStatus === "placed" || s.placementStatus === "multiple_offers").length;
+
+  // Student.placementStatus only flips to "placed" when the student
+  // themselves accepts the offer (see offerActions.ts) — a student a
+  // coordinator has already marked "selected" for a drive is a real
+  // placement regardless of whether they've logged in to click accept yet,
+  // so every placement-rate number below counts distinct drives a student
+  // was actually selected for instead of waiting on that field. Manual
+  // "opted for higher studies"/"opted out" calls still come from
+  // placementStatus — there's no application-side signal for either.
+  const selectedDriveCountByStudent = useMemo(() => {
+    if (!applications) return null;
+    const byStudent = new Map<string, Set<string>>();
+    for (const a of applications) {
+      if (a.status !== "selected") continue;
+      if (!byStudent.has(a.studentId)) byStudent.set(a.studentId, new Set());
+      byStudent.get(a.studentId)!.add(a.driveId);
+    }
+    const counts = new Map<string, number>();
+    for (const [uid, driveIds] of byStudent) counts.set(uid, driveIds.size);
+    return counts;
+  }, [applications]);
+
+  const placedCount = students && selectedDriveCountByStudent
+    ? students.filter((s) => (selectedDriveCountByStudent.get(s.uid) ?? 0) > 0).length
+    : undefined;
   const placementRate =
     students && students.length > 0 && placedCount != null ? Math.round((placedCount / students.length) * 100) : null;
 
@@ -320,12 +343,12 @@ function CoordinatorDashboard() {
   // are where — it doesn't say how they're doing. An admin comparing
   // departments needs the rate, not just the raw count.
   const placementRateByDept = useMemo(() => {
-    if (!isInstitution || !students) return null;
+    if (!isInstitution || !students || !selectedDriveCountByStudent) return null;
     const byDept = new Map<Department, { total: number; placed: number }>();
     for (const s of students) {
       const entry = byDept.get(s.department) ?? { total: 0, placed: 0 };
       entry.total++;
-      if (s.placementStatus === "placed" || s.placementStatus === "multiple_offers") entry.placed++;
+      if ((selectedDriveCountByStudent.get(s.uid) ?? 0) > 0) entry.placed++;
       byDept.set(s.department, entry);
     }
     return Array.from(byDept.entries())
@@ -335,17 +358,37 @@ function CoordinatorDashboard() {
         label: dept,
         value: total > 0 ? Math.round((placed / total) * 100) : 0,
       }));
-  }, [isInstitution, students]);
+  }, [isInstitution, students, selectedDriveCountByStudent]);
 
+  // Same selected-drive-count basis as placedCount/placementRateByDept above
+  // — "placed"/"multiple offers" come from how many drives a student was
+  // actually selected for, not the self-service placementStatus field.
+  // "Opted for higher studies"/"opted out" have no application-side signal
+  // at all, so those two still come straight from placementStatus.
   const placementShare = useMemo(() => {
-    if (!students) return null;
+    if (!students || !selectedDriveCountByStudent) return null;
+    const counts: Record<PlacementStatus, number> = {
+      not_placed: 0,
+      placed: 0,
+      multiple_offers: 0,
+      opted_higher_studies: 0,
+      opted_out: 0,
+    };
+    for (const s of students) {
+      if (s.placementStatus === "opted_higher_studies" || s.placementStatus === "opted_out") {
+        counts[s.placementStatus]++;
+        continue;
+      }
+      const selectedDrives = selectedDriveCountByStudent.get(s.uid) ?? 0;
+      counts[selectedDrives === 0 ? "not_placed" : selectedDrives === 1 ? "placed" : "multiple_offers"]++;
+    }
     return PLACEMENT_STATUS_ORDER.map((status, i) => ({
       key: status,
       label: PLACEMENT_STATUS_LABEL[status],
-      value: students.filter((s) => s.placementStatus === status).length,
+      value: counts[status],
       color: CATEGORICAL[i],
     }));
-  }, [students]);
+  }, [students, selectedDriveCountByStudent]);
 
   const applicationsTrend = useMemo(() => {
     if (!applications) return null;
@@ -664,25 +707,30 @@ function CoordinatorDashboard() {
           </ChartCard>
         )}
 
-        <ChartCard title="Placement status" subtitle="Share of current students by outcome so far.">
-          {placementShare ? <StackedShareBar segments={placementShare} /> : <p className="py-8 text-center text-sm text-slate-400">Loading…</p>}
+        <ChartCard title="Placement status" subtitle="Current students by outcome — placed/multiple offers from selected applications, not offer acceptance.">
+          {placementShare ? <SimpleBarChart data={placementShare} hue={SEQUENTIAL_BLUE} /> : <p className="py-8 text-center text-sm text-slate-400">Loading…</p>}
         </ChartCard>
 
         <ChartCard title="Applications, last 8 weeks" subtitle="Weekly volume across all drives.">
           {applicationsTrend ? <TrendLineChart data={applicationsTrend} /> : <p className="py-8 text-center text-sm text-slate-400">Loading…</p>}
         </ChartCard>
 
-        <ChartCard title="Top companies by offers (current)" subtitle="Current students/batch scope only — not alumni. Top 10 recruiters by offer count.">
-          {offersByCompany ? (
-            offersByCompany.length > 0 ? (
-              <SimpleBarChart data={offersByCompany} hue={SEQUENTIAL_BLUE} />
+        {/* Full width, not sharing the 2-up grid — a top-10 company bar
+            chart needs the room; squeezed into half the grid it got
+            cramped once there were more than 5-6 recruiters. */}
+        <div className="xl:col-span-2">
+          <ChartCard title="Top companies by offers (current)" subtitle="Current students/batch scope only — not alumni. Top 10 recruiters by offer count.">
+            {offersByCompany ? (
+              offersByCompany.length > 0 ? (
+                <SimpleBarChart data={offersByCompany} hue={SEQUENTIAL_BLUE} />
+              ) : (
+                <p className="py-8 text-center text-sm text-slate-400">No offers recorded yet.</p>
+              )
             ) : (
-              <p className="py-8 text-center text-sm text-slate-400">No offers recorded yet.</p>
-            )
-          ) : (
-            <p className="py-8 text-center text-sm text-slate-400">Loading…</p>
-          )}
-        </ChartCard>
+              <p className="py-8 text-center text-sm text-slate-400">Loading…</p>
+            )}
+          </ChartCard>
+        </div>
       </div>
 
       {/* Its own section, clearly separated from the current-student numbers
@@ -737,7 +785,7 @@ function CoordinatorDashboard() {
       <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <StatTile label="Total offers (all-time)" value={allTimeOffersCount != null ? String(allTimeOffersCount) : "…"} icon={Award} gradient="from-pink-500 to-rose-600" />
       </div>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4">
         <ChartCard title="Top companies by offers (all-time)" subtitle="Current students + alumni combined — top 10 recruiters by offer count.">
           {offersByCompanyAllTime ? (
             offersByCompanyAllTime.length > 0 ? (
