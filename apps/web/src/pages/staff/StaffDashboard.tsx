@@ -32,7 +32,7 @@ import { useAllApplications } from "../../lib/applicantsLib";
 import { useAllOffers } from "../../lib/offersManagementLib";
 import { driveRoleSummary } from "../../lib/driveRolesLib";
 import { useAllAlumni } from "../../lib/alumniLib";
-import { useAllTrainingBatches, useAllTrainingSessions } from "../../lib/trainingManagementLib";
+import { useAllTrainingBatches, useAllTrainingSessions, departmentsOf } from "../../lib/trainingManagementLib";
 import { useMyMentees } from "../../lib/menteeFollowUpLib";
 import { MenteeRow } from "./MenteeInfo";
 import { Card } from "../../components/ui/Card";
@@ -262,7 +262,7 @@ function CoordinatorDashboard() {
   const scopedBatches = useMemo(() => {
     if (!allBatches) return null;
     if (isInstitution || !myDept) return allBatches;
-    return allBatches.filter((b) => b.department === myDept);
+    return allBatches.filter((b) => departmentsOf(b).includes(myDept));
   }, [allBatches, isInstitution, myDept]);
 
   const upcomingSessions = useMemo(() => {

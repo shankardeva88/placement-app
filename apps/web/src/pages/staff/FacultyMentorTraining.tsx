@@ -5,7 +5,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
 import { useMyMentees } from "../../lib/menteeFollowUpLib";
 import { useMyTraining, useMyAssessments } from "../../lib/trainingLib";
-import { useAllTrainingBatches, useAllTrainingSessions } from "../../lib/trainingManagementLib";
+import { useAllTrainingBatches, useAllTrainingSessions, departmentsOf } from "../../lib/trainingManagementLib";
 import { TrendLineChart } from "../../components/charts/TrendLineChart";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -268,7 +268,7 @@ export default function FacultyMentorTraining() {
   // mentor's department.
   const currentSessions = useMemo(() => {
     if (!allBatches || !allSessions) return null;
-    const deptBatchIds = new Set(allBatches.filter((b) => !myDept || b.department === myDept).map((b) => b.batchId));
+    const deptBatchIds = new Set(allBatches.filter((b) => !myDept || departmentsOf(b).includes(myDept)).map((b) => b.batchId));
     const batchById = new Map(allBatches.map((b) => [b.batchId, b]));
     const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
     const weekAhead = Date.now() + UPCOMING_WINDOW_MS;

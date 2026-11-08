@@ -15,6 +15,13 @@ import type {
   TrainingSession,
 } from "@placement-app/types";
 
+/** A batch or assessment's full department set — `departments` is absent on
+ * any record created before that field existed, so this falls back to the
+ * single `department` it always had. */
+export function departmentsOf(record: { department: Department; departments?: Partial<Record<Department, true>> }): Department[] {
+  return record.departments ? (Object.keys(record.departments) as Department[]) : [record.department];
+}
+
 export function useAllTrainingBatches(): TrainingBatch[] | null {
   const [batches, setBatches] = useState<TrainingBatch[] | null>(null);
   useEffect(() => {
@@ -40,10 +47,18 @@ export function useAllTrainingSessions(): TrainingSession[] | null {
 export interface CreateBatchInput {
   name: string;
   skillTrack: SkillTrack;
-  department: Department;
+  // One or more — the first becomes TrainingBatch.department (the primary,
+  // kept for backward compatibility with every reader that only knows
+  // about a single department), the full set becomes `departments`. See
+  // the TrainingBatch.departments doc comment for why a map, not an array.
+  departments: Department[];
   batchYear: number;
   studentIds: string[];
   trainerId: string;
+}
+
+function departmentsMap(departments: Department[]): Partial<Record<Department, true>> {
+  return Object.fromEntries(departments.map((d) => [d, true])) as Partial<Record<Department, true>>;
 }
 
 export async function createTrainingBatch(input: CreateBatchInput) {
@@ -54,7 +69,8 @@ export async function createTrainingBatch(input: CreateBatchInput) {
     name: input.name,
     skillTrack: input.skillTrack,
     trainerId: input.trainerId,
-    department: input.department,
+    department: input.departments[0],
+    departments: departmentsMap(input.departments),
     batchYear: input.batchYear,
     studentIds: input.studentIds,
     createdAt: Date.now(),
@@ -66,7 +82,13 @@ export async function createTrainingBatch(input: CreateBatchInput) {
 export type UpdateBatchInput = Partial<Omit<CreateBatchInput, "trainerId">>;
 
 export async function updateTrainingBatch(batchId: string, input: UpdateBatchInput) {
-  await update(ref(db, `${DB_NODES.trainingBatches}/${batchId}`), input);
+  const { departments, ...rest } = input;
+  const updates: Record<string, unknown> = { ...rest };
+  if (departments) {
+    updates.department = departments[0];
+    updates.departments = departmentsMap(departments);
+  }
+  await update(ref(db, `${DB_NODES.trainingBatches}/${batchId}`), updates);
 }
 
 /** Everything a deleted session or batch leaves behind that isn't
@@ -269,20 +291,27 @@ export async function markAttendance(
   });
 }
 
+// Each student's OWN department, not the batch's (possibly multi-
+// department) one — a batch spanning CSE + ECE still needs each attendance/
+// score record tagged with the actual student's department, since that's
+// what the dept-scoped read rules key off. Callers already have the full
+// roster loaded, so this is a cheap in-memory lookup, not an extra read.
+type DepartmentOf = (studentId: string) => Department;
+
 export async function markRemainingAbsent(
   sessionId: string,
   studentIds: string[],
-  department: Department,
+  departmentOf: DepartmentOf,
   alreadyMarked: Set<string>,
   staffUid: string
 ) {
   const remaining = studentIds.filter((uid) => !alreadyMarked.has(uid));
-  await Promise.all(remaining.map((uid) => markAttendance(sessionId, uid, department, "absent", staffUid, "manual")));
+  await Promise.all(remaining.map((uid) => markAttendance(sessionId, uid, departmentOf(uid), "absent", staffUid, "manual")));
   return remaining.length;
 }
 
-export async function markAllPresent(sessionId: string, studentIds: string[], department: Department, staffUid: string) {
-  await Promise.all(studentIds.map((uid) => markAttendance(sessionId, uid, department, "present", staffUid, "manual")));
+export async function markAllPresent(sessionId: string, studentIds: string[], departmentOf: DepartmentOf, staffUid: string) {
+  await Promise.all(studentIds.map((uid) => markAttendance(sessionId, uid, departmentOf(uid), "present", staffUid, "manual")));
 }
 
 /** Backing the "Import attendance" paste flow — a roll-no/status sheet taken
@@ -291,10 +320,12 @@ export async function markAllPresent(sessionId: string, studentIds: string[], de
 export async function markAttendanceBulk(
   sessionId: string,
   entries: { studentId: string; status: AttendanceStatus }[],
-  department: Department,
+  departmentOf: DepartmentOf,
   staffUid: string
 ) {
-  await Promise.all(entries.map(({ studentId, status }) => markAttendance(sessionId, studentId, department, status, staffUid, "manual")));
+  await Promise.all(
+    entries.map(({ studentId, status }) => markAttendance(sessionId, studentId, departmentOf(studentId), status, staffUid, "manual"))
+  );
 }
 
 const INSTITUTION_ROLES = new Set(["dean", "principal", "cpo", "admin"]);
@@ -344,7 +375,7 @@ export function useAllAttendance(appUser: AppUser | null): Record<string, Record
 
   const deptSessionIds = useMemo(() => {
     if (isInstitution || !department || !batches || !sessions) return null;
-    const deptBatchIds = new Set(batches.filter((b) => b.department === department).map((b) => b.batchId));
+    const deptBatchIds = new Set(batches.filter((b) => departmentsOf(b).includes(department)).map((b) => b.batchId));
     return sessions.filter((s) => deptBatchIds.has(s.batchId)).map((s) => s.sessionId);
   }, [isInstitution, department, batches, sessions]);
 
@@ -413,7 +444,8 @@ export function useAllTrainingAssessments(): TrainingAssessment[] | null {
 
 export interface CreateAssessmentInput {
   batchId: string;
-  department: Department;
+  // Denormalized from the batch's own full set — see TrainingAssessment.departments.
+  departments: Department[];
   name: string;
   date: number;
   maxScore: number;
@@ -426,7 +458,8 @@ export async function createTrainingAssessment(input: CreateAssessmentInput) {
   const assessment: TrainingAssessment = {
     assessmentId,
     batchId: input.batchId,
-    department: input.department,
+    department: input.departments[0],
+    departments: departmentsMap(input.departments),
     name: input.name,
     date: input.date,
     maxScore: input.maxScore,
@@ -493,11 +526,13 @@ export async function clearAssessmentScore(assessmentId: string, studentId: stri
 export async function recordAssessmentScoresBulk(
   assessmentId: string,
   entries: { studentId: string; score: number; absent?: boolean }[],
-  department: Department,
+  departmentOf: DepartmentOf,
   recordedBy: string
 ) {
   await Promise.all(
-    entries.map(({ studentId, score, absent }) => recordAssessmentScore(assessmentId, studentId, department, score, recordedBy, absent))
+    entries.map(({ studentId, score, absent }) =>
+      recordAssessmentScore(assessmentId, studentId, departmentOf(studentId), score, recordedBy, absent)
+    )
   );
 }
 
@@ -567,7 +602,7 @@ export function useAllAssessmentScores(appUser: AppUser | null): Record<string, 
 
   const deptAssessmentIds = useMemo(() => {
     if (isInstitution || !department || !assessments) return null;
-    return assessments.filter((a) => a.department === department).map((a) => a.assessmentId);
+    return assessments.filter((a) => departmentsOf(a).includes(department)).map((a) => a.assessmentId);
   }, [isInstitution, department, assessments]);
 
   useEffect(() => {

@@ -33,6 +33,7 @@ import {
   recordAssessmentScoresBulk,
   clearAssessmentScore,
   useBatchAssessmentAverages,
+  departmentsOf,
 } from "../../lib/trainingManagementLib";
 import { parseDelimited } from "../../lib/csv";
 import { TrendLineChart } from "../../components/charts/TrendLineChart";
@@ -64,18 +65,27 @@ function CreateBatchForm({ onDone }: { onDone: () => void }) {
   const students = useStudentsDirectory(appUser);
   const [name, setName] = useState("");
   const [skillTrack, setSkillTrack] = useState<SkillTrack>("aptitude");
-  const [department, setDepartment] = useState<Department>("CSE");
+  // A plain-string select, not a true multi-select, only ever let a batch
+  // cover one department — a CPO/admin running one joint training session
+  // across e.g. CSE + ECE had to create two separate batches instead.
+  // Checkboxes here; a batch's own `department` (singular, first picked)
+  // stays around for every existing reader that only knows about one.
+  const [departments, setDepartments] = useState<Department[]>(["CSE"]);
   const [batchYear, setBatchYear] = useState(new Date().getFullYear());
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function toggleDepartment(d: Department) {
+    setDepartments((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
+  }
+
   const eligibleStudents = useMemo(
     () =>
       (students ?? [])
-        .filter((s) => !s.isAlumni && s.department === department && s.batchYear === batchYear)
+        .filter((s) => !s.isAlumni && departments.includes(s.department) && s.batchYear === batchYear)
         .sort((a, b) => a.rollNo.localeCompare(b.rollNo)),
-    [students, department, batchYear]
+    [students, departments, batchYear]
   );
 
   function toggleStudent(uid: string) {
@@ -93,6 +103,10 @@ function CreateBatchForm({ onDone }: { onDone: () => void }) {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!firebaseUser) return;
+    if (departments.length === 0) {
+      setError("Pick at least one department.");
+      return;
+    }
     if (selectedIds.length === 0) {
       setError("Select at least one student.");
       return;
@@ -105,7 +119,7 @@ function CreateBatchForm({ onDone }: { onDone: () => void }) {
       await createTrainingBatch({
         name,
         skillTrack,
-        department,
+        departments,
         batchYear,
         studentIds: sortedIds,
         trainerId: firebaseUser.uid,
@@ -136,15 +150,16 @@ function CreateBatchForm({ onDone }: { onDone: () => void }) {
             ))}
           </select>
         </div>
-        <div>
-          <label className={labelClass}>Department</label>
-          <select value={department} onChange={(e) => setDepartment(e.target.value as Department)} className={inputClass}>
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Department(s) — pick more than one for a joint batch</label>
+          <div className="flex flex-wrap gap-3 rounded-lg border border-slate-200 p-2">
             {DEPARTMENTS.map((d) => (
-              <option key={d} value={d}>
+              <label key={d} className="flex items-center gap-1.5 text-sm text-slate-700">
+                <input type="checkbox" checked={departments.includes(d)} onChange={() => toggleDepartment(d)} />
                 {d}
-              </option>
+              </label>
             ))}
-          </select>
+          </div>
         </div>
         <div>
           <label className={labelClass}>Batch year</label>
@@ -171,7 +186,7 @@ function CreateBatchForm({ onDone }: { onDone: () => void }) {
         <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 p-2">
           {students === null && <p className="p-2 text-sm text-slate-400">Loading…</p>}
           {students !== null && eligibleStudents.length === 0 && (
-            <p className="p-2 text-sm text-slate-400">No {department} students in batch {batchYear}.</p>
+            <p className="p-2 text-sm text-slate-400">No {departments.join("/") || "department"} students in batch {batchYear}.</p>
           )}
           {eligibleStudents.map((s) => (
             <label key={s.studentId} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-slate-50">
@@ -203,18 +218,22 @@ function EditBatchForm({ batch, onDone }: { batch: TrainingBatch; onDone: () => 
   const students = useStudentsDirectory(appUser);
   const [name, setName] = useState(batch.name);
   const [skillTrack, setSkillTrack] = useState<SkillTrack>(batch.skillTrack);
-  const [department, setDepartment] = useState<Department>(batch.department);
+  const [departments, setDepartments] = useState<Department[]>(departmentsOf(batch));
   const [batchYear, setBatchYear] = useState(batch.batchYear);
   const [selectedIds, setSelectedIds] = useState<string[]>(batch.studentIds);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function toggleDepartment(d: Department) {
+    setDepartments((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
+  }
+
   const eligibleStudents = useMemo(
     () =>
       (students ?? [])
-        .filter((s) => !s.isAlumni && s.department === department && s.batchYear === batchYear)
+        .filter((s) => !s.isAlumni && departments.includes(s.department) && s.batchYear === batchYear)
         .sort((a, b) => a.rollNo.localeCompare(b.rollNo)),
-    [students, department, batchYear]
+    [students, departments, batchYear]
   );
 
   function toggleStudent(uid: string) {
@@ -231,6 +250,10 @@ function EditBatchForm({ batch, onDone }: { batch: TrainingBatch; onDone: () => 
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (departments.length === 0) {
+      setError("Pick at least one department.");
+      return;
+    }
     if (selectedIds.length === 0) {
       setError("Select at least one student.");
       return;
@@ -240,7 +263,7 @@ function EditBatchForm({ batch, onDone }: { batch: TrainingBatch; onDone: () => 
     try {
       const rollNoOf = new Map((students ?? []).map((s) => [s.uid, s.rollNo]));
       const sortedIds = [...selectedIds].sort((a, b) => (rollNoOf.get(a) ?? "").localeCompare(rollNoOf.get(b) ?? ""));
-      await updateTrainingBatch(batch.batchId, { name, skillTrack, department, batchYear, studentIds: sortedIds });
+      await updateTrainingBatch(batch.batchId, { name, skillTrack, departments, batchYear, studentIds: sortedIds });
       showToast("Batch updated");
       onDone();
     } catch (err) {
@@ -267,15 +290,16 @@ function EditBatchForm({ batch, onDone }: { batch: TrainingBatch; onDone: () => 
             ))}
           </select>
         </div>
-        <div>
-          <label className={labelClass}>Department</label>
-          <select value={department} onChange={(e) => setDepartment(e.target.value as Department)} className={inputClass}>
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Department(s) — pick more than one for a joint batch</label>
+          <div className="flex flex-wrap gap-3 rounded-lg border border-slate-200 bg-white p-2">
             {DEPARTMENTS.map((d) => (
-              <option key={d} value={d}>
+              <label key={d} className="flex items-center gap-1.5 text-sm text-slate-700">
+                <input type="checkbox" checked={departments.includes(d)} onChange={() => toggleDepartment(d)} />
                 {d}
-              </option>
+              </label>
             ))}
-          </select>
+          </div>
         </div>
         <div>
           <label className={labelClass}>Batch year</label>
@@ -302,7 +326,7 @@ function EditBatchForm({ batch, onDone }: { batch: TrainingBatch; onDone: () => 
         <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
           {students === null && <p className="p-2 text-sm text-slate-400">Loading…</p>}
           {students !== null && eligibleStudents.length === 0 && (
-            <p className="p-2 text-sm text-slate-400">No {department} students in batch {batchYear}.</p>
+            <p className="p-2 text-sm text-slate-400">No {departments.join("/") || "department"} students in batch {batchYear}.</p>
           )}
           {eligibleStudents.map((s) => (
             <label key={s.studentId} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-slate-50">
@@ -519,7 +543,7 @@ function DeleteSessionConfirm({ sessionId, onDone, onCancel }: { sessionId: stri
   );
 }
 
-function CreateAssessmentForm({ batchId, department, onDone }: { batchId: string; department: Department; onDone: () => void }) {
+function CreateAssessmentForm({ batchId, departments, onDone }: { batchId: string; departments: Department[]; onDone: () => void }) {
   const { firebaseUser } = useAuth();
   const { showToast } = useToast();
   const [name, setName] = useState("");
@@ -534,7 +558,7 @@ function CreateAssessmentForm({ batchId, department, onDone }: { batchId: string
     try {
       await createTrainingAssessment({
         batchId,
-        department,
+        departments,
         name,
         date: date ? new Date(date).getTime() : Date.now(),
         maxScore,
@@ -824,6 +848,12 @@ function AssessmentScoreRoster({ assessment, batch }: { assessment: TrainingAsse
     const s = students?.find((x) => x.uid === uid);
     return s ? `${s.rollNo} — ${s.name}${s.pgProgram ? " (PG)" : ""}` : uid;
   };
+  // This student's OWN department, not the batch's — a joint batch can
+  // span more than one, and the score record needs to be tagged with
+  // whichever department this particular student actually belongs to for
+  // the dept-scoped read rule to find it. Falls back to the batch's
+  // primary department only if the student can't be found in the roster.
+  const departmentOf = (uid: string) => students?.find((x) => x.uid === uid)?.department ?? batch.department;
   const rosterIds = useMemo(() => {
     const rollNoOf = new Map((students ?? []).map((s) => [s.uid, s.rollNo]));
     return [...batch.studentIds].sort((a, b) => (rollNoOf.get(a) ?? "").localeCompare(rollNoOf.get(b) ?? ""));
@@ -853,7 +883,7 @@ function AssessmentScoreRoster({ assessment, batch }: { assessment: TrainingAsse
     if (raw === undefined || raw.trim() === "") return;
     const value = Number(raw);
     if (!Number.isFinite(value)) return;
-    await recordAssessmentScore(assessment.assessmentId, uid, batch.department, value, firebaseUser.uid);
+    await recordAssessmentScore(assessment.assessmentId, uid, departmentOf(uid), value, firebaseUser.uid);
   }
 
   // Checking it writes absent:true outright; unchecking clears the record
@@ -864,7 +894,7 @@ function AssessmentScoreRoster({ assessment, batch }: { assessment: TrainingAsse
     if (scores?.[uid]?.absent) {
       await clearAssessmentScore(assessment.assessmentId, uid);
     } else {
-      await recordAssessmentScore(assessment.assessmentId, uid, batch.department, 0, firebaseUser.uid, true);
+      await recordAssessmentScore(assessment.assessmentId, uid, departmentOf(uid), 0, firebaseUser.uid, true);
       setScoreInputs((prev) => {
         const next = { ...prev };
         delete next[uid];
@@ -875,7 +905,7 @@ function AssessmentScoreRoster({ assessment, batch }: { assessment: TrainingAsse
 
   async function handleImport(entries: { studentId: string; score: number; absent?: boolean }[]) {
     if (!firebaseUser) return;
-    await recordAssessmentScoresBulk(assessment.assessmentId, entries, batch.department, firebaseUser.uid);
+    await recordAssessmentScoresBulk(assessment.assessmentId, entries, departmentOf, firebaseUser.uid);
     setScoreInputs((prev) => {
       const next = { ...prev };
       for (const { studentId, score, absent } of entries) {
@@ -1341,6 +1371,9 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
     const s = students?.find((x) => x.uid === uid);
     return s ? `${s.rollNo} — ${s.name}${s.pgProgram ? " (PG)" : ""}` : uid;
   };
+  // This student's OWN department, not the batch's — see the matching
+  // comment on AssessmentScoreRoster above.
+  const departmentOf = (uid: string) => students?.find((x) => x.uid === uid)?.department ?? batch.department;
   // Sorted here rather than trusting stored order — a batch saved before
   // students were added, or edited via an older build, can still have
   // studentIds in whatever order they were checked in, not roll-no order.
@@ -1395,12 +1428,12 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
 
   async function setStatus(uid: string, status: AttendanceStatus) {
     if (!firebaseUser) return;
-    await markAttendance(session.sessionId, uid, batch.department, status, firebaseUser.uid);
+    await markAttendance(session.sessionId, uid, departmentOf(uid), status, firebaseUser.uid);
   }
 
   async function handleImportAttendance(entries: { studentId: string; status: AttendanceStatus }[]) {
     if (!firebaseUser) return;
-    await markAttendanceBulk(session.sessionId, entries, batch.department, firebaseUser.uid);
+    await markAttendanceBulk(session.sessionId, entries, departmentOf, firebaseUser.uid);
   }
 
   function toggleSelected(uid: string) {
@@ -1420,7 +1453,7 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
     if (!firebaseUser) return;
     setBulkBusy(true);
     try {
-      await markAllPresent(session.sessionId, rosterIds, batch.department, firebaseUser.uid);
+      await markAllPresent(session.sessionId, rosterIds, departmentOf, firebaseUser.uid);
     } finally {
       setBulkBusy(false);
     }
@@ -1431,7 +1464,7 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
     setBulkBusy(true);
     try {
       const already = new Set(Object.entries(attendance).filter(([, v]) => v != null).map(([uid]) => uid));
-      await markRemainingAbsent(session.sessionId, rosterIds, batch.department, already, firebaseUser.uid);
+      await markRemainingAbsent(session.sessionId, rosterIds, departmentOf, already, firebaseUser.uid);
     } finally {
       setBulkBusy(false);
     }
@@ -1445,7 +1478,7 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
     setBulkBusy(true);
     try {
       await Promise.all(
-        Array.from(selectedIds).map((uid) => markAttendance(session.sessionId, uid, batch.department, bulkStatus, firebaseUser.uid))
+        Array.from(selectedIds).map((uid) => markAttendance(session.sessionId, uid, departmentOf(uid), bulkStatus, firebaseUser.uid))
       );
       setSelectedIds(new Set());
     } finally {
@@ -1822,7 +1855,7 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
               <Badge variant={BATCH_STATUS_BADGE[status]}>{status}</Badge>
             </div>
             <p className="text-sm capitalize text-slate-500">
-              {batch.skillTrack.replace("_", " ")} · {batch.department} · {batch.batchYear} · {batch.studentIds.length} students
+              {batch.skillTrack.replace("_", " ")} · {departmentsOf(batch).join(" + ")} · {batch.batchYear} · {batch.studentIds.length} students
               {" · "}
               {sessions.length} session{sessions.length === 1 ? "" : "s"}
             </p>
@@ -1891,7 +1924,7 @@ function BatchCard({ batch, canManageSchedule }: { batch: TrainingBatch; canMana
         <CreateSessionForm batchId={batch.batchId} onDone={() => setAddingSession(false)} />
       )}
       {canManageSchedule && addingAssessment && (
-        <CreateAssessmentForm batchId={batch.batchId} department={batch.department} onDone={() => setAddingAssessment(false)} />
+        <CreateAssessmentForm batchId={batch.batchId} departments={departmentsOf(batch)} onDone={() => setAddingAssessment(false)} />
       )}
 
       {expanded && (

@@ -494,7 +494,18 @@ export interface TrainingBatch {
   name: string;
   skillTrack: SkillTrack;
   trainerId: string; // faculty_mentor uid, or external trainer id
+  // Primary/first department picked, kept so every existing batch (and
+  // every place that already reads this field) keeps working unchanged.
   department: Department;
+  // The full set this batch spans, for a batch that covers more than one
+  // department (e.g. a CPO/admin running one joint training session across
+  // CSE + ECE) — a map, not an array, so a security rule can cheaply check
+  // "is my department one of these" via .child(dept).exists() (RTDB rules
+  // have no array .includes()). Absent on every batch created before this
+  // field existed, which is why department-scoped read rules still fall
+  // back to matching `department` alone for those. Always includes
+  // `department` itself when present.
+  departments?: Partial<Record<Department, true>>;
   batchYear: number;
   studentIds: string[];
   createdAt: Timestamp;
@@ -537,6 +548,10 @@ export interface TrainingAssessment {
   assessmentId: string;
   batchId: string;
   department: Department; // denormalized from the batch, for department-scoped rules
+  // Denormalized from the batch's own full set (TrainingBatch.departments) —
+  // same reasoning, absent on an assessment created before this field
+  // existed, in which case `department` alone is still accurate.
+  departments?: Partial<Record<Department, true>>;
   name: string; // e.g. "Mock Assessment 6"
   date: Timestamp;
   maxScore: number;
