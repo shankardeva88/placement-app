@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import type { FormEvent, MouseEvent } from "react";
 import { Link } from "react-router-dom";
 import { Users, Search, Upload, UserPlus, GraduationCap, RefreshCw, Copy, BadgeCheck, ShieldCheck, Trash2 } from "lucide-react";
-import type { Department, EntranceExamType, Gender, PlacementStatus } from "@placement-app/types";
+import type { Department, EntranceExamType, Gender, PgProgram, PlacementStatus } from "@placement-app/types";
+import { PG_PROGRAMS_BY_DEPARTMENT } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import {
   useStudentsDirectory,
@@ -77,6 +78,8 @@ function AddStudentForm({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("");
   const [gender, setGender] = useState<Gender>("prefer_not_to_say");
   const [department, setDepartment] = useState<Department>(myDept ?? "CSE");
+  const [pgProgram, setPgProgram] = useState<PgProgram | "">("");
+  const pgProgramOptions = PG_PROGRAMS_BY_DEPARTMENT[department] ?? [];
   const [cgpa, setCgpa] = useState(0);
   const [activeBacklogs, setActiveBacklogs] = useState(0);
   const [batchYear, setBatchYear] = useState(new Date().getFullYear());
@@ -107,6 +110,7 @@ function AddStudentForm({ onDone }: { onDone: () => void }) {
         name: name.trim(),
         gender,
         department,
+        pgProgram: pgProgram || undefined,
         cgpa,
         activeBacklogs,
         batchYear,
@@ -173,7 +177,14 @@ function AddStudentForm({ onDone }: { onDone: () => void }) {
           </div>
           <div>
             <label className={labelClass}>Department</label>
-            <select value={department} onChange={(e) => setDepartment(e.target.value as Department)} className={inputClass}>
+            <select
+              value={department}
+              onChange={(e) => {
+                setDepartment(e.target.value as Department);
+                setPgProgram("");
+              }}
+              className={inputClass}
+            >
               {departmentOptions.map((d) => (
                 <option key={d} value={d}>
                   {d}
@@ -181,6 +192,19 @@ function AddStudentForm({ onDone }: { onDone: () => void }) {
               ))}
             </select>
           </div>
+          {pgProgramOptions.length > 0 && (
+            <div>
+              <label className={labelClass}>Program</label>
+              <select value={pgProgram} onChange={(e) => setPgProgram(e.target.value as PgProgram | "")} className={inputClass}>
+                <option value="">UG — B.Tech {department}</option>
+                {pgProgramOptions.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className={labelClass}>Batch year</label>
             <input type="number" value={batchYear} onChange={(e) => setBatchYear(Number(e.target.value))} className={inputClass} />
@@ -379,6 +403,7 @@ export default function Students() {
   const trainingBatches = useAllTrainingBatches();
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState<Department | "">("");
+  const [programFilter, setProgramFilter] = useState<PgProgram | "UG" | "">("");
   const [batchFilter, setBatchFilter] = useState<number | "">("");
   const [trainingFilter, setTrainingFilter] = useState("");
   const [entranceTypeFilter, setEntranceTypeFilter] = useState<EntranceExamType | "">("");
@@ -413,6 +438,15 @@ export default function Students() {
   const deptOptions = useMemo(() => {
     if (!students) return [];
     return Array.from(new Set(students.map((s) => s.department))).sort((a, b) => a.localeCompare(b));
+  }, [students]);
+
+  // Only the PG programs actually present in this scope — most logins will
+  // have zero, since PG is a small minority alongside UG, so the filter
+  // below hides itself entirely rather than showing 5 options that would
+  // all match nothing.
+  const programOptions = useMemo(() => {
+    if (!students) return [];
+    return Array.from(new Set(students.map((s) => s.pgProgram).filter((p): p is PgProgram => !!p))).sort((a, b) => a.localeCompare(b));
   }, [students]);
 
   // Two unrelated "training" concepts share this page: s.trainings is
@@ -456,6 +490,8 @@ export default function Students() {
     return students.filter((s) => {
       if (!showAlumni && s.isAlumni) return false;
       if (deptFilter && s.department !== deptFilter) return false;
+      if (programFilter === "UG" && s.pgProgram) return false;
+      if (programFilter && programFilter !== "UG" && s.pgProgram !== programFilter) return false;
       if (batchFilter && s.batchYear !== batchFilter) return false;
       if (entranceTypeFilter && s.entranceType !== entranceTypeFilter) return false;
       if (placementFilter && s.placementStatus !== placementFilter) return false;
@@ -485,6 +521,7 @@ export default function Students() {
     students,
     search,
     deptFilter,
+    programFilter,
     batchFilter,
     entranceTypeFilter,
     placementFilter,
@@ -721,6 +758,20 @@ export default function Students() {
               </select>
             </div>
           )}
+          {programOptions.length > 0 && (
+            <div>
+              <label className={labelClass}>Program</label>
+              <select value={programFilter} onChange={(e) => setProgramFilter(e.target.value as PgProgram | "UG" | "")} className={inputClass}>
+                <option value="">All programs</option>
+                <option value="UG">UG only</option>
+                {programOptions.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className={labelClass}>Batch</label>
             <select
@@ -949,11 +1000,12 @@ export default function Students() {
                 />
                 <Avatar photoUrl={s.photoUrl} name={s.name} />
                 <div className="min-w-0">
-                  <p className="font-medium text-slate-900">
+                  <p className="flex items-center gap-1.5 font-medium text-slate-900">
                     {s.rollNo} — {s.name}
+                    {s.pgProgram && <Badge variant="neutral">PG</Badge>}
                   </p>
                   <p className="text-sm text-slate-500">
-                    {s.department} · Batch {s.batchYear} · CGPA {s.cgpa} · Backlogs {s.activeBacklogs}
+                    {s.pgProgram ?? s.department} · Batch {s.batchYear} · CGPA {s.cgpa} · Backlogs {s.activeBacklogs}
                     {s.entranceRank && ` · ${s.entranceType ? `${s.entranceType}: ` : ""}${s.entranceRank}`}
                     {s.studentPhone && ` · Mobile: ${s.studentPhone}`}
                   </p>

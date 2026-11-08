@@ -3,7 +3,8 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, si
 import { ref, update, get, serverTimestamp } from "firebase/database";
 import { db, firebaseConfig } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { Department, EntranceExamType, Gender } from "@placement-app/types";
+import type { Department, EntranceExamType, Gender, PgProgram } from "@placement-app/types";
+import { PG_PROGRAMS_BY_DEPARTMENT } from "@placement-app/types";
 
 /** Column headers this expects, normalized (lowercased, punctuation/spaces
  * stripped) so minor formatting differences in a pasted sheet still match.
@@ -24,6 +25,8 @@ const HEADER_MAP: Record<string, string> = {
   [normalizeHeader("Branch")]: "department",
   [normalizeHeader("DEPT")]: "department",
   [normalizeHeader("Department")]: "department",
+  [normalizeHeader("PG Program")]: "pgProgram",
+  [normalizeHeader("PG Programme")]: "pgProgram",
   [normalizeHeader("B.Tech CGPA")]: "cgpa",
   [normalizeHeader("CGPA")]: "cgpa",
   [normalizeHeader("Backlogs")]: "activeBacklogs",
@@ -123,6 +126,30 @@ export function parseDepartment(raw: string): { value: Department; warning?: str
   return { value: "OTHER", warning: `Branch "${raw}" not recognized — set to OTHER, please fix manually` };
 }
 
+// Keyed the same way DEPARTMENT_ALIASES normalizes branch names, so "M.Tech
+// CSE(AI&ML)" and "mtech cse ai ml" both still match.
+const PG_PROGRAM_ALIASES: Record<string, PgProgram> = Object.fromEntries(
+  Object.values(PG_PROGRAMS_BY_DEPARTMENT)
+    .flat()
+    .map((p) => [normalizeHeader(p), p])
+);
+
+/** Blank means UG (the default, by far the common case) — not an error.
+ * A non-blank value that isn't one of the fixed 5 program names, or isn't
+ * actually offered under this row's own department, is left blank with a
+ * warning rather than silently assigning the wrong program. */
+export function parsePgProgram(raw: string, department: Department): { value: PgProgram | undefined; warning?: string } {
+  const key = normalizeHeader(raw);
+  if (!key) return { value: undefined };
+  const mapped = PG_PROGRAM_ALIASES[key];
+  if (!mapped) return { value: undefined, warning: `PG program "${raw}" not recognized — left as UG, please fix manually` };
+  const allowed = PG_PROGRAMS_BY_DEPARTMENT[department] ?? [];
+  if (!allowed.includes(mapped)) {
+    return { value: undefined, warning: `PG program "${raw}" isn't offered under ${department} — left as UG, please fix manually` };
+  }
+  return { value: mapped };
+}
+
 export function parseGender(raw: string): { value: Gender; warning?: string } {
   const key = normalizeHeader(raw);
   if (["m", "male"].includes(key)) return { value: "male" };
@@ -180,6 +207,7 @@ export interface ParsedStudentRow {
   name: string;
   gender: Gender;
   department: Department;
+  pgProgram?: PgProgram;
   cgpa: number;
   activeBacklogs: number;
   batchYear: number;
@@ -262,6 +290,9 @@ export function parseStudentRows(headers: string[], rawRows: string[][]): ParseR
     const { value: department, warning: deptWarning } = parseDepartment(get(row, "department"));
     if (deptWarning) warnings.push(deptWarning);
 
+    const { value: pgProgram, warning: pgProgramWarning } = parsePgProgram(get(row, "pgProgram"), department);
+    if (pgProgramWarning) warnings.push(pgProgramWarning);
+
     const { value: gender, warning: genderWarning } = parseGender(get(row, "gender"));
     if (genderWarning) warnings.push(genderWarning);
 
@@ -330,6 +361,7 @@ export function parseStudentRows(headers: string[], rawRows: string[][]): ParseR
       name,
       gender,
       department,
+      pgProgram,
       cgpa: cgpa ?? 0,
       activeBacklogs: activeBacklogs ?? 0,
       batchYear: batchYear ?? 0, // never used: batchYear==null already pushed a blocking error above
@@ -445,6 +477,7 @@ async function writeStudentRecords(uid: string, row: ParsedStudentRow) {
       email: row.email,
       department: row.department,
       batchYear: row.batchYear,
+      ...(row.pgProgram ? { pgProgram: row.pgProgram } : {}),
       currentSemester: row.currentSemester ?? 8, // defaults to final year unless a Current Semester column says otherwise
       cgpa: row.cgpa,
       activeBacklogs: row.activeBacklogs,

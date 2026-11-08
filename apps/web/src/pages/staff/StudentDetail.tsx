@@ -5,7 +5,8 @@ import { ArrowLeft, BadgeCheck, ExternalLink, Pencil, Power, Trash2, User } from
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { ApplicationStatus, Department, Drive, EntranceExamType, Gender, MentorMapping, MockEvaluation, Student } from "@placement-app/types";
+import type { ApplicationStatus, Department, Drive, EntranceExamType, Gender, MentorMapping, MockEvaluation, PgProgram, Student } from "@placement-app/types";
+import { PG_PROGRAMS_BY_DEPARTMENT } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { setStudentVerified, updateStudentProfile, setStudentActive, removeStudent } from "../../lib/studentsDirectoryLib";
 import type { StudentProfileUpdate } from "../../lib/studentsDirectoryLib";
@@ -84,6 +85,7 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
     rollNo: student.rollNo,
     name: student.name,
     department: student.department,
+    pgProgram: student.pgProgram ?? ("" as PgProgram | ""),
     batchYear: student.batchYear,
     cgpa: student.cgpa,
     activeBacklogs: student.activeBacklogs,
@@ -121,6 +123,7 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
         rollNo: form.rollNo,
         name: form.name,
         department: form.department,
+        pgProgram: form.pgProgram || null,
         batchYear: form.batchYear,
         cgpa: form.cgpa,
         activeBacklogs: form.activeBacklogs,
@@ -163,7 +166,14 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
           </div>
           <div>
             <label className={labelClass}>Department</label>
-            <select value={form.department} onChange={(e) => set("department", e.target.value as Department)} className={inputClass}>
+            <select
+              value={form.department}
+              onChange={(e) => {
+                set("department", e.target.value as Department);
+                set("pgProgram", "");
+              }}
+              className={inputClass}
+            >
               {DEPARTMENTS.map((d) => (
                 <option key={d} value={d}>
                   {d}
@@ -171,6 +181,19 @@ function EditStudentForm({ student, uid, onDone }: { student: Student; uid: stri
               ))}
             </select>
           </div>
+          {(PG_PROGRAMS_BY_DEPARTMENT[form.department] ?? []).length > 0 && (
+            <div>
+              <label className={labelClass}>Program</label>
+              <select value={form.pgProgram} onChange={(e) => set("pgProgram", e.target.value as PgProgram | "")} className={inputClass}>
+                <option value="">UG — B.Tech {form.department}</option>
+                {(PG_PROGRAMS_BY_DEPARTMENT[form.department] ?? []).map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className={labelClass}>Batch year</label>
             <input type="number" value={form.batchYear} onChange={(e) => set("batchYear", Number(e.target.value))} className={inputClass} />
@@ -422,7 +445,8 @@ export default function StudentDetail() {
             title={`${student.rollNo} — ${student.name}`}
             subtitle={
               <span className="flex items-center gap-2">
-                {`${student.department} · Batch ${student.batchYear} · Semester ${student.currentSemester}`}
+                {`${student.pgProgram ?? student.department} · Batch ${student.batchYear} · Semester ${student.currentSemester}`}
+                {student.pgProgram && <Badge variant="neutral">PG</Badge>}
                 {isActive === false && <Badge variant="danger">Inactive</Badge>}
                 {!student.verifiedByFaculty && student.verificationRequestedAt && (
                   <Badge variant="warning">Requested verification {formatRelativeTime(student.verificationRequestedAt)}</Badge>

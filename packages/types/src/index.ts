@@ -38,6 +38,20 @@ export type Department =
   | "CS&BS"
   | "OTHER";
 
+/** PG programs run alongside the UG branches above — same coordinator/HOD,
+ * same drives/eligibility (Department stays e.g. "CSE" for a PG student
+ * too, so every department-scoped feature keeps working unchanged), just a
+ * different degree. Undefined on Student means UG (the common case); set
+ * means this student is in that specific PG program instead. */
+export type PgProgram = "M.Tech CSE" | "M.Tech CSE(AI&ML)" | "M.Tech DECS" | "M.Tech AMS" | "M.Tech EPE";
+
+export const PG_PROGRAMS_BY_DEPARTMENT: Partial<Record<Department, PgProgram[]>> = {
+  CSE: ["M.Tech CSE", "M.Tech CSE(AI&ML)"],
+  ECE: ["M.Tech DECS"],
+  MECH: ["M.Tech AMS"],
+  EEE: ["M.Tech EPE"],
+};
+
 // ----------------------------------------------------------------------------
 // 1. Roles & Users
 // ----------------------------------------------------------------------------
@@ -135,6 +149,10 @@ export interface Student {
   department: Department;
   batchYear: number; // e.g. 2026 (graduating year)
   currentSemester: number;
+  // Undefined = UG (B.Tech <department>), the common case. Set only for a
+  // student in one of the PG programs that run alongside the UG branch —
+  // see PgProgram's doc comment for why department itself doesn't change.
+  pgProgram?: PgProgram;
 
   cgpa: number;
   semesterWiseSgpa?: Record<string, number>; // { "sem1": 8.2, "sem2": 7.9, ... }

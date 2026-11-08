@@ -2,9 +2,16 @@ import { useEffect, useState } from "react";
 import { ref, onValue, update, get, remove } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { AppUser, Department, EntranceExamType, Gender, Student } from "@placement-app/types";
+import type { AppUser, Department, EntranceExamType, Gender, PgProgram, Student } from "@placement-app/types";
 
 const INSTITUTION_ROLES = new Set(["dean", "principal", "cpo", "admin"]);
+
+/** "B.Tech CSE" for a UG student, or the PG program name itself for one of
+ * the PG cohorts running alongside the UG branch — see PgProgram's doc
+ * comment for why department stays e.g. "CSE" for these students too. */
+export function studentProgramLabel(student: Student): string {
+  return student.pgProgram ?? `B.Tech ${student.department}`;
+}
 
 /** dean/principal/cpo get a direct root read of /students (unrestricted, see
  * database.rules.json); coordinator/hod are dept-scoped and instead fan out
@@ -113,6 +120,7 @@ export interface StudentProfileUpdate {
   name?: string;
   department?: Department;
   batchYear?: number;
+  pgProgram?: PgProgram | null;
   cgpa?: number;
   activeBacklogs?: number;
   currentSemester?: number;
