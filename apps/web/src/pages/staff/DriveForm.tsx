@@ -318,7 +318,7 @@ function SelectedStudentsPicker({
             <span className="font-medium text-slate-700">{s.rollNo}</span>
             <span className="truncate">{s.name}</span>
             <span className="ml-auto shrink-0 text-xs text-slate-400">
-              {s.department} · CGPA {s.cgpa}
+              {s.pgProgram ?? s.department} · CGPA {s.cgpa}
             </span>
           </label>
         ))}

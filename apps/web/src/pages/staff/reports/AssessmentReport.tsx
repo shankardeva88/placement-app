@@ -130,7 +130,7 @@ export default function AssessmentReport() {
       filtered.map((r) => [
         r.student.rollNo,
         r.student.name,
-        r.student.department,
+        r.student.pgProgram ?? r.student.department,
         r.student.batchYear,
         r.trainingBatchNames.join("; "),
         r.attempted,
@@ -284,7 +284,7 @@ export default function AssessmentReport() {
                     <tr key={r.student.studentId}>
                       <td className="py-2 pr-4 font-medium text-slate-800">{r.student.rollNo}</td>
                       <td className="py-2 pr-4 text-slate-600">{r.student.name}</td>
-                      <td className="py-2 pr-4 text-slate-600">{r.student.department}</td>
+                      <td className="py-2 pr-4 text-slate-600">{r.student.pgProgram ?? r.student.department}</td>
                       <td className="py-2 pr-4 text-slate-600">{r.student.batchYear}</td>
                       <td className="py-2 pr-4 text-slate-600">{r.trainingBatchNames.join(", ") || "—"}</td>
                       <td className="py-2 pr-4 text-slate-600">{r.total === 0 ? "—" : `${r.attempted}/${r.total}`}</td>

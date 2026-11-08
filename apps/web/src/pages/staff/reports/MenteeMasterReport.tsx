@@ -39,7 +39,12 @@ function MenteeMasterRow({ student }: { student: Student }) {
   return (
     <tr>
       <td className="py-2 pr-4 font-medium text-slate-800">{student.rollNo}</td>
-      <td className="py-2 pr-4 text-slate-600">{student.name}</td>
+      <td className="py-2 pr-4 text-slate-600">
+        <span className="flex items-center gap-1.5">
+          {student.name}
+          {student.pgProgram && <Badge variant="neutral">PG</Badge>}
+        </span>
+      </td>
       <td className="py-2 pr-4 text-slate-600">{student.batchYear}</td>
       <td className="py-2 pr-4 text-slate-600">{student.cgpa}</td>
       <td className="py-2 pr-4 text-slate-600">{student.activeBacklogs}</td>

@@ -1005,11 +1005,12 @@ export default function DriveApplicants() {
               <div className="min-w-0">
                 {student ? (
                   <>
-                    <p className="font-medium text-slate-900">
+                    <p className="flex items-center gap-1.5 font-medium text-slate-900">
                       {student.rollNo} — {student.name}
+                      {student.pgProgram && <Badge variant="neutral">PG</Badge>}
                     </p>
                     <p className="text-sm text-slate-500">
-                      {student.department} · CGPA {student.cgpa} · Backlogs {student.activeBacklogs}
+                      {student.pgProgram ?? student.department} · CGPA {student.cgpa} · Backlogs {student.activeBacklogs}
                       {student.entranceRank && ` · ${student.entranceType ? `${student.entranceType}: ` : ""}${student.entranceRank}`}
                       {student.studentPhone && ` · Mobile: ${student.studentPhone}`}
                       {drive && isMultiRole(drive) && ` · Applied for ${applicationRoleLabel(drive, application)}`}

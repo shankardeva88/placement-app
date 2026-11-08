@@ -102,7 +102,7 @@ export default function PlacementReport() {
       rows.map((r) => [
         r.student?.rollNo ?? "",
         r.student?.name ?? r.offer.studentId,
-        r.student?.department ?? "",
+        (r.student && (r.student.pgProgram ?? r.student.department)) ?? "",
         r.drive?.companyName ?? r.offer.driveId,
         r.offer.designation,
         r.offer.ctc,
@@ -208,7 +208,12 @@ export default function PlacementReport() {
                 {rows.map((r) => (
                   <tr key={r.offer.offerId}>
                     <td className="py-2 pr-4 font-medium text-slate-800">{r.student?.rollNo ?? "—"}</td>
-                    <td className="py-2 pr-4 text-slate-600">{r.student?.name ?? r.offer.studentId}</td>
+                    <td className="py-2 pr-4 text-slate-600">
+                      <span className="flex items-center gap-1.5">
+                        {r.student?.name ?? r.offer.studentId}
+                        {r.student?.pgProgram && <Badge variant="neutral">PG</Badge>}
+                      </span>
+                    </td>
                     <td className="py-2 pr-4 text-slate-600">{r.drive?.companyName ?? r.offer.driveId}</td>
                     <td className="py-2 pr-4 text-slate-600">{r.offer.designation}</td>
                     <td className="py-2 pr-4 text-slate-600">{r.offer.ctc} LPA</td>

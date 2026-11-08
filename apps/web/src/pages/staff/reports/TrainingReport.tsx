@@ -133,7 +133,7 @@ export default function TrainingReport() {
       filtered.map((r) => [
         r.student.rollNo,
         r.student.name,
-        r.student.department,
+        r.student.pgProgram ?? r.student.department,
         r.student.batchYear,
         r.trainingBatchNames.join("; "),
         r.attended,
@@ -287,7 +287,7 @@ export default function TrainingReport() {
                     <tr key={r.student.studentId}>
                       <td className="py-2 pr-4 font-medium text-slate-800">{r.student.rollNo}</td>
                       <td className="py-2 pr-4 text-slate-600">{r.student.name}</td>
-                      <td className="py-2 pr-4 text-slate-600">{r.student.department}</td>
+                      <td className="py-2 pr-4 text-slate-600">{r.student.pgProgram ?? r.student.department}</td>
                       <td className="py-2 pr-4 text-slate-600">{r.student.batchYear}</td>
                       <td className="py-2 pr-4 text-slate-600">{r.trainingBatchNames.join(", ") || "—"}</td>
                       <td className="py-2 pr-4">

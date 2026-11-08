@@ -106,7 +106,7 @@ export default function MockInterviewReport() {
       filtered.map((r) => [
         r.student.rollNo,
         r.student.name,
-        r.student.department,
+        r.student.pgProgram ?? r.student.department,
         r.student.batchYear,
         modulesById[r.evaluation.moduleId]?.name ?? r.evaluation.moduleId,
         mentorsByUid[r.evaluation.mentorId]?.name ?? r.evaluation.mentorId,
@@ -228,7 +228,10 @@ export default function MockInterviewReport() {
                           {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />}
                         </td>
                         <td className="py-2 pr-4 font-medium text-slate-800">
-                          {r.student.rollNo} — {r.student.name}
+                          <span className="flex items-center gap-1.5">
+                            {r.student.rollNo} — {r.student.name}
+                            {r.student.pgProgram && <Badge variant="neutral">PG</Badge>}
+                          </span>
                         </td>
                         <td className="py-2 pr-4 text-slate-600">{r.student.batchYear}</td>
                         <td className="py-2 pr-4 text-slate-600">{modulesById[r.evaluation.moduleId]?.name ?? r.evaluation.moduleId}</td>

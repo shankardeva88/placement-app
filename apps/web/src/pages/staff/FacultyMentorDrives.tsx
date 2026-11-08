@@ -160,8 +160,9 @@ function DriveDetailCard({
                   return (
                     <li key={a.applicationId} className="space-y-1.5">
                       <div className="flex items-center justify-between gap-3 text-sm">
-                        <span className="font-medium text-slate-800">
+                        <span className="flex items-center gap-1.5 font-medium text-slate-800">
                           {student ? `${student.rollNo} — ${student.name}` : a.studentId}
+                          {student?.pgProgram && <Badge variant="neutral">PG</Badge>}
                         </span>
                         <Badge variant={APPLICATION_BADGE[a.status]}>{a.status.replace("_", " ")}</Badge>
                       </div>

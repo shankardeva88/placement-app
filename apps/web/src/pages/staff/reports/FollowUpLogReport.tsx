@@ -182,7 +182,7 @@ export default function FollowUpLogReport() {
         formatDay(r.entry.createdAt),
         r.student.rollNo,
         r.student.name,
-        r.student.department,
+        r.student.pgProgram ?? r.student.department,
         r.student.batchYear,
         mentorsByUid[r.entry.mentorId]?.name ?? r.entry.mentorId,
         CATEGORY_LABEL[r.entry.category],
@@ -294,7 +294,10 @@ export default function FollowUpLogReport() {
                         </td>
                         <td className="py-2 pr-4 text-slate-600">{formatDay(r.entry.createdAt)}</td>
                         <td className="py-2 pr-4 font-medium text-slate-800">
-                          {r.student.rollNo} — {r.student.name}
+                          <span className="flex items-center gap-1.5">
+                            {r.student.rollNo} — {r.student.name}
+                            {r.student.pgProgram && <Badge variant="neutral">PG</Badge>}
+                          </span>
                         </td>
                         <td className="py-2 pr-4 text-slate-600">{mentorsByUid[r.entry.mentorId]?.name ?? r.entry.mentorId}</td>
                         <td className="py-2 pr-4">

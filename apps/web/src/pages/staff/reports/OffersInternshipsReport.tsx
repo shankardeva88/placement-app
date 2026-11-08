@@ -161,7 +161,7 @@ export default function OffersInternshipsReport() {
         return [
           student?.rollNo ?? "",
           student?.name ?? r.studentId,
-          student?.department ?? "",
+          (student && (student.pgProgram ?? student.department)) ?? "",
           student?.batchYear ?? "",
           r.type,
           r.companyName,
@@ -272,7 +272,12 @@ export default function OffersInternshipsReport() {
                   return (
                     <tr key={r.key}>
                       <td className="py-2 pr-4 font-medium text-slate-800">{student?.rollNo ?? "—"}</td>
-                      <td className="py-2 pr-4 text-slate-600">{student?.name ?? r.studentId}</td>
+                      <td className="py-2 pr-4 text-slate-600">
+                        <span className="flex items-center gap-1.5">
+                          {student?.name ?? r.studentId}
+                          {student?.pgProgram && <Badge variant="neutral">PG</Badge>}
+                        </span>
+                      </td>
                       <td className="py-2 pr-4 text-slate-600">{student?.batchYear ?? "—"}</td>
                       <td className="py-2 pr-4">
                         <Badge variant={TYPE_BADGE[r.type]}>{r.type}</Badge>

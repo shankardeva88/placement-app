@@ -137,7 +137,7 @@ export default function DriveEligibility() {
     return eligible.map((s) => ({
       rollNo: s.rollNo,
       name: s.name,
-      department: s.department,
+      department: s.pgProgram ?? s.department,
       cgpa: s.cgpa,
       activeBacklogs: s.activeBacklogs,
       entranceType: s.entranceType ?? "",
@@ -163,7 +163,7 @@ export default function DriveEligibility() {
     if (!eligible) return;
     const lines = eligible.map(
       (s, i) =>
-        `${i + 1}. ${s.rollNo} — ${s.name} — ${s.department}, CGPA ${s.cgpa}` +
+        `${i + 1}. ${s.rollNo} — ${s.name} — ${s.pgProgram ?? s.department}, CGPA ${s.cgpa}` +
         (s.entranceRank ? `, Rank ${s.entranceRank}${s.entranceType ? ` (${s.entranceType})` : ""}` : "")
     );
     const text = `Eligible students for ${drive?.companyName} (${eligible.length}):\n\n${lines.join("\n")}`;
@@ -298,7 +298,7 @@ export default function DriveEligibility() {
                   <tr key={s.studentId}>
                     <td className="py-2 pr-4 font-medium text-slate-800">{s.rollNo}</td>
                     <td className="py-2 pr-4 text-slate-600">{s.name}</td>
-                    <td className="py-2 pr-4 text-slate-600">{s.department}</td>
+                    <td className="py-2 pr-4 text-slate-600">{s.pgProgram ?? s.department}</td>
                     <td className="py-2 pr-4 text-slate-600">{s.cgpa}</td>
                     <td className="py-2 pr-4 text-slate-600">{s.activeBacklogs}</td>
                     <td className="py-2 pr-4 text-slate-600">
@@ -364,7 +364,10 @@ export default function DriveEligibility() {
                   return (
                     <tr key={s.studentId}>
                       <td className="py-2 pr-4 font-medium text-slate-800">
-                        {s.rollNo} — {s.name}
+                        <span className="flex items-center gap-1.5">
+                          {s.rollNo} — {s.name}
+                          {s.pgProgram && <Badge variant="neutral">PG</Badge>}
+                        </span>
                       </td>
                       <td className="py-2 pr-4">
                         <select

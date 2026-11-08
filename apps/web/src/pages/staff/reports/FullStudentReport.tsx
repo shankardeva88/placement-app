@@ -56,6 +56,7 @@ export const COLUMNS: { header: string; get: (s: Student) => string | number }[]
   { header: "Name", get: (s) => s.name },
   { header: "College Email", get: (s) => s.email ?? "" },
   { header: "Department", get: (s) => s.department },
+  { header: "PG Program", get: (s) => s.pgProgram ?? "" },
   { header: "Batch Year", get: (s) => s.batchYear },
   { header: "Current Semester", get: (s) => s.currentSemester },
   { header: "CGPA", get: (s) => s.cgpa },

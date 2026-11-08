@@ -264,7 +264,12 @@ export default function MenteeAssessmentReport() {
                 {filtered.map((r) => (
                   <tr key={r.student.studentId}>
                     <td className="py-2 pr-4 font-medium text-slate-800">{r.student.rollNo}</td>
-                    <td className="py-2 pr-4 text-slate-600">{r.student.name}</td>
+                    <td className="py-2 pr-4 text-slate-600">
+                      <span className="flex items-center gap-1.5">
+                        {r.student.name}
+                        {r.student.pgProgram && <Badge variant="neutral">PG</Badge>}
+                      </span>
+                    </td>
                     <td className="py-2 pr-4 text-slate-600">{r.student.batchYear}</td>
                     <td className="py-2 pr-4 text-slate-600">{r.trainingBatchNames.join(", ") || "—"}</td>
                     <td className="py-2 pr-4 text-slate-600">{r.total === 0 ? "—" : `${r.attempted}/${r.total}`}</td>

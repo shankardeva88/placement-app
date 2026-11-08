@@ -79,14 +79,20 @@ function StudentSearchPicker({
               value === s.uid ? "bg-brand-50 font-medium text-brand-700" : "text-slate-700"
             }`}
           >
-            <span>
+            <span className="flex items-center gap-1.5">
               <span className="font-medium">{s.rollNo}</span> — {s.name}
+              {s.pgProgram && <Badge variant="neutral">PG</Badge>}
             </span>
             {value === s.uid && <Check className="h-3.5 w-3.5 text-brand-600" />}
           </button>
         ))}
       </div>
-      {selected && <p className="mt-1 text-xs text-slate-500">Selected: {selected.rollNo} — {selected.name}</p>}
+      {selected && (
+        <p className="mt-1 text-xs text-slate-500">
+          Selected: {selected.rollNo} — {selected.name}
+          {selected.pgProgram ? ` (${selected.pgProgram})` : ""}
+        </p>
+      )}
     </div>
   );
 }
@@ -512,6 +518,7 @@ function BulkRecordOfferForm({ onDone }: { onDone: () => void }) {
                   <input type="checkbox" checked={selectedUids.has(s.uid)} onChange={() => toggleOne(s.uid)} />
                   <span className="font-medium text-slate-800">{s.rollNo}</span>
                   <span className="text-slate-500">{s.name}</span>
+                  {s.pgProgram && <Badge variant="neutral">PG</Badge>}
                 </label>
               ))}
             </div>
@@ -725,6 +732,7 @@ function BulkEditOffersForm({
                 <input type="checkbox" checked={selectedIds.has(o.offerId)} onChange={() => toggleOne(o.offerId)} />
                 <span className="font-medium text-slate-800">{student?.rollNo ?? o.studentId}</span>
                 <span className="text-slate-500">{student?.name ?? ""}</span>
+                {student?.pgProgram && <Badge variant="neutral">PG</Badge>}
               </label>
             );
           })}
@@ -822,8 +830,9 @@ function CompanyOffersGroup({
               <div key={o.offerId} className="rounded-lg border border-slate-200 p-3">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="font-medium text-slate-900">
+                    <p className="flex items-center gap-1.5 font-medium text-slate-900">
                       {student ? `${student.rollNo} — ${student.name}` : o.studentId}
+                      {student?.pgProgram && <Badge variant="neutral">PG</Badge>}
                     </p>
                     {!isEditing && (
                       <p className="text-sm text-slate-500">
@@ -1211,7 +1220,7 @@ export default function StaffOffers() {
                     <tr key={o.offerId}>
                       <td className="py-2 pr-4 font-medium text-slate-800">{student?.rollNo ?? o.studentId}</td>
                       <td className="py-2 pr-4 text-slate-600">{student?.name ?? "—"}</td>
-                      <td className="py-2 pr-4 text-slate-600">{student?.department ?? "—"}</td>
+                      <td className="py-2 pr-4 text-slate-600">{(student && (student.pgProgram ?? student.department)) ?? "—"}</td>
                       <td className="py-2 pr-4 text-slate-600">{student?.batchYear ?? "—"}</td>
                       <td className="py-2 pr-4">
                         <Badge variant={OFFER_STATUS_BADGE[o.status]}>{o.status}</Badge>

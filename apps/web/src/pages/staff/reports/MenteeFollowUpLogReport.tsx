@@ -236,6 +236,7 @@ export default function MenteeFollowUpLogReport() {
             {menteeStudents.map((s) => (
               <option key={s.uid} value={s.uid}>
                 {s.rollNo} — {s.name}
+                {s.pgProgram ? " (PG)" : ""}
               </option>
             ))}
           </select>
@@ -282,7 +283,10 @@ export default function MenteeFollowUpLogReport() {
                         </td>
                         <td className="py-2 pr-4 text-slate-600">{formatDay(r.entry.createdAt)}</td>
                         <td className="py-2 pr-4 font-medium text-slate-800">
-                          {r.student.rollNo} — {r.student.name}
+                          <span className="flex items-center gap-1.5">
+                            {r.student.rollNo} — {r.student.name}
+                            {r.student.pgProgram && <Badge variant="neutral">PG</Badge>}
+                          </span>
                         </td>
                         <td className="py-2 pr-4">
                           <Badge variant="neutral">

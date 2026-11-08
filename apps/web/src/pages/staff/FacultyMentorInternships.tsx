@@ -31,7 +31,10 @@ function InternshipCard({ internship, student }: { internship: Internship; stude
     <Card>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="font-medium text-slate-900">{student ? `${student.rollNo} — ${student.name}` : internship.studentId}</p>
+          <p className="flex items-center gap-1.5 font-medium text-slate-900">
+            {student ? `${student.rollNo} — ${student.name}` : internship.studentId}
+            {student?.pgProgram && <Badge variant="neutral">PG</Badge>}
+          </p>
           <p className="text-sm text-slate-500">
             {internship.companyName} — {internship.role}
           </p>

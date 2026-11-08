@@ -77,7 +77,7 @@ export default function CertificationReport() {
       filtered.map((r) => [
         r.student.rollNo,
         r.student.name,
-        r.student.department,
+        r.student.pgProgram ?? r.student.department,
         r.student.batchYear,
         r.cert.name,
         formatDate(r.cert.issuedAt),
@@ -178,7 +178,7 @@ export default function CertificationReport() {
                   <tr key={`${r.student.studentId}-${i}`}>
                     <td className="py-2 pr-4 font-medium text-slate-800">{r.student.rollNo}</td>
                     <td className="py-2 pr-4 text-slate-600">{r.student.name}</td>
-                    <td className="py-2 pr-4 text-slate-600">{r.student.department}</td>
+                    <td className="py-2 pr-4 text-slate-600">{r.student.pgProgram ?? r.student.department}</td>
                     <td className="py-2 pr-4 text-slate-600">{r.student.batchYear}</td>
                     <td className="py-2 pr-4 text-slate-600">{r.cert.name}</td>
                     <td className="py-2 pr-4 text-slate-600">{formatDate(r.cert.issuedAt) || "—"}</td>

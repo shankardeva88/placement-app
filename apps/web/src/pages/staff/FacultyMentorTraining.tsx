@@ -95,8 +95,9 @@ function MenteeTrainingRow({ student, trainingFilter }: { student: Student; trai
       <button onClick={() => setExpanded((v) => !v)} className="flex w-full items-center justify-between gap-4 text-left text-sm">
         <span className="flex min-w-0 items-center gap-2">
           {expanded ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
-          <span className="font-medium text-slate-900">
+          <span className="flex items-center gap-1.5 font-medium text-slate-900">
             {student.rollNo} — {student.name}
+            {student.pgProgram && <Badge variant="neutral">PG</Badge>}
           </span>
         </span>
         {batches === null ? (

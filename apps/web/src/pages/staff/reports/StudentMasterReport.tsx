@@ -62,7 +62,7 @@ export default function StudentMasterReport() {
       filtered.map((s) => [
         s.rollNo,
         s.name,
-        s.department,
+        s.pgProgram ?? s.department,
         s.batchYear,
         s.cgpa,
         s.activeBacklogs,
@@ -164,7 +164,7 @@ export default function StudentMasterReport() {
                   <tr key={s.studentId}>
                     <td className="py-2 pr-4 font-medium text-slate-800">{s.rollNo}</td>
                     <td className="py-2 pr-4 text-slate-600">{s.name}</td>
-                    <td className="py-2 pr-4 text-slate-600">{s.department}</td>
+                    <td className="py-2 pr-4 text-slate-600">{s.pgProgram ?? s.department}</td>
                     <td className="py-2 pr-4 text-slate-600">{s.email ?? ""}</td>
                     <td className="py-2 pr-4 text-slate-600">{s.cgpa}</td>
                     <td className="py-2 pr-4 text-slate-600">{s.activeBacklogs}</td>

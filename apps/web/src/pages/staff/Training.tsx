@@ -177,6 +177,7 @@ function CreateBatchForm({ onDone }: { onDone: () => void }) {
             <label key={s.studentId} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-slate-50">
               <input type="checkbox" checked={selectedIds.includes(s.uid)} onChange={() => toggleStudent(s.uid)} />
               <span className="font-medium text-slate-700">{s.rollNo}</span> — {s.name}
+              {s.pgProgram && <Badge variant="neutral">PG</Badge>}
             </label>
           ))}
         </div>
@@ -307,6 +308,7 @@ function EditBatchForm({ batch, onDone }: { batch: TrainingBatch; onDone: () => 
             <label key={s.studentId} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-slate-50">
               <input type="checkbox" checked={selectedIds.includes(s.uid)} onChange={() => toggleStudent(s.uid)} />
               <span className="font-medium text-slate-700">{s.rollNo}</span> — {s.name}
+              {s.pgProgram && <Badge variant="neutral">PG</Badge>}
             </label>
           ))}
         </div>
@@ -820,7 +822,7 @@ function AssessmentScoreRoster({ assessment, batch }: { assessment: TrainingAsse
   const students = useStudentsDirectory(appUser);
   const nameFor = (uid: string) => {
     const s = students?.find((x) => x.uid === uid);
-    return s ? `${s.rollNo} — ${s.name}` : uid;
+    return s ? `${s.rollNo} — ${s.name}${s.pgProgram ? " (PG)" : ""}` : uid;
   };
   const rosterIds = useMemo(() => {
     const rollNoOf = new Map((students ?? []).map((s) => [s.uid, s.rollNo]));
@@ -1337,7 +1339,7 @@ function AttendanceRoster({ session, batch }: { session: TrainingSession; batch:
   const students = useStudentsDirectory(appUser);
   const nameFor = (uid: string) => {
     const s = students?.find((x) => x.uid === uid);
-    return s ? `${s.rollNo} — ${s.name}` : uid;
+    return s ? `${s.rollNo} — ${s.name}${s.pgProgram ? " (PG)" : ""}` : uid;
   };
   // Sorted here rather than trusting stored order — a batch saved before
   // students were added, or edited via an older build, can still have
@@ -1675,8 +1677,9 @@ function StudentStatusLookup() {
             </ul>
           ) : selectedStudent ? (
             <div className="mt-3 space-y-3">
-              <p className="text-sm font-medium text-slate-800">
+              <p className="flex items-center gap-1.5 text-sm font-medium text-slate-800">
                 {selectedStudent.rollNo} — {selectedStudent.name}
+                {selectedStudent.pgProgram && <Badge variant="neutral">PG</Badge>}
               </p>
               {studentBatches.length === 0 ? (
                 <p className="text-sm text-slate-400">Not part of any training batch.</p>
