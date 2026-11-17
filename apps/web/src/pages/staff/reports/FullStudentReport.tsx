@@ -4,6 +4,7 @@ import { ArrowLeft, Download, FileSpreadsheet, Search } from "lucide-react";
 import type { Department, PlacementStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../../auth/AuthContext";
 import { useStudentsDirectory } from "../../../lib/studentsDirectoryLib";
+import { useSelectedDriveCountByStudent, effectivePlacementStatus } from "../../../lib/applicantsLib";
 import { downloadCsv } from "../../../lib/csv";
 import { Card } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
@@ -104,7 +105,17 @@ export const COLUMNS: { header: string; get: (s: Student) => string | number }[]
 
 export default function FullStudentReport() {
   const { appUser } = useAuth();
-  const students = useStudentsDirectory(appUser);
+  const rawStudents = useStudentsDirectory(appUser);
+  const selectedDriveCountByStudent = useSelectedDriveCountByStudent(appUser);
+
+  // placementStatus overridden with the effective value (see
+  // effectivePlacementStatus's doc comment) once, here — COLUMNS' "Placement
+  // Status" getter and every filter below just read s.placementStatus
+  // normally and get the corrected value for free.
+  const students = useMemo(() => {
+    if (!rawStudents || !selectedDriveCountByStudent) return null;
+    return rawStudents.map((s) => ({ ...s, placementStatus: effectivePlacementStatus(s, selectedDriveCountByStudent.get(s.uid) ?? 0) }));
+  }, [rawStudents, selectedDriveCountByStudent]);
 
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState<Department | "">("");

@@ -4,6 +4,7 @@ import { ArrowLeft, Download, FileSpreadsheet, Search } from "lucide-react";
 import type { PlacementStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../../auth/AuthContext";
 import { useStudentsDirectory } from "../../../lib/studentsDirectoryLib";
+import { useSelectedDriveCountByStudent, effectivePlacementStatus } from "../../../lib/applicantsLib";
 import { useMyMentees } from "../../../lib/menteeFollowUpLib";
 import { downloadCsv } from "../../../lib/csv";
 import { COLUMNS, PLACEMENT_BADGE } from "./FullStudentReport";
@@ -27,7 +28,16 @@ const labelClass = "mb-1 block text-sm font-medium text-slate-700";
 export default function MenteeFullReport() {
   const { appUser, firebaseUser } = useAuth();
   const mentees = useMyMentees(appUser, firebaseUser?.uid);
-  const students = useStudentsDirectory(appUser);
+  const rawStudents = useStudentsDirectory(appUser);
+  const selectedDriveCountByStudent = useSelectedDriveCountByStudent(appUser);
+  // placementStatus overridden with the effective value (see
+  // effectivePlacementStatus's doc comment) once, here — COLUMNS' own
+  // "Placement Status" getter and every filter below just read
+  // s.placementStatus normally and get the corrected value for free.
+  const students = useMemo(() => {
+    if (!rawStudents || !selectedDriveCountByStudent) return null;
+    return rawStudents.map((s) => ({ ...s, placementStatus: effectivePlacementStatus(s, selectedDriveCountByStudent.get(s.uid) ?? 0) }));
+  }, [rawStudents, selectedDriveCountByStudent]);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<PlacementStatus | "">("");

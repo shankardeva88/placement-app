@@ -4,6 +4,7 @@ import { ArrowLeft, Download, Users } from "lucide-react";
 import type { Department, PlacementStatus } from "@placement-app/types";
 import { useAuth } from "../../../auth/AuthContext";
 import { useStudentsDirectory } from "../../../lib/studentsDirectoryLib";
+import { useSelectedDriveCountByStudent, effectivePlacementStatus } from "../../../lib/applicantsLib";
 import { downloadCsv } from "../../../lib/csv";
 import { Card } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
@@ -28,10 +29,21 @@ const PLACEMENT_BADGE: Record<PlacementStatus, BadgeVariant> = {
 
 export default function StudentMasterReport() {
   const { appUser } = useAuth();
-  const students = useStudentsDirectory(appUser);
+  const rawStudents = useStudentsDirectory(appUser);
+  const selectedDriveCountByStudent = useSelectedDriveCountByStudent(appUser);
   const [deptFilter, setDeptFilter] = useState<Department | "">("");
   const [statusFilter, setStatusFilter] = useState<PlacementStatus | "">("");
   const [batchFilter, setBatchFilter] = useState<number | "">("");
+
+  // placementStatus overridden with the effective value (see
+  // effectivePlacementStatus's doc comment) once, here — every filter/stat/
+  // export/badge below reads s.placementStatus completely normally and
+  // just gets the corrected value for free, no separate helper to thread
+  // through each of them.
+  const students = useMemo(() => {
+    if (!rawStudents || !selectedDriveCountByStudent) return null;
+    return rawStudents.map((s) => ({ ...s, placementStatus: effectivePlacementStatus(s, selectedDriveCountByStudent.get(s.uid) ?? 0) }));
+  }, [rawStudents, selectedDriveCountByStudent]);
 
   const batchYears = useMemo(() => {
     if (!students) return [];

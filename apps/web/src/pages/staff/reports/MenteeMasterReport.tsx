@@ -4,6 +4,7 @@ import { ArrowLeft, Download, Users } from "lucide-react";
 import type { PlacementStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../../auth/AuthContext";
 import { useStudentsDirectory } from "../../../lib/studentsDirectoryLib";
+import { useSelectedDriveCountByStudent, effectivePlacementStatus } from "../../../lib/applicantsLib";
 import { useMyMentees, useMenteeFollowUps, computeAtRiskReasons } from "../../../lib/menteeFollowUpLib";
 import { sortedSgpaEntries } from "../../../lib/mentorProgressLib";
 import { downloadCsv } from "../../../lib/csv";
@@ -64,7 +65,15 @@ function MenteeMasterRow({ student }: { student: Student }) {
 export default function MenteeMasterReport() {
   const { appUser, firebaseUser } = useAuth();
   const mentees = useMyMentees(appUser, firebaseUser?.uid);
-  const students = useStudentsDirectory(appUser);
+  const rawStudents = useStudentsDirectory(appUser);
+  const selectedDriveCountByStudent = useSelectedDriveCountByStudent(appUser);
+  // placementStatus overridden with the effective value (see
+  // effectivePlacementStatus's doc comment) once, here — everything below
+  // just reads s.placementStatus normally and gets the corrected value.
+  const students = useMemo(() => {
+    if (!rawStudents || !selectedDriveCountByStudent) return null;
+    return rawStudents.map((s) => ({ ...s, placementStatus: effectivePlacementStatus(s, selectedDriveCountByStudent.get(s.uid) ?? 0) }));
+  }, [rawStudents, selectedDriveCountByStudent]);
   const [batchFilter, setBatchFilter] = useState<number | "">("");
 
   const studentsByUid = useMemo(() => Object.fromEntries((students ?? []).map((s) => [s.uid, s])), [students]);

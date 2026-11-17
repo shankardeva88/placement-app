@@ -5,6 +5,7 @@ import type { MenteeFollowUp, MentorMapping } from "@placement-app/types";
 import { DB_NODES } from "@placement-app/types";
 import { useAuth } from "../../../auth/AuthContext";
 import { useStudentsDirectory } from "../../../lib/studentsDirectoryLib";
+import { useSelectedDriveCountByStudent, effectivePlacementStatus } from "../../../lib/applicantsLib";
 import { useDeptScopedCollection } from "../../../lib/useDeptScopedCollection";
 import { useMentorDirectory } from "../../../lib/drivePrepLib";
 import { computeAtRiskReasons } from "../../../lib/menteeFollowUpLib";
@@ -19,7 +20,15 @@ export default function MentorWiseReport() {
   const mappings = useDeptScopedCollection<MentorMapping>(appUser, DB_NODES.mentorMapping, DB_NODES.mentorMappingDeptIndex);
   const followUps = useDeptScopedCollection<MenteeFollowUp>(appUser, DB_NODES.menteeFollowUps, DB_NODES.menteeFollowUpsDeptIndex);
   const mentors = useMentorDirectory(appUser);
-  const students = useStudentsDirectory(appUser);
+  const rawStudents = useStudentsDirectory(appUser);
+  const selectedDriveCountByStudent = useSelectedDriveCountByStudent(appUser);
+  // placementStatus overridden with the effective value (see
+  // effectivePlacementStatus's doc comment) once, here — placedCount below
+  // just reads s.placementStatus normally and gets the corrected value.
+  const students = useMemo(() => {
+    if (!rawStudents || !selectedDriveCountByStudent) return null;
+    return rawStudents.map((s) => ({ ...s, placementStatus: effectivePlacementStatus(s, selectedDriveCountByStudent.get(s.uid) ?? 0) }));
+  }, [rawStudents, selectedDriveCountByStudent]);
 
   const [batchFilter, setBatchFilter] = useState<number | "">("");
 

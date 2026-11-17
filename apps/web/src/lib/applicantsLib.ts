@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { ref, update } from "firebase/database";
 import { db } from "../firebase/config";
 import { DB_NODES } from "@placement-app/types";
-import type { AppUser, Application, ApplicationStatus, Department, Student } from "@placement-app/types";
+import type { AppUser, Application, ApplicationStatus, Department, PlacementStatus, Student } from "@placement-app/types";
 import { useDeptScopedCollection } from "./useDeptScopedCollection";
 import { sendNotification } from "./staffNotificationsLib";
 
@@ -54,6 +54,43 @@ export function useDriveApplicants(
 
 export function useAllApplications(appUser: AppUser | null): Application[] | null {
   return useDeptScopedCollection<Application>(appUser, DB_NODES.applications, DB_NODES.applicationsDeptIndex);
+}
+
+/** Student.placementStatus only flips to "placed" once the student
+ * themselves accepts the resulting offer (see offerActions.ts) — a
+ * student a coordinator has already marked "selected" for a drive is a
+ * real placement regardless of whether they've logged in to accept yet,
+ * which is why a report reading placementStatus directly can show
+ * "not_placed" for someone who's visibly in the Offers list. Every report
+ * that shows placement status should route through effectivePlacementStatus
+ * below instead of reading student.placementStatus directly — same fix as
+ * the one already applied to the staff Dashboard. */
+export function useSelectedDriveCountByStudent(appUser: AppUser | null): Map<string, number> | null {
+  const applications = useAllApplications(appUser);
+  return useMemo(() => {
+    if (!applications) return null;
+    const byStudent = new Map<string, Set<string>>();
+    for (const a of applications) {
+      if (a.status !== "selected") continue;
+      if (!byStudent.has(a.studentId)) byStudent.set(a.studentId, new Set());
+      byStudent.get(a.studentId)!.add(a.driveId);
+    }
+    const counts = new Map<string, number>();
+    for (const [uid, driveIds] of byStudent) counts.set(uid, driveIds.size);
+    return counts;
+  }, [applications]);
+}
+
+/** "opted for higher studies"/"opted out" have no application-side signal
+ * at all, so those two still come straight from placementStatus — only
+ * placed/multiple_offers/not_placed get recomputed from how many drives
+ * the student was actually selected for. */
+export function effectivePlacementStatus(student: Student, selectedDriveCount: number): PlacementStatus {
+  if (student.placementStatus === "opted_higher_studies" || student.placementStatus === "opted_out") {
+    return student.placementStatus;
+  }
+  if (selectedDriveCount === 0) return "not_placed";
+  return selectedDriveCount === 1 ? "placed" : "multiple_offers";
 }
 
 // Composed here (not left to the caller) so every call site — the
