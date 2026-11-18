@@ -25,6 +25,7 @@ import type {
 } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
+import { useSelectedDriveCountByStudent, effectivePlacementStatus } from "../../lib/applicantsLib";
 import { useDeptScopedCollection } from "../../lib/useDeptScopedCollection";
 import {
   assignMentorBulk,
@@ -676,7 +677,16 @@ function MenteeRow({
 function MyMenteesSection() {
   const { appUser, firebaseUser } = useAuth();
   const mentees = useMyMentees(appUser, firebaseUser?.uid);
-  const students = useStudentsDirectory(appUser);
+  const rawStudents = useStudentsDirectory(appUser);
+  const selectedDriveCountByStudent = useSelectedDriveCountByStudent(appUser);
+  // placementStatus overridden with the effective value (see
+  // effectivePlacementStatus's doc comment) once, here — MenteeRow's badge
+  // below just reads student.placementStatus normally and gets the
+  // corrected value for free.
+  const students = useMemo(() => {
+    if (!rawStudents || !selectedDriveCountByStudent) return null;
+    return rawStudents.map((s) => ({ ...s, placementStatus: effectivePlacementStatus(s, selectedDriveCountByStudent.get(s.uid) ?? 0) }));
+  }, [rawStudents, selectedDriveCountByStudent]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [batchFilter, setBatchFilter] = useState<number | "">("");
 
@@ -808,7 +818,16 @@ function MentorPicker({
 function AssignMentorSection() {
   const { appUser } = useAuth();
   const { showToast } = useToast();
-  const students = useStudentsDirectory(appUser);
+  const rawStudents = useStudentsDirectory(appUser);
+  const selectedDriveCountByStudent = useSelectedDriveCountByStudent(appUser);
+  // placementStatus overridden with the effective value (see
+  // effectivePlacementStatus's doc comment) once, here — the roster's
+  // placement badge below just reads s.placementStatus normally and gets
+  // the corrected value for free.
+  const students = useMemo(() => {
+    if (!rawStudents || !selectedDriveCountByStudent) return null;
+    return rawStudents.map((s) => ({ ...s, placementStatus: effectivePlacementStatus(s, selectedDriveCountByStudent.get(s.uid) ?? 0) }));
+  }, [rawStudents, selectedDriveCountByStudent]);
   const mappings = useDeptScopedCollection<MentorMapping>(appUser, DB_NODES.mentorMapping, DB_NODES.mentorMappingDeptIndex);
   const mentors = useMentorDirectory(appUser);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());

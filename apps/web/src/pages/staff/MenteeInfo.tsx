@@ -4,6 +4,7 @@ import { AlertTriangle, ChevronDown, ChevronRight, Users } from "lucide-react";
 import type { PlacementStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
+import { useSelectedDriveCountByStudent, effectivePlacementStatus } from "../../lib/applicantsLib";
 import { useMyMentees, useMenteeFollowUps, computeAtRiskReasons, STALE_FOLLOW_UP_DAYS } from "../../lib/menteeFollowUpLib";
 import { sortedSgpaEntries } from "../../lib/mentorProgressLib";
 import { Card } from "../../components/ui/Card";
@@ -101,7 +102,16 @@ const inputClass =
 export default function MenteeInfo() {
   const { appUser, firebaseUser } = useAuth();
   const mentees = useMyMentees(appUser, firebaseUser?.uid);
-  const students = useStudentsDirectory(appUser);
+  const rawStudents = useStudentsDirectory(appUser);
+  const selectedDriveCountByStudent = useSelectedDriveCountByStudent(appUser);
+  // placementStatus overridden with the effective value (see
+  // effectivePlacementStatus's doc comment) once, here — MenteeRow's badge
+  // and everything else below just reads student.placementStatus normally
+  // and gets the corrected value for free.
+  const students = useMemo(() => {
+    if (!rawStudents || !selectedDriveCountByStudent) return null;
+    return rawStudents.map((s) => ({ ...s, placementStatus: effectivePlacementStatus(s, selectedDriveCountByStudent.get(s.uid) ?? 0) }));
+  }, [rawStudents, selectedDriveCountByStudent]);
   const [batchFilter, setBatchFilter] = useState<number | "">("");
 
   const studentsByUid = useMemo(() => Object.fromEntries((students ?? []).map((s) => [s.uid, s])), [students]);

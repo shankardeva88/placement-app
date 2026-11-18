@@ -28,7 +28,7 @@ import { DB_NODES } from "@placement-app/types";
 import type { AlumniRecord, AppUser, Department, Drive, DriveStatus, DriveType, PlacementStatus, Student } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { useStudentsDirectory } from "../../lib/studentsDirectoryLib";
-import { useAllApplications } from "../../lib/applicantsLib";
+import { useAllApplications, useSelectedDriveCountByStudent, effectivePlacementStatus } from "../../lib/applicantsLib";
 import { useAllOffers } from "../../lib/offersManagementLib";
 import { driveRoleSummary } from "../../lib/driveRolesLib";
 import { useAllAlumni } from "../../lib/alumniLib";
@@ -903,7 +903,16 @@ const FACULTY_MENTOR_QUICK_LINKS: { to: string; label: string; icon: LucideIcon;
 function FacultyMentorDashboard() {
   const { appUser, firebaseUser } = useAuth();
   const mentees = useMyMentees(appUser, firebaseUser?.uid);
-  const students = useStudentsDirectory(appUser);
+  const rawStudents = useStudentsDirectory(appUser);
+  const selectedDriveCountByStudent = useSelectedDriveCountByStudent(appUser);
+  // placementStatus overridden with the effective value (see
+  // effectivePlacementStatus's doc comment) once, here — stats.placed and
+  // MenteeRow's badge below just read s.placementStatus normally and get
+  // the corrected value for free.
+  const students = useMemo(() => {
+    if (!rawStudents || !selectedDriveCountByStudent) return null;
+    return rawStudents.map((s) => ({ ...s, placementStatus: effectivePlacementStatus(s, selectedDriveCountByStudent.get(s.uid) ?? 0) }));
+  }, [rawStudents, selectedDriveCountByStudent]);
 
   const studentsByUid = useMemo(() => Object.fromEntries((students ?? []).map((s) => [s.uid, s])), [students]);
 

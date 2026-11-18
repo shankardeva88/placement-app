@@ -10,7 +10,7 @@ import { PG_PROGRAMS_BY_DEPARTMENT } from "@placement-app/types";
 import { useAuth } from "../../auth/AuthContext";
 import { setStudentVerified, updateStudentProfile, setStudentActive, removeStudent } from "../../lib/studentsDirectoryLib";
 import type { StudentProfileUpdate } from "../../lib/studentsDirectoryLib";
-import { useAllApplications } from "../../lib/applicantsLib";
+import { useAllApplications, effectivePlacementStatus } from "../../lib/applicantsLib";
 import { useAllOffers } from "../../lib/offersManagementLib";
 import { useIndexedList } from "../../lib/mentorProgressLib";
 import { useModulesByIds } from "../../lib/mockEvaluationLib";
@@ -324,6 +324,10 @@ export default function StudentDetail() {
   const allOffers = useAllOffers(appUser);
   const applications = allApplications?.filter((a) => a.studentId === uid) ?? [];
   const offers = allOffers?.filter((o) => o.studentId === uid) ?? [];
+  // Same effective-status basis as every other placement display in the
+  // app (see effectivePlacementStatus's doc comment) — "selected" already
+  // means placed, regardless of whether the offer's been accepted yet.
+  const selectedDriveCount = new Set(applications.filter((a) => a.status === "selected").map((a) => a.driveId)).size;
   const allTrainingBatches = useAllTrainingBatches();
   const allTrainingSessions = useAllTrainingSessions();
   const trainingAttendance = useAllAttendance(appUser);
@@ -511,7 +515,7 @@ export default function StudentDetail() {
             <Field label="Backlog history">{student.backlogHistory}</Field>
             <Field label="Academic gap">{student.academicGap == null ? undefined : student.academicGap ? "Yes" : "No"}</Field>
             <Field label="Placement status">
-              <span className="capitalize">{student.placementStatus.replace("_", " ")}</span>
+              <span className="capitalize">{effectivePlacementStatus(student, selectedDriveCount).replace("_", " ")}</span>
             </Field>
             <Field label="Verified">{student.verifiedByFaculty ? "Yes" : "No"}</Field>
             <Field label="Alumni">{student.isAlumni ? "Yes" : "No"}</Field>

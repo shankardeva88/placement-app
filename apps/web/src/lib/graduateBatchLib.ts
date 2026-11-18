@@ -80,7 +80,18 @@ export async function graduateBatch(candidates: GraduateBatchCandidate[], actorU
       name: student.name,
       department: student.department,
       batchYear: student.batchYear,
-      placementStatus: PLACEMENT_STATUS_MAP[student.placementStatus],
+      // Same "an offer existing is what makes someone placed" basis as the
+      // rest of the app (see effectivePlacementStatus's doc comment) — not
+      // student.placementStatus, which only flips once the student accepts
+      // the offer. Without this, a candidate the Graduate-a-Batch preview
+      // already shows as "Company X · 5 LPA" (via `offer` below) could
+      // still get archived with placementStatus "unplaced", contradicting
+      // the ctc/designation/companyName fields on the very same record.
+      placementStatus: offer
+        ? "placed"
+        : student.placementStatus === "opted_higher_studies"
+          ? "higher_studies"
+          : "unplaced",
       addedBy: actorUid,
       createdAt: now,
       updatedAt: now,

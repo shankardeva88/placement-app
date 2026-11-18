@@ -12,6 +12,7 @@ import {
   setStudentsSemesterBulk,
 } from "../../lib/studentsDirectoryLib";
 import { createBulkStudent } from "../../lib/bulkImportLib";
+import { useSelectedDriveCountByStudent, effectivePlacementStatus } from "../../lib/applicantsLib";
 import { useAllTrainingBatches } from "../../lib/trainingManagementLib";
 import { useSignupAllowlist, addToSignupAllowlist, removeFromSignupAllowlist } from "../../lib/signupAllowlistLib";
 import { useToast } from "../../components/ui/Toast";
@@ -399,7 +400,16 @@ function SignupApprovalsSection({ onDone }: { onDone: () => void }) {
 export default function Students() {
   const { appUser } = useAuth();
   const { showToast } = useToast();
-  const students = useStudentsDirectory(appUser);
+  const rawStudents = useStudentsDirectory(appUser);
+  const selectedDriveCountByStudent = useSelectedDriveCountByStudent(appUser);
+  // placementStatus overridden with the effective value (see
+  // effectivePlacementStatus's doc comment) once, here — the placement
+  // filter/stats/badge below just read s.placementStatus normally and get
+  // the corrected value for free.
+  const students = useMemo(() => {
+    if (!rawStudents || !selectedDriveCountByStudent) return null;
+    return rawStudents.map((s) => ({ ...s, placementStatus: effectivePlacementStatus(s, selectedDriveCountByStudent.get(s.uid) ?? 0) }));
+  }, [rawStudents, selectedDriveCountByStudent]);
   const trainingBatches = useAllTrainingBatches();
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState<Department | "">("");

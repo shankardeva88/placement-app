@@ -18,6 +18,7 @@ import { DB_NODES } from "@placement-app/types";
 import type { Offer, PlacementStatus, Student } from "@placement-app/types";
 import { useAuth } from "../auth/AuthContext";
 import { useMyApplications } from "../lib/useMyApplications";
+import { effectivePlacementStatus } from "../lib/applicantsLib";
 import { useOwnedDriveRecords } from "../lib/useOwnedDriveRecords";
 import { useRelevantNotifications } from "../lib/notificationsLib";
 import { requestProfileVerification } from "../lib/studentsDirectoryLib";
@@ -189,6 +190,14 @@ export default function Dashboard() {
   const offers = useOwnedDriveRecords<Offer>(student?.uid, DB_NODES.offers);
   const notifications = useRelevantNotifications(student);
 
+  // Same effective-status basis as every other placement display in the
+  // app (see effectivePlacementStatus's doc comment) — "selected" already
+  // means placed here too, regardless of whether this student's clicked
+  // accept on the resulting offer yet.
+  const selectedDriveCount = new Set(
+    (applications ?? []).filter((a) => a.record?.status === "selected").map((a) => a.drive.driveId)
+  ).size;
+
   const applicationCount = applications?.filter((a) => a.record !== null).length;
   const offerCount = offers?.filter((o) => o.record !== null).length;
   const unreadCount = notifications?.filter((n) => !n.readBy?.[student?.uid ?? ""]).length;
@@ -207,8 +216,8 @@ export default function Dashboard() {
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <Badge variant="neutral">{student.department}</Badge>
               <Badge variant="neutral">Batch {student.batchYear}</Badge>
-              <Badge variant={PLACEMENT_BADGE[student.placementStatus]}>
-                {student.placementStatus.replace("_", " ")}
+              <Badge variant={PLACEMENT_BADGE[effectivePlacementStatus(student, selectedDriveCount)]}>
+                {effectivePlacementStatus(student, selectedDriveCount).replace("_", " ")}
               </Badge>
               <Badge variant={student.verifiedByFaculty ? "success" : "danger"}>
                 {student.verifiedByFaculty ? "Profile verified" : "Profile pending"}
