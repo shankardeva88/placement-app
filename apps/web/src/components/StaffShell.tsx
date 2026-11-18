@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import {
   LayoutDashboard,
   Briefcase,
@@ -223,7 +223,14 @@ export function StaffShell({ children }: { children: ReactNode }) {
         </header>
 
         <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">
-          <div className="mx-auto max-w-6xl">{children}</div>
+          <div className="mx-auto max-w-6xl">
+            {/* Every page is its own lazy-loaded chunk (see App.tsx) — this
+                Suspense boundary sits around just the content area, not the
+                whole shell, so the sidebar/header stay put and only this
+                part shows "Loading…" while a not-yet-visited page's chunk
+                downloads. */}
+            <Suspense fallback={<p className="text-sm text-slate-400">Loading…</p>}>{children}</Suspense>
+          </div>
         </main>
       </div>
     </div>

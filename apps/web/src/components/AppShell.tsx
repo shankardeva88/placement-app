@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import {
   LayoutDashboard,
   GraduationCap,
@@ -147,7 +147,14 @@ export function AppShell({ children }: { children: ReactNode }) {
               coordinator/mentor shell (StaffShell.tsx) at the same
               breakpoint, which left a lot of empty space on both sides on a
               big monitor. Matched to the same width now. */}
-          <div className="mx-auto max-w-6xl">{children}</div>
+          <div className="mx-auto max-w-6xl">
+            {/* Every page is its own lazy-loaded chunk (see App.tsx) — this
+                Suspense boundary sits around just the content area, not the
+                whole shell, so the sidebar/header stay put and only this
+                part shows "Loading…" while a not-yet-visited page's chunk
+                downloads. */}
+            <Suspense fallback={<p className="text-sm text-slate-400">Loading…</p>}>{children}</Suspense>
+          </div>
         </main>
       </div>
     </div>

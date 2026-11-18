@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -5,79 +6,94 @@ import { AppLayoutRoute } from "./components/AppLayoutRoute";
 import { StaffLayoutRoute } from "./components/StaffLayoutRoute";
 import { RootRedirect } from "./components/RootRedirect";
 import { ToastProvider } from "./components/ui/Toast";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import ForgotPassword from "./pages/ForgotPassword";
-import ChangePassword from "./pages/ChangePassword";
-import ProfileSetup from "./pages/ProfileSetup";
-import Dashboard from "./pages/Dashboard";
-import Drives from "./pages/Drives";
-import AcademicRecord from "./pages/AcademicRecord";
-import PersonalDetails from "./pages/PersonalDetails";
-import Offers from "./pages/Offers";
-import Internships from "./pages/Internships";
-import Notifications from "./pages/Notifications";
-import Training from "./pages/Training";
-import MentorProgress from "./pages/MentorProgress";
-import MockPerformance from "./pages/MockPerformance";
-import CheckIn from "./pages/CheckIn";
-import StaffDashboard from "./pages/staff/StaffDashboard";
-import StaffDrives from "./pages/staff/Drives";
-import FacultyMentorDrives from "./pages/staff/FacultyMentorDrives";
-import FacultyMentorInternships from "./pages/staff/FacultyMentorInternships";
-import MenteeDriveStatus from "./pages/staff/MenteeDriveStatus";
-import DriveApplicants from "./pages/staff/DriveApplicants";
-import DriveEligibility from "./pages/staff/DriveEligibility";
-import Students from "./pages/staff/Students";
-import BulkImportStudents from "./pages/staff/BulkImportStudents";
-import BulkUpdateStudents from "./pages/staff/BulkUpdateStudents";
-import ImportTrainings from "./pages/staff/ImportTrainings";
-import StudentDetail from "./pages/staff/StudentDetail";
-import StaffOffers from "./pages/staff/Offers";
-import StaffInternships from "./pages/staff/Internships";
-import StaffNotifications from "./pages/staff/Notifications";
-import StaffTraining from "./pages/staff/Training";
-import FacultyMentorTraining from "./pages/staff/FacultyMentorTraining";
-import AttendanceReport from "./pages/staff/AttendanceReport";
-import MentorTools from "./pages/staff/MentorTools";
-import MenteeInfo from "./pages/staff/MenteeInfo";
-import MockEvaluations from "./pages/staff/MockEvaluations";
-import ManageStaff from "./pages/staff/ManageStaff";
-import Alumni from "./pages/staff/Alumni";
-import ReportsHome from "./pages/staff/reports/ReportsHome";
-import StudentMasterReport from "./pages/staff/reports/StudentMasterReport";
-import FullStudentReport from "./pages/staff/reports/FullStudentReport";
-import TrainingReport from "./pages/staff/reports/TrainingReport";
-import AssessmentReport from "./pages/staff/reports/AssessmentReport";
-import CertificationReport from "./pages/staff/reports/CertificationReport";
-import PlacementReport from "./pages/staff/reports/PlacementReport";
-import OffersInternshipsReport from "./pages/staff/reports/OffersInternshipsReport";
-import DriveSummaryReport from "./pages/staff/reports/DriveSummaryReport";
-import DriveStudentWiseReport from "./pages/staff/reports/DriveStudentWiseReport";
-import MentorWiseReport from "./pages/staff/reports/MentorWiseReport";
-import AlumniReport from "./pages/staff/reports/AlumniReport";
-import MenteeRosterReport from "./pages/staff/reports/MenteeRosterReport";
-import FollowUpLogReport from "./pages/staff/reports/FollowUpLogReport";
-import MockInterviewReport from "./pages/staff/reports/MockInterviewReport";
-import MockInterviewAnalytics from "./pages/staff/reports/MockInterviewAnalytics";
-import ResumeReviewReport from "./pages/staff/reports/ResumeReviewReport";
-import SkillAssessmentReport from "./pages/staff/reports/SkillAssessmentReport";
-import MentorReportsHome from "./pages/staff/reports/MentorReportsHome";
-import MenteeMasterReport from "./pages/staff/reports/MenteeMasterReport";
-import MenteeFullReport from "./pages/staff/reports/MenteeFullReport";
-import MenteeOffersInternshipsReport from "./pages/staff/reports/MenteeOffersInternshipsReport";
-import MenteeTrainingReport from "./pages/staff/reports/MenteeTrainingReport";
-import MenteeAssessmentReport from "./pages/staff/reports/MenteeAssessmentReport";
-import MenteeDriveSummaryReport from "./pages/staff/reports/MenteeDriveSummaryReport";
-import MenteeFollowUpReport from "./pages/staff/reports/MenteeFollowUpReport";
-import MenteeFollowUpLogReport from "./pages/staff/reports/MenteeFollowUpLogReport";
-import MenteeMockEvaluationReport from "./pages/staff/reports/MenteeMockEvaluationReport";
+const Login = lazy(() => import("./pages/Login"));
+const Signup = lazy(() => import("./pages/Signup"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ChangePassword = lazy(() => import("./pages/ChangePassword"));
+const ProfileSetup = lazy(() => import("./pages/ProfileSetup"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Drives = lazy(() => import("./pages/Drives"));
+const AcademicRecord = lazy(() => import("./pages/AcademicRecord"));
+const PersonalDetails = lazy(() => import("./pages/PersonalDetails"));
+const Offers = lazy(() => import("./pages/Offers"));
+const Internships = lazy(() => import("./pages/Internships"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const Training = lazy(() => import("./pages/Training"));
+const MentorProgress = lazy(() => import("./pages/MentorProgress"));
+const MockPerformance = lazy(() => import("./pages/MockPerformance"));
+const CheckIn = lazy(() => import("./pages/CheckIn"));
+const StaffDashboard = lazy(() => import("./pages/staff/StaffDashboard"));
+const StaffDrives = lazy(() => import("./pages/staff/Drives"));
+const FacultyMentorDrives = lazy(() => import("./pages/staff/FacultyMentorDrives"));
+const FacultyMentorInternships = lazy(() => import("./pages/staff/FacultyMentorInternships"));
+const MenteeDriveStatus = lazy(() => import("./pages/staff/MenteeDriveStatus"));
+const DriveApplicants = lazy(() => import("./pages/staff/DriveApplicants"));
+const DriveEligibility = lazy(() => import("./pages/staff/DriveEligibility"));
+const Students = lazy(() => import("./pages/staff/Students"));
+const BulkImportStudents = lazy(() => import("./pages/staff/BulkImportStudents"));
+const BulkUpdateStudents = lazy(() => import("./pages/staff/BulkUpdateStudents"));
+const ImportTrainings = lazy(() => import("./pages/staff/ImportTrainings"));
+const StudentDetail = lazy(() => import("./pages/staff/StudentDetail"));
+const StaffOffers = lazy(() => import("./pages/staff/Offers"));
+const StaffInternships = lazy(() => import("./pages/staff/Internships"));
+const StaffNotifications = lazy(() => import("./pages/staff/Notifications"));
+const StaffTraining = lazy(() => import("./pages/staff/Training"));
+const FacultyMentorTraining = lazy(() => import("./pages/staff/FacultyMentorTraining"));
+const AttendanceReport = lazy(() => import("./pages/staff/AttendanceReport"));
+const MentorTools = lazy(() => import("./pages/staff/MentorTools"));
+const MenteeInfo = lazy(() => import("./pages/staff/MenteeInfo"));
+const MockEvaluations = lazy(() => import("./pages/staff/MockEvaluations"));
+const ManageStaff = lazy(() => import("./pages/staff/ManageStaff"));
+const Alumni = lazy(() => import("./pages/staff/Alumni"));
+const ReportsHome = lazy(() => import("./pages/staff/reports/ReportsHome"));
+const StudentMasterReport = lazy(() => import("./pages/staff/reports/StudentMasterReport"));
+const FullStudentReport = lazy(() => import("./pages/staff/reports/FullStudentReport"));
+const TrainingReport = lazy(() => import("./pages/staff/reports/TrainingReport"));
+const AssessmentReport = lazy(() => import("./pages/staff/reports/AssessmentReport"));
+const CertificationReport = lazy(() => import("./pages/staff/reports/CertificationReport"));
+const PlacementReport = lazy(() => import("./pages/staff/reports/PlacementReport"));
+const OffersInternshipsReport = lazy(() => import("./pages/staff/reports/OffersInternshipsReport"));
+const DriveSummaryReport = lazy(() => import("./pages/staff/reports/DriveSummaryReport"));
+const DriveStudentWiseReport = lazy(() => import("./pages/staff/reports/DriveStudentWiseReport"));
+const MentorWiseReport = lazy(() => import("./pages/staff/reports/MentorWiseReport"));
+const AlumniReport = lazy(() => import("./pages/staff/reports/AlumniReport"));
+const MenteeRosterReport = lazy(() => import("./pages/staff/reports/MenteeRosterReport"));
+const FollowUpLogReport = lazy(() => import("./pages/staff/reports/FollowUpLogReport"));
+const MockInterviewReport = lazy(() => import("./pages/staff/reports/MockInterviewReport"));
+const MockInterviewAnalytics = lazy(() => import("./pages/staff/reports/MockInterviewAnalytics"));
+const ResumeReviewReport = lazy(() => import("./pages/staff/reports/ResumeReviewReport"));
+const SkillAssessmentReport = lazy(() => import("./pages/staff/reports/SkillAssessmentReport"));
+const MentorReportsHome = lazy(() => import("./pages/staff/reports/MentorReportsHome"));
+const MenteeMasterReport = lazy(() => import("./pages/staff/reports/MenteeMasterReport"));
+const MenteeFullReport = lazy(() => import("./pages/staff/reports/MenteeFullReport"));
+const MenteeOffersInternshipsReport = lazy(() => import("./pages/staff/reports/MenteeOffersInternshipsReport"));
+const MenteeTrainingReport = lazy(() => import("./pages/staff/reports/MenteeTrainingReport"));
+const MenteeAssessmentReport = lazy(() => import("./pages/staff/reports/MenteeAssessmentReport"));
+const MenteeDriveSummaryReport = lazy(() => import("./pages/staff/reports/MenteeDriveSummaryReport"));
+const MenteeFollowUpReport = lazy(() => import("./pages/staff/reports/MenteeFollowUpReport"));
+const MenteeFollowUpLogReport = lazy(() => import("./pages/staff/reports/MenteeFollowUpLogReport"));
+const MenteeMockEvaluationReport = lazy(() => import("./pages/staff/reports/MenteeMockEvaluationReport"));
+
+// Every route above is its own lazy-loaded chunk now instead of one ~1.3MB
+// bundle containing every staff report/page regardless of which one a
+// given login actually visits — that single bundle was the main reason the
+// app felt slow to load. This only shows while THIS route's chunk is still
+// downloading (first visit to it, or after a deploy); every layout/shell
+// chrome around it (sidebar, header) is unaffected since those aren't lazy.
+function PageLoadingFallback() {
+  return (
+    <div className="flex h-screen items-center justify-center text-sm text-slate-400">
+      Loading…
+    </div>
+  );
+}
 
 export default function App() {
   return (
     <ToastProvider>
       <AuthProvider>
-        <Routes>
+        <Suspense fallback={<PageLoadingFallback />}>
+          <Routes>
           <Route path="/" element={<RootRedirect />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
@@ -603,7 +619,8 @@ export default function App() {
               </StaffLayoutRoute>
             }
           />
-        </Routes>
+          </Routes>
+        </Suspense>
       </AuthProvider>
     </ToastProvider>
   );
