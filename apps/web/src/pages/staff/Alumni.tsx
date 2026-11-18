@@ -168,7 +168,7 @@ function AlumniForm({
             <label className={labelClass}>CTC (LPA)</label>
             <input
               type="number"
-              step="0.1"
+              step="0.01"
               value={form.ctc ?? ""}
               onChange={(e) => set("ctc", e.target.value ? Number(e.target.value) : undefined)}
               className={inputClass}

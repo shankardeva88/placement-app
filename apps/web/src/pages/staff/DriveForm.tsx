@@ -507,7 +507,7 @@ export function DriveForm({
         </div>
         <div>
           <label className={labelClass}>{extraRoles.length > 0 ? "CTC (1st role, LPA)" : "CTC (LPA)"}</label>
-          <input type="number" step="0.1" min={0} required value={ctc} onChange={(e) => setCtc(Number(e.target.value))} className={inputClass} />
+          <input type="number" step="0.01" min={0} required value={ctc} onChange={(e) => setCtc(Number(e.target.value))} className={inputClass} />
         </div>
         <div>
           <label className={labelClass}>Drive date</label>
@@ -536,7 +536,7 @@ export function DriveForm({
               <div className="w-32 shrink-0">
                 <input
                   type="number"
-                  step="0.1"
+                  step="0.01"
                   min={0}
                   placeholder="CTC (LPA)"
                   value={r.ctc}

@@ -270,7 +270,7 @@ function RecordOfferForm({ onDone }: { onDone: () => void }) {
         </div>
         <div>
           <label className={labelClass}>CTC (LPA)</label>
-          <input type="number" step="0.1" min={0} required value={ctc} onChange={(e) => setCtc(Number(e.target.value))} className={inputClass} />
+          <input type="number" step="0.01" min={0} required value={ctc} onChange={(e) => setCtc(Number(e.target.value))} className={inputClass} />
         </div>
       </div>
       <div>
@@ -477,7 +477,7 @@ function BulkRecordOfferForm({ onDone }: { onDone: () => void }) {
         </div>
         <div>
           <label className={labelClass}>CTC (LPA)</label>
-          <input type="number" step="0.1" min={0} required value={ctc} onChange={(e) => setCtc(Number(e.target.value))} className={inputClass} />
+          <input type="number" step="0.01" min={0} required value={ctc} onChange={(e) => setCtc(Number(e.target.value))} className={inputClass} />
         </div>
       </div>
       <div>
@@ -602,7 +602,7 @@ function EditOfferForm({
         <label className={labelClass}>CTC (LPA)</label>
         <input
           type="number"
-          step="0.1"
+          step="0.01"
           min={0}
           required
           value={ctc}
@@ -701,7 +701,7 @@ function BulkEditOffersForm({
           <label className={labelClass}>CTC (LPA)</label>
           <input
             type="number"
-            step="0.1"
+            step="0.01"
             min={0}
             required
             value={ctc}
